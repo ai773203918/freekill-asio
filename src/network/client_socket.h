@@ -16,6 +16,10 @@ public:
 
   void start();
 
+  // signal connectors
+  void set_disconnected_callback(std::function<void()>);
+  void set_message_got_callback(std::function<void(cbor_item_t *)>);
+
   /*
   void disconnectFromHost();
   void installAESKey(const QByteArray &key);
@@ -26,18 +30,19 @@ public:
   QString peerName() const;
   QString peerAddress() const;
   QTimer timerSignup;
-
-signals:
-  void message_got(const QCborArray &msg);
-  void error_message(const QString &msg);
-  void disconnected();
-  void connected();
   */
 
 private:
   tcp::socket m_socket;
 
   void wait_for_message();
+
+  std::vector<unsigned char> cborBuffer;
+  std::vector<cbor_item_t> readCborArrsFromBuffer(cbor_error *err);
+
+  // signals
+  std::function<void()> disconnected_callback;
+  std::function<void(cbor_item_t *)> message_got_callback;
 
   /*
   QByteArray aesEnc(const QByteArray &in);
@@ -47,11 +52,7 @@ private:
   AES_KEY aes_key;
   bool aes_ready;
 
-  QByteArray cborBuffer;
-
   void getMessage();
   void raiseError(QAbstractSocket::SocketError error);
-
-  QList<QCborArray> readCborArrsFromBuffer(QCborError *err);
   */
 };

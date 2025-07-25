@@ -74,7 +74,7 @@ bool ClientSocket::getMessage(std::size_t length) {
 
   cbor_error err;
   auto arr = readCborArrsFromBuffer(&err);
-  if (err.code == CBOR_ERR_NOTENOUGHDATA) {
+  if (err.code == CBOR_ERR_NOTENOUGHDATA || err.code == CBOR_ERR_NODATA) {
     for (auto &a : arr) {
       message_got_callback(a);
       cbor_decref(&a);
@@ -88,47 +88,6 @@ bool ClientSocket::getMessage(std::size_t length) {
     return false;
   }
 }
-
-/*
-// 通信上只涉及数字、bytes两种类型而已，以及array
-static QCborValue readItem(QCborStreamReader &reader) {
-  switch (reader.type()) {
-    case QCborStreamReader::UnsignedInteger:
-    case QCborStreamReader::NegativeInteger: {
-      auto val = reader.toInteger();
-      reader.next();
-      return val;
-    }
-    case QCborStreamReader::ByteArray: {
-      QByteArray ret;
-      auto r = reader.readByteArray();
-      while (r.status == QCborStreamReader::Ok) {
-        ret += r.data;
-        r = reader.readByteArray();
-      }
-
-      if (r.status == QCborStreamReader::Error) {
-        // handle error condition
-        ret.clear();
-      }
-      return ret;
-    }
-    case QCborStreamReader::Array: {
-      QCborArray arr;
-      reader.enterContainer();
-      while (reader.lastError() == QCborError::NoError && reader.hasNext()) {
-        arr << readItem(reader);
-      }
-      if (reader.lastError() == QCborError::NoError)
-        reader.leaveContainer();
-      return arr;
-    }
-    default:
-      break;
-  }
-  return QCborValue();
-}
-*/
 
 std::vector<cbor_item_t *> ClientSocket::readCborArrsFromBuffer(cbor_error *err) {
   auto cbuf = (unsigned char *)cborBuffer.data();

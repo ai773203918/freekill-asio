@@ -34,6 +34,7 @@ set(freekill_SRCS
 target_precompile_headers(freekill-asio PRIVATE pch.h)
 target_sources(freekill-asio PRIVATE ${freekill_SRCS})
 target_link_libraries(freekill-asio PRIVATE
+  cbor
   sqlite3
   OpenSSL::Crypto
   git2

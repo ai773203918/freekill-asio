@@ -3,14 +3,10 @@
 #include "server/server.h"
 
 int main(int argc, char *argv[]) {
-  try {
-    asio::io_context io_ctx;
+  asio::io_context io_ctx;
 
-    auto &server = Server::instance();
-    server->listen( io_ctx, tcp::endpoint(tcp::v6(), 9927u) );
+  auto &server = Server::instance();
+  server->listen( io_ctx, tcp::endpoint(tcp::v6(), 9527u) );
 
-    io_ctx.run();
-  } catch (std::exception e) {
-    spdlog::error(e.what());
-  }
+  io_ctx.run();
 }

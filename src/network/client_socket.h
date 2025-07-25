@@ -16,7 +16,7 @@ public:
   void start();
 
   tcp::socket &socket();
-  std::string peerAddress() const;
+  std::string_view peerAddress() const;
 
   void disconnectFromHost();
   void send(const asio::const_buffer &msg);
@@ -39,11 +39,13 @@ private:
   enum { max_length = 32768 };
   char m_data[max_length];
 
+  std::string m_peer_address;
+
   std::vector<char> cborBuffer;
 
-  void getMessage(std::size_t length);
+  bool getMessage(std::size_t length);
 
-  std::vector<cbor_item_t> readCborArrsFromBuffer(cbor_error *err);
+  std::vector<cbor_item_t *> readCborArrsFromBuffer(cbor_error *err);
 
   // signals
   std::function<void()> disconnected_callback = 0;

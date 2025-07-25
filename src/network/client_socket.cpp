@@ -4,6 +4,15 @@
 #include <openssl/aes.h>
 
 ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
+  m_peer_address = m_socket.remote_endpoint().address().to_string();
+  disconnected_callback = [this]() {
+    spdlog::info("client {} disconnected", peerAddress());
+  };
+
+  message_got_callback = [this](cbor_item_t *item) {
+    spdlog::info("cbor item {} got", (void *)item);
+    cbor_describe(item, stdout);
+  };
 }
 
 void ClientSocket::start() {
@@ -12,12 +21,15 @@ void ClientSocket::start() {
     asio::buffer(m_data, max_length),
     [this, self](asio::error_code err, std::size_t length) {
       if (!err) {
-        getMessage(length);
-
-        start();
+        if (getMessage(length)) {
+          // 再次read_some
+          start();
+        } else {
+          spdlog::warn("Malfromed data from client {}", peerAddress());
+          disconnected_callback();
+        }
       } else {
-        spdlog::info("client {} disconnected: {}", peerAddress(), err.message());
-        // TODO: call disconnected callback
+        disconnected_callback();
       }
     }
   );
@@ -27,13 +39,17 @@ tcp::socket &ClientSocket::socket() {
   return m_socket;
 }
 
-std::string ClientSocket::peerAddress() const {
-  return m_socket.remote_endpoint().address().to_string();
+std::string_view ClientSocket::peerAddress() const {
+  return m_peer_address;
 }
 
 void ClientSocket::disconnectFromHost() {
-  // TODO: 后续创建新线程后必须回来考虑这个
   m_socket.close();
+  // asio::post(m_socket.get_executor(), [this]() {
+  //   asio::error_code ec;
+  //   m_socket.shutdown(tcp::socket::shutdown_both, ec);
+  //   m_socket.close(ec);
+  // });
 }
 
 // 此函数必须只能在主线程调用！
@@ -43,15 +59,121 @@ void ClientSocket::send(const asio::const_buffer &msg) {
   });
 }
 
+void ClientSocket::set_disconnected_callback(std::function<void()> f) {
+  disconnected_callback = f;
+}
+
+void ClientSocket::set_message_got_callback(std::function<void(cbor_item_t *)> f) {
+  message_got_callback = f;
+}
+
 // private methods
 
-void ClientSocket::getMessage(std::size_t length) {
+bool ClientSocket::getMessage(std::size_t length) {
   cborBuffer.insert(cborBuffer.end(), m_data, m_data + length);
 
-  // TODO: 只是echo 实际逻辑后面补
-  send(asio::const_buffer(cborBuffer.data(), cborBuffer.size()));
-  cborBuffer.clear();
+  cbor_error err;
+  auto arr = readCborArrsFromBuffer(&err);
+  if (err.code == CBOR_ERR_NOTENOUGHDATA) {
+    for (auto &a : arr) {
+      message_got_callback(a);
+      cbor_decref(&a);
+    }
+    return true;
+  } else {
+    // TODO: close conn?
+    // 反正肯定会有不合法数据的，比如invalid setup string
+    // 旧版客户端啥的
+    // disconnectFromHost();
+    return false;
+  }
 }
+
+/*
+// 通信上只涉及数字、bytes两种类型而已，以及array
+static QCborValue readItem(QCborStreamReader &reader) {
+  switch (reader.type()) {
+    case QCborStreamReader::UnsignedInteger:
+    case QCborStreamReader::NegativeInteger: {
+      auto val = reader.toInteger();
+      reader.next();
+      return val;
+    }
+    case QCborStreamReader::ByteArray: {
+      QByteArray ret;
+      auto r = reader.readByteArray();
+      while (r.status == QCborStreamReader::Ok) {
+        ret += r.data;
+        r = reader.readByteArray();
+      }
+
+      if (r.status == QCborStreamReader::Error) {
+        // handle error condition
+        ret.clear();
+      }
+      return ret;
+    }
+    case QCborStreamReader::Array: {
+      QCborArray arr;
+      reader.enterContainer();
+      while (reader.lastError() == QCborError::NoError && reader.hasNext()) {
+        arr << readItem(reader);
+      }
+      if (reader.lastError() == QCborError::NoError)
+        reader.leaveContainer();
+      return arr;
+    }
+    default:
+      break;
+  }
+  return QCborValue();
+}
+*/
+
+std::vector<cbor_item_t *> ClientSocket::readCborArrsFromBuffer(cbor_error *err) {
+  auto cbuf = (unsigned char *)cborBuffer.data();
+  auto len = cborBuffer.size();
+  std::vector<cbor_item_t *> ret;
+  size_t total_consumed = 0;
+
+  while (true) {
+    struct cbor_load_result result;
+    // 尝试解析CBOR数据
+    cbor_item_t *item = cbor_load(cbuf + total_consumed,
+                                  len - total_consumed,
+                                  &result);
+
+    // 处理解析结果
+    if (result.error.code == CBOR_ERR_NONE) {
+      if (cbor_isa_array(item)) {
+        ret.push_back(item);
+        total_consumed += result.read;
+      } else {
+        // 不是数组，停止解析
+        cbor_decref(&item);
+        break;
+      }
+    } else if (result.error.code == CBOR_ERR_NOTENOUGHDATA) {
+      // 数据不完整，保留剩余数据
+      err->code = result.error.code;
+      break;
+    } else {
+      // 其他错误，停止解析
+      err->code = result.error.code;
+      break;
+    }
+  }
+
+  // 对剩余的不全数据深拷贝 重新造bytes
+  std::vector<char> remaining_buffer;
+  if (total_consumed < len) {
+    remaining_buffer.assign(cborBuffer.begin() + total_consumed, cborBuffer.end());
+    cborBuffer = remaining_buffer;
+  }
+
+  return ret;
+}
+
 
 /*
 ClientSocket::ClientSocket(QTcpSocket *socket) {
@@ -269,69 +391,5 @@ QByteArray ClientSocket::aesDec(const QByteArray &in) {
                      tempIv, &num, AES_DECRYPT);
 
   return out;
-}
-
-// 通信上只涉及数字、bytes两种类型而已，以及array
-static QCborValue readItem(QCborStreamReader &reader) {
-  switch (reader.type()) {
-    case QCborStreamReader::UnsignedInteger:
-    case QCborStreamReader::NegativeInteger: {
-      auto val = reader.toInteger();
-      reader.next();
-      return val;
-    }
-    case QCborStreamReader::ByteArray: {
-      QByteArray ret;
-      auto r = reader.readByteArray();
-      while (r.status == QCborStreamReader::Ok) {
-        ret += r.data;
-        r = reader.readByteArray();
-      }
-
-      if (r.status == QCborStreamReader::Error) {
-        // handle error condition
-        ret.clear();
-      }
-      return ret;
-    }
-    case QCborStreamReader::Array: {
-      QCborArray arr;
-      reader.enterContainer();
-      while (reader.lastError() == QCborError::NoError && reader.hasNext()) {
-        arr << readItem(reader);
-      }
-      if (reader.lastError() == QCborError::NoError)
-        reader.leaveContainer();
-      return arr;
-    }
-    default:
-      break;
-  }
-  return QCborValue();
-}
-
-QList<QCborArray> ClientSocket::readCborArrsFromBuffer(QCborError *err) {
-  // 由于qt神秘机制，此处干脆用const char *和len手动操作缓冲区
-  auto cbuf = cborBuffer.constData();
-  auto len = cborBuffer.size();
-  QList<QCborArray> ret;
-
-  while (true) {
-  QCborStreamReader reader(cbuf, len);
-    auto item = readItem(reader);
-    if (reader.lastError() != QCborError::NoError) {
-      *err = reader.lastError();
-      break;
-    }
-    if (!item.isArray()) break;
-    ret << item.toArray();
-    auto off = reader.currentOffset();
-    cbuf += off;
-    len -= off;
-  }
-
-  // 对剩余的不全数据深拷贝 重新造bytes
-  cborBuffer = { cbuf, len };
-  return ret;
 }
 */

@@ -10,12 +10,13 @@ set(freekill_SRCS
 
   "network/server_socket.cpp"
   "network/client_socket.cpp"
-  # "network/router.cpp"
+  "network/router.cpp"
 
-  # "server/server.cpp"
+  "server/server.cpp"
 
   # "server/user/auth.cpp"
-  # "server/user/serverplayer.cpp"
+  "server/user/player.cpp"
+  "server/user/user_manager.cpp"
 
   # "server/room/roombase.cpp"
   # "server/room/lobby.cpp"

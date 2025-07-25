@@ -1,15 +1,11 @@
 #include "server/user/auth.h"
+#include "server/user/user_manager.h"
 #include "server/server.h"
-#include "server/user/serverplayer.h"
-#include "core/c-wrapper.h"
-#include "core/util.h"
-#include "core/packman.h"
-#include "network/client_socket.h"
-#include "network/router.h"
 #include <openssl/bn.h>
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
 
+/*
 class AuthManagerPrivate {
 public:
   AuthManagerPrivate();
@@ -20,13 +16,13 @@ public:
   RSA *rsa;
 
   // setup message
-  ClientSocket *client;
-  QString name;
-  QByteArray password;
-  QByteArray password_decrypted;
-  QString md5;
-  QString version;
-  QString uuid;
+  std::weak_ptr<ClientSocket> client;
+  // QString name;
+  // QByteArray password;
+  // QByteArray password_decrypted;
+  // QString md5;
+  // QString version;
+  // QString uuid;
 };
 
 AuthManagerPrivate::AuthManagerPrivate() {
@@ -54,8 +50,10 @@ AuthManagerPrivate::AuthManagerPrivate() {
   PEM_read_RSAPrivateKey(keyFile, &rsa, NULL, NULL);
   fclose(keyFile);
 }
+*/
 
-AuthManager::AuthManager(Server *parent) : QObject(parent) {
+AuthManager::AuthManager() {
+  /*
   server = parent;
   p_ptr = new AuthManagerPrivate;
   db = parent->getDatabase();
@@ -64,36 +62,35 @@ AuthManager::AuthManager(Server *parent) : QObject(parent) {
   file.open(QIODevice::ReadOnly);
   QTextStream in(&file);
   public_key = in.readAll();
+  */
 }
 
 AuthManager::~AuthManager() noexcept {
-  delete p_ptr;
+  // delete p_ptr;
 }
 
-#define CHK(cond) if (!(cond)) { return; }
+void AuthManager::processNewConnection(std::shared_ptr<ClientSocket> conn) {
+  // client->timerSignup.stop();
+  auto &server = Server::instance();
+  auto &user_manager = server->user_manager();
 
-void AuthManager::processNewConnection(const QCborArray &arr) {
-  ClientSocket *client = qobject_cast<ClientSocket *>(sender());
-  disconnect(client, &ClientSocket::message_got, this, &AuthManager::processNewConnection);
-  client->timerSignup.stop();
+  // p_ptr->client = client;
 
-  p_ptr->client = client;
+  // if (!loadSetupData(arr)) { return; }
+  // if (!checkVersion()) { return; }
+  // if (!checkIfUuidNotBanned()) { return; }
+  // if (!checkMd5()) { return; }
 
-  CHK(loadSetupData(arr));
-  CHK(checkVersion());
-  CHK(checkIfUuidNotBanned());
-  CHK(checkMd5());
+  // auto obj = checkPassword();
+  // if (obj.isEmpty()) return;
 
-  auto obj = checkPassword();
-  if (obj.isEmpty()) return;
-
-  int id = obj["id"].toInt();
-  updateUserLoginData(id);
-  server->createNewPlayer(client, p_ptr->name, obj["avatar"], id, p_ptr->uuid);
+  // int id = obj["id"].toInt();
+  // updateUserLoginData(id);
+  // user_manager->createNewPlayer(conn, p_ptr->name, obj["avatar"], id, p_ptr->uuid);
+  user_manager->createNewPlayer(conn, "player", "liubei", 1, "12345678");
 }
 
-#undef CHK
-
+/*
 bool AuthManager::loadSetupData(const QCborArray &doc) {
   QCborArray arr;
   if (doc.size() != 4 || doc[0].toInteger() != -2 ||
@@ -324,3 +321,4 @@ void AuthManager::updateUserLoginData(int id) {
   db->exec(info_update);
   server->endTransaction();
 }
+*/

@@ -13,10 +13,11 @@ void ServerSocket::listen() {
   m_acceptor.async_accept([this](const asio::error_code &err, tcp::socket socket) {
     if (!err) {
       auto conn = std::make_shared<ClientSocket>(std::move(socket));
-      spdlog::info("New client connected from {}",
-                   conn->peerAddress());
 
-      conn->start();
+      if (new_connection_callback) {
+        new_connection_callback(conn);
+        conn->start();
+      }
     } else {
       spdlog::error("Accept error: {}", err.message());
     }
@@ -25,6 +26,9 @@ void ServerSocket::listen() {
   });
 }
 
+void ServerSocket::set_new_connection_callback(std::function<void(std::shared_ptr<ClientSocket>)> f) {
+  new_connection_callback = f;
+}
 
 /**
 void ServerSocket::processNewConnection() {

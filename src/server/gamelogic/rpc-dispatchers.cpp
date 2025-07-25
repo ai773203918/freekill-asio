@@ -59,9 +59,9 @@ static _rpcRet _rpc_print(const QCborArray &params) {
   return { true, nullVal };
 }
 
-// part2: ServerPlayer相关
+// part2: Player相关
 
-static _rpcRet _rpc_ServerPlayer_doRequest(const QCborArray &params) {
+static _rpcRet _rpc_Player_doRequest(const QCborArray &params) {
   if (!checkParams(params, QCborValue::ByteArray, QCborValue::ByteArray,
                    QCborValue::ByteArray, QCborValue::Integer, QCborValue::Integer)) {
     return { false, nullVal };
@@ -83,7 +83,7 @@ static _rpcRet _rpc_ServerPlayer_doRequest(const QCborArray &params) {
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_ServerPlayer_waitForReply(const QCborArray &params) {
+static _rpcRet _rpc_Player_waitForReply(const QCborArray &params) {
   if (!checkParams(params, QCborValue::ByteArray, QCborValue::Integer)) {
     return { false, nullVal };
   }
@@ -100,7 +100,7 @@ static _rpcRet _rpc_ServerPlayer_waitForReply(const QCborArray &params) {
   return { true, reply };
 }
 
-static _rpcRet _rpc_ServerPlayer_doNotify(const QCborArray &params) {
+static _rpcRet _rpc_Player_doNotify(const QCborArray &params) {
   if (!checkParams(params, QCborValue::ByteArray, QCborValue::ByteArray, QCborValue::ByteArray)) {
     return { false, nullVal };
   }
@@ -119,7 +119,7 @@ static _rpcRet _rpc_ServerPlayer_doNotify(const QCborArray &params) {
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_ServerPlayer_thinking(const QCborArray &params) {
+static _rpcRet _rpc_Player_thinking(const QCborArray &params) {
   if (!checkParams(params, QCborValue::ByteArray)) {
     return { false, nullVal };
   }
@@ -134,7 +134,7 @@ static _rpcRet _rpc_ServerPlayer_thinking(const QCborArray &params) {
   return { true, isThinking };
 }
 
-static _rpcRet _rpc_ServerPlayer_setThinking(const QCborArray &params) {
+static _rpcRet _rpc_Player_setThinking(const QCborArray &params) {
   if (!checkParams(params, QCborValue::ByteArray, QCborValue::SimpleType)) {
     return { false, nullVal };
   }
@@ -151,7 +151,7 @@ static _rpcRet _rpc_ServerPlayer_setThinking(const QCborArray &params) {
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_ServerPlayer_setDied(const QCborArray &params) {
+static _rpcRet _rpc_Player_setDied(const QCborArray &params) {
   if (!checkParams(params, QCborValue::ByteArray, QCborValue::SimpleType)) {
     return { false, nullVal };
   }
@@ -168,7 +168,7 @@ static _rpcRet _rpc_ServerPlayer_setDied(const QCborArray &params) {
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_ServerPlayer_emitKick(const QCborArray &params) {
+static _rpcRet _rpc_Player_emitKick(const QCborArray &params) {
   if (!checkParams(params, QCborValue::ByteArray)) {
     return { false, nullVal };
   }
@@ -335,7 +335,7 @@ static _rpcRet _rpc_Room_decreaseRefCount(const QCborArray &params) {
 
 // 收官：getRoom
 
-static QCborMap getPlayerObject(ServerPlayer *p) {
+static QCborMap getPlayerObject(Player *p) {
   QCborArray gameData;
   for (auto i : p->getGameData()) gameData << i;
 
@@ -389,13 +389,13 @@ const JsonRpc::RpcMethodMap ServerRpcMethods {
   { "qCritical", _rpc_qCritical },
   { "print", _rpc_print },
 
-  { "ServerPlayer_doRequest", _rpc_ServerPlayer_doRequest },
-  { "ServerPlayer_waitForReply", _rpc_ServerPlayer_waitForReply },
-  { "ServerPlayer_doNotify", _rpc_ServerPlayer_doNotify },
-  { "ServerPlayer_thinking", _rpc_ServerPlayer_thinking },
-  { "ServerPlayer_setThinking", _rpc_ServerPlayer_setThinking },
-  { "ServerPlayer_setDied", _rpc_ServerPlayer_setDied },
-  { "ServerPlayer_emitKick", _rpc_ServerPlayer_emitKick },
+  { "ServerPlayer_doRequest", _rpc_Player_doRequest },
+  { "ServerPlayer_waitForReply", _rpc_Player_waitForReply },
+  { "ServerPlayer_doNotify", _rpc_Player_doNotify },
+  { "ServerPlayer_thinking", _rpc_Player_thinking },
+  { "ServerPlayer_setThinking", _rpc_Player_setThinking },
+  { "ServerPlayer_setDied", _rpc_Player_setDied },
+  { "ServerPlayer_emitKick", _rpc_Player_emitKick },
 
   { "Room_delay", _rpc_Room_delay },
   { "Room_updatePlayerWinRate", _rpc_Room_updatePlayerWinRate },

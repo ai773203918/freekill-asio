@@ -23,7 +23,7 @@ private:
   tcp::acceptor m_acceptor;
 
   // signals
-  std::shared_ptr<ClientSocket> new_connection_callback;
+  std::function<void(std::shared_ptr<ClientSocket>)> new_connection_callback;
 
   /* TODO: udp
   QUdpSocket *udpSocket;

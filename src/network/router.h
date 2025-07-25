@@ -23,14 +23,14 @@ public:
     TYPE_CLIENT
   };
 
-  Router(QObject *parent, ClientSocket *socket, RouterType type);
+  Router(ClientSocket *socket, RouterType type);
   ~Router();
 
   ClientSocket *getSocket() const;
   void setSocket(ClientSocket *socket);
   void removeSocket();
-  bool isConsoleStart() const;
 
+  /*
   void setReplyReadySemaphore(QSemaphore *semaphore);
 
   void request(int type, const QByteArray &command,
@@ -77,4 +77,5 @@ private:
   QSemaphore *extraReplyReadySemaphore;
 
   void sendMessage(const QByteArray &msg);
+  */
 };

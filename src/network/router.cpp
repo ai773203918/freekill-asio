@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "network/router.h"
-#include "network/client_socket.h"
-#include "core/util.h"
-#include <qnamespace.h>
 
+/*
 Router::Router(QObject *parent, ClientSocket *socket, RouterType type)
     : QObject(parent) {
   this->type = type;
@@ -179,3 +177,4 @@ void Router::sendMessage(const QByteArray &msg) {
     ? Qt::DirectConnection : Qt::BlockingQueuedConnection;
   QMetaObject::invokeMethod(qApp, [&]() { emit messageReady(msg); }, connType);
 }
+*/

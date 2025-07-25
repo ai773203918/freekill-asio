@@ -1,31 +1,127 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "server/user/serverplayer.h"
-#include "network/client_socket.h"
-#include "server/room/room.h"
-#include "server/gamelogic/roomthread.h"
-#include "network/router.h"
-#include "server/server.h"
+#include "server/user/player.h"
 
-ServerPlayer::ServerPlayer(RoomBase *roombase) {
+Player::Player() {}
+Player::~Player() {}
+
+int Player::getId() const { return id; }
+
+void Player::setId(int id) { this->id = id; }
+
+std::string_view Player::getScreenName() const { return screenName; }
+
+void Player::setScreenName(const std::string &name) {
+  this->screenName = name;
+}
+
+std::string_view Player::getAvatar() const { return avatar; }
+
+void Player::setAvatar(const std::string &avatar) {
+  this->avatar = avatar;
+}
+
+int Player::getTotalGameTime() const { return totalGameTime; }
+
+void Player::addTotalGameTime(int toAdd) {
+  totalGameTime += toAdd;
+}
+
+Player::State Player::getState() const { return state; }
+
+std::string_view Player::getStateString() const {
+  switch (state) {
+  case Online:
+    return "online";
+  case Trust:
+    return "trust";
+  case Run:
+    return "run";
+  case Leave:
+    return "leave";
+  case Robot:
+    return "robot";
+  case Offline:
+    return "offline";
+  default:
+    return "invalid";
+  }
+}
+
+void Player::setState(Player::State state) {
+  this->state = state;
+}
+
+bool Player::isReady() const { return ready; }
+
+void Player::setReady(bool ready) {
+  this->ready = ready;
+}
+
+std::vector<int> Player::getGameData() {
+  return { totalGames, winCount, runCount };
+}
+
+void Player::setGameData(int total, int win, int run) {
+  totalGames = total;
+  winCount = win;
+  runCount = run;
+}
+
+std::string_view Player::getLastGameMode() const {
+  return lastGameMode;
+}
+
+void Player::setLastGameMode(const std::string &mode) {
+  lastGameMode = mode;
+}
+
+bool Player::isDied() const {
+  return died;
+}
+
+void Player::setDied(bool died) {
+  this->died = died;
+}
+
+std::string_view Player::getConnId() const { return connId; }
+
+// std::string_view Player::getPeerAddress() const {
+//   auto p = server->findPlayer(getId());
+//   if (!p || p->getState() != Player::Online)
+//     return "";
+//   return p->getSocket()->peerAddress();
+// }
+
+std::string_view Player::getUuid() const {
+  return uuid_str;
+}
+
+void Player::setUuid(const std::string &uuid) {
+  uuid_str = uuid;
+}
+
+/*
+ *
+Player::Player(RoomBase *roombase) {
   socket = nullptr;
   router = new Router(this, socket, Router::TYPE_SERVER);
-  connect(router, &Router::notification_got, this, &ServerPlayer::onNotificationGot);
-  connect(router, &Router::replyReady, this, &ServerPlayer::onReplyReady);
+  connect(router, &Router::notification_got, this, &Player::onNotificationGot);
+  connect(router, &Router::replyReady, this, &Player::onReplyReady);
 
   setState(Player::Online);
   room = roombase;
   server = room->getServer();
-  connect(this, &ServerPlayer::kicked, this, &ServerPlayer::kick);
-  connect(this, &Player::stateChanged, this, &ServerPlayer::onStateChanged);
-  connect(this, &Player::readyChanged, this, &ServerPlayer::onReadyChanged);
+  connect(this, &Player::kicked, this, &Player::kick);
+  connect(this, &Player::stateChanged, this, &Player::onStateChanged);
+  connect(this, &Player::readyChanged, this, &Player::onReadyChanged);
 
   connId = QUuid::createUuid().toString();
   alive = true;
   m_thinking = false;
 }
 
-ServerPlayer::~ServerPlayer() {
+Player::~Player() {
   // 机器人直接被Room删除了
   if (getId() < 0) return;
 
@@ -42,7 +138,7 @@ ServerPlayer::~ServerPlayer() {
   server->removePlayerByConnId(connId);
 }
 
-void ServerPlayer::setSocket(ClientSocket *socket) {
+void Player::setSocket(ClientSocket *socket) {
   if (this->socket != nullptr) {
     this->socket->disconnect(this);
     disconnect(this->socket);
@@ -52,47 +148,32 @@ void ServerPlayer::setSocket(ClientSocket *socket) {
   this->socket = nullptr;
   if (socket != nullptr) {
     connect(socket, &ClientSocket::disconnected, this,
-            &ServerPlayer::onDisconnected);
+            &Player::onDisconnected);
     this->socket = socket;
   }
 
   router->setSocket(socket);
 }
 
-ClientSocket *ServerPlayer::getSocket() const { return socket; }
-
-QString ServerPlayer::getPeerAddress() const {
-  auto p = server->findPlayer(getId());
-  if (!p || p->getState() != Player::Online)
-    return "";
-  return p->getSocket()->peerAddress();
-}
-
-QString ServerPlayer::getUuid() const {
-  return uuid_str;
-}
-
-void ServerPlayer::setUuid(QString uuid) {
-  uuid_str = uuid;
-}
+ClientSocket *Player::getSocket() const { return socket; }
 
 // 处理跑路玩家专用，就单纯把socket置为null
 // 因为后面还会用到socket所以不删除
-void ServerPlayer::removeSocket() {
+void Player::removeSocket() {
   socket->disconnect(this);
   socket = nullptr;
   router->removeSocket();
 }
 
-Server *ServerPlayer::getServer() const { return server; }
+Server *Player::getServer() const { return server; }
 
-RoomBase *ServerPlayer::getRoom() const { return room; }
+RoomBase *Player::getRoom() const { return room; }
 
-void ServerPlayer::setRoom(RoomBase *room) { this->room = room; }
+void Player::setRoom(RoomBase *room) { this->room = room; }
 
-void ServerPlayer::speak(const QString &message) { ; }
+void Player::speak(const std::string &message) { ; }
 
-void ServerPlayer::doRequest(const QByteArray &command, const QByteArray &jsonData,
+void Player::doRequest(const QByteArray &command, const QByteArray &jsonData,
                              int timeout, qint64 timestamp) {
   if (getState() != Player::Online)
     return;
@@ -101,22 +182,22 @@ void ServerPlayer::doRequest(const QByteArray &command, const QByteArray &jsonDa
   router->request(type, command, jsonData, timeout, timestamp);
 }
 
-void ServerPlayer::abortRequest() { router->abortRequest(); }
+void Player::abortRequest() { router->abortRequest(); }
 
-QString ServerPlayer::waitForReply(int timeout) {
-  QString ret;
+std::string Player::waitForReply(int timeout) {
+  std::string ret;
   if (getState() != Player::Online) {
 #ifndef QT_DEBUG
     QThread::sleep(1);
 #endif
-    ret = QStringLiteral("__cancel");
+    ret = std::stringLiteral("__cancel");
   } else {
     ret = router->waitForReply(timeout);
   }
   return ret;
 }
 
-void ServerPlayer::doNotify(const QByteArray &command, const QByteArray &jsonData) {
+void Player::doNotify(const QByteArray &command, const QByteArray &jsonData) {
   if (getState() != Player::Online)
     return;
   int type =
@@ -124,13 +205,13 @@ void ServerPlayer::doNotify(const QByteArray &command, const QByteArray &jsonDat
   router->notify(type, command, jsonData);
 }
 
-void ServerPlayer::prepareForRequest(const QString &command,
-                                     const QString &data) {
+void Player::prepareForRequest(const std::string &command,
+                                     const std::string &data) {
   requestCommand = command;
   requestData = data;
 }
 
-void ServerPlayer::kick() {
+void Player::kick() {
   setState(Player::Offline);
   if (socket != nullptr) {
     socket->disconnectFromHost();
@@ -141,7 +222,7 @@ void ServerPlayer::kick() {
   setSocket(nullptr);
 }
 
-void ServerPlayer::reconnect(ClientSocket *client) {
+void Player::reconnect(ClientSocket *client) {
   if (server->getPlayers().count() <= 10) {
     server->broadcast("ServerMessage", tr("%1 backed").arg(getScreenName()).toUtf8());
   }
@@ -153,7 +234,7 @@ void ServerPlayer::reconnect(ClientSocket *client) {
 
   if (room && !room->isLobby()) {
     server->setupPlayer(this, true);
-    qobject_cast<Room *>(room)->pushRequest(QString("%1,reconnect").arg(getId()));
+    qobject_cast<Room *>(room)->pushRequest(std::string("%1,reconnect").arg(getId()));
   } else {
     // 懒得处理掉线玩家在大厅了！踢掉得了
     doNotify("ErrorMsg", "Unknown Error");
@@ -161,34 +242,34 @@ void ServerPlayer::reconnect(ClientSocket *client) {
   }
 }
 
-bool ServerPlayer::thinking() {
+bool Player::thinking() {
   QMutexLocker locker(&m_thinking_mutex);
   return m_thinking;
 }
 
-void ServerPlayer::setThinking(bool t) {
+void Player::setThinking(bool t) {
   QMutexLocker locker(&m_thinking_mutex);
   m_thinking = t;
 }
 
-void ServerPlayer::startGameTimer() {
+void Player::startGameTimer() {
   gameTime = 0;
   gameTimer.start();
 }
 
-void ServerPlayer::pauseGameTimer() {
+void Player::pauseGameTimer() {
   gameTime += gameTimer.elapsed() / 1000;
 }
 
-void ServerPlayer::resumeGameTimer() {
+void Player::resumeGameTimer() {
   gameTimer.start();
 }
 
-int ServerPlayer::getGameTime() {
+int Player::getGameTime() {
   return gameTime + (getState() == Player::Online ? gameTimer.elapsed() / 1000 : 0);
 }
 
-void ServerPlayer::onNotificationGot(const QByteArray &c, const QByteArray &j) {
+void Player::onNotificationGot(const QByteArray &c, const QByteArray &j) {
   if (c == "Heartbeat") {
     alive = true;
     return;
@@ -197,7 +278,7 @@ void ServerPlayer::onNotificationGot(const QByteArray &c, const QByteArray &j) {
   room->handlePacket(this, c, j);
 }
 
-void ServerPlayer::onReplyReady() {
+void Player::onReplyReady() {
   setThinking(false);
   if (!room->isLobby()) {
     auto _room = qobject_cast<Room *>(room);
@@ -206,7 +287,7 @@ void ServerPlayer::onReplyReady() {
   }
 }
 
-void ServerPlayer::onStateChanged() {
+void Player::onStateChanged() {
   auto _room = getRoom();
   if (!_room || _room->isLobby()) return;
   auto room = qobject_cast<Room *>(_room);
@@ -230,14 +311,14 @@ void ServerPlayer::onStateChanged() {
   }
 }
 
-void ServerPlayer::onReadyChanged() {
+void Player::onReadyChanged() {
   if (room && !room->isLobby()) {
     room->doBroadcastNotify(room->getPlayers(), "ReadyChanged",
                             QCborArray { getId(), isReady() }.toCborValue().toCbor());
   }
 }
 
-void ServerPlayer::onDisconnected() {
+void Player::onDisconnected() {
   qInfo() << "Player" << getId() << "disconnected";
   if (server->getPlayers().count() <= 10) {
       server->broadcast("ServerMessage", tr("%1 logged out").arg(getScreenName()).toUtf8());;
@@ -271,3 +352,4 @@ void ServerPlayer::onDisconnected() {
     }
   }
 }
+*/

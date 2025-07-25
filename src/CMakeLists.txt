@@ -9,7 +9,7 @@ set(freekill_SRCS
   # "core/packman.cpp"
 
   "network/server_socket.cpp"
-  # "network/client_socket.cpp"
+  "network/client_socket.cpp"
   # "network/router.cpp"
 
   # "server/server.cpp"

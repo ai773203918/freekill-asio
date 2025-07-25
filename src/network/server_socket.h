@@ -2,25 +2,30 @@
 
 #pragma once
 
+using asio::ip::tcp;
+
 class ClientSocket;
 
 class ServerSocket {
-
 public:
-  ServerSocket(QObject *parent = nullptr);
+  ServerSocket(asio::io_context &io_ctx, tcp::endpoint end);
 
-  bool listen(const QHostAddress &address = QHostAddress::Any, ushort port = 9527u);
+  /*
 
-signals:
-  void new_connection(ClientSocket *socket);
-
-private slots:
-  void processNewConnection();
-  void readPendingDatagrams();
+  // signal new_connection
+  std::function<void(ClientSocket *socket)> new_connection;
+  */
 
 private:
-  QTcpServer *server;
+  tcp::acceptor m_acceptor;
+
+  void listen();
+
+  /*
   QUdpSocket *udpSocket;
 
   void processDatagram(const QByteArray &msg, const QHostAddress &addr, uint port);
+  void processNewConnection();
+  void readPendingDatagrams();
+  */
 };

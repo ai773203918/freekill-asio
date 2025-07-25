@@ -3,11 +3,18 @@
 #include "network/client_socket.h"
 #include <openssl/aes.h>
 
-ClientSocket::ClientSocket() : socket(new QTcpSocket(this)) {
-  aes_ready = false;
-  init();
+ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
 }
 
+void ClientSocket::start() {
+  wait_for_message();
+}
+
+void ClientSocket::wait_for_message() {
+  // m_socket.async_read_some();
+}
+
+/*
 ClientSocket::ClientSocket(QTcpSocket *socket) {
   aes_ready = false;
   socket->setParent(this);
@@ -288,3 +295,4 @@ QList<QCborArray> ClientSocket::readCborArrsFromBuffer(QCborError *err) {
   cborBuffer = { cbuf, len };
   return ret;
 }
+*/

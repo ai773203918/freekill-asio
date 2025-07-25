@@ -2,25 +2,33 @@
 
 #include "network/server_socket.h"
 #include "network/client_socket.h"
-#include "server/server.h"
-#include "core/util.h"
-#include <QNetworkDatagram>
 
-ServerSocket::ServerSocket(QObject *parent) : QObject(parent) {
-  server = new QTcpServer(this);
-  connect(server, &QTcpServer::newConnection, this,
-          &ServerSocket::processNewConnection);
-
-  udpSocket = new QUdpSocket(this);
-  connect(udpSocket, &QUdpSocket::readyRead,
-          this, &ServerSocket::readPendingDatagrams);
+ServerSocket::ServerSocket(asio::io_context &io_ctx, tcp::endpoint end):
+  m_acceptor { io_ctx, end }
+{
+  spdlog::info("server listen on {}", end.port());
+  listen();
 }
 
-bool ServerSocket::listen(const QHostAddress &address, ushort port) {
-  udpSocket->bind(port);
-  return server->listen(address, port);
+void ServerSocket::listen() {
+  m_acceptor.async_accept([&](std::error_code ec, tcp::socket socket) {
+    if (!ec) {
+      spdlog::info("New client connected from [{}]:{}",
+                   socket.remote_endpoint().address().to_string(),
+                   socket.remote_endpoint().port());
+
+      // 创建新会话并启动
+      auto sock = std::make_shared<ClientSocket>(std::move(socket));
+    } else {
+      spdlog::error("Accept error: {}", ec.message());
+    }
+
+    // 继续接受新的连接
+    listen();
+  });
 }
 
+/**
 void ServerSocket::processNewConnection() {
   QTcpSocket *socket = server->nextPendingConnection();
   ClientSocket *connection = new ClientSocket(socket);
@@ -29,29 +37,4 @@ void ServerSocket::processNewConnection() {
   //        [connection]() { connection->deleteLater(); });
   emit new_connection(connection);
 }
-
-void ServerSocket::readPendingDatagrams() {
-  while (udpSocket->hasPendingDatagrams()) {
-    QNetworkDatagram datagram = udpSocket->receiveDatagram();
-    if (datagram.isValid()) {
-      processDatagram(datagram.data(), datagram.senderAddress(), datagram.senderPort());
-    }
-  }
-}
-
-void ServerSocket::processDatagram(const QByteArray &msg, const QHostAddress &addr, uint port) {
-  auto server = qobject_cast<Server *>(parent());
-  if (msg == "fkDetectServer") {
-    udpSocket->writeDatagram("me", addr, port);
-  } else if (msg.startsWith("fkGetDetail,")) {
-    udpSocket->writeDatagram(JsonArray2Bytes(QJsonArray({
-            FK_VERSION,
-            server->getConfig("iconUrl"),
-            server->getConfig("description"),
-            server->getConfig("capacity"),
-            server->getPlayers().count(),
-            msg.sliced(12).constData(),
-            })), addr, port);
-  }
-  udpSocket->flush();
-}
+*/

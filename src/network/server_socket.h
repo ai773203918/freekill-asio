@@ -8,6 +8,9 @@ class ClientSocket;
 
 class ServerSocket {
 public:
+  ServerSocket() = delete;
+  ServerSocket(ServerSocket &) = delete;
+  ServerSocket(ServerSocket &&) = delete;
   ServerSocket(asio::io_context &io_ctx, tcp::endpoint end);
 
   /*

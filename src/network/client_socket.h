@@ -9,6 +9,9 @@ using asio::ip::tcp;
 class ClientSocket {
 
 public:
+  ClientSocket() = delete;
+  ClientSocket(ClientSocket &) = delete;
+  ClientSocket(ClientSocket &&) = delete;
   explicit ClientSocket(tcp::socket socket);
 
   void start();

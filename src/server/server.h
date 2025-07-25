@@ -19,6 +19,8 @@ public:
 
   std::unique_ptr<UserManager> &user_manager();
 
+  void sendEarlyPacket(ClientSocket *client, const std::string_view &type, const std::string_view &msg);
+
   /*
   void createRoom(Player *owner, const QString &name, int capacity,
                   int timeout = 15, const QByteArray &settings = QByteArrayLiteral("{}"));
@@ -35,7 +37,6 @@ public:
   Sqlite3 *getDatabase();
 
   void broadcast(const QByteArray &command, const QByteArray &jsonData);
-  void sendEarlyPacket(ClientSocket *client, const QByteArray &type, const QByteArray &msg);
   bool isListening;
 
   QJsonValue getConfig(const QString &command);
@@ -68,7 +69,6 @@ private:
   friend Room::Room(RoomThread *m_thread);
   QList<QString> temp_banlist;
 
-  AuthManager *auth;
   Sqlite3 *db;
   QMutex transaction_mutex;
   QString md5;

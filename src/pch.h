@@ -49,3 +49,5 @@
 
 // libasio
 #include <asio.hpp>
+
+#define OPENSSL_API_COMPAT 0x10101000L

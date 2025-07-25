@@ -21,6 +21,7 @@
 /.qmllint.ini
 
 # file produced by game
+/freekill-asio
 /FreeKill
 /FreeKill.exe
 /mymod

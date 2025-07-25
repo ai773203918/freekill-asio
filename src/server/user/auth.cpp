@@ -5,7 +5,6 @@
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
 
-/*
 class AuthManagerPrivate {
 public:
   AuthManagerPrivate();
@@ -27,7 +26,7 @@ public:
 
 AuthManagerPrivate::AuthManagerPrivate() {
   rsa = RSA_new();
-  if (!QFile::exists("server/rsa_pub")) {
+  if (!std::filesystem::exists("server/rsa_pub")) {
     BIGNUM *bne = BN_new();
     BN_set_word(bne, RSA_F4);
     RSA_generate_key_ex(rsa, 2048, bne, NULL);
@@ -39,10 +38,10 @@ AuthManagerPrivate::AuthManagerPrivate() {
 
     BIO_free_all(bp_pub);
     BIO_free_all(bp_pri);
-    QFile("server/rsa")
-        .setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    chmod("server/rsa", 0600);
     BN_free(bne);
   }
+
   FILE *keyFile = fopen("server/rsa_pub", "r");
   PEM_read_RSAPublicKey(keyFile, &rsa, NULL, NULL);
   fclose(keyFile);
@@ -50,23 +49,33 @@ AuthManagerPrivate::AuthManagerPrivate() {
   PEM_read_RSAPrivateKey(keyFile, &rsa, NULL, NULL);
   fclose(keyFile);
 }
-*/
 
 AuthManager::AuthManager() {
+  p_ptr = std::make_unique<AuthManagerPrivate>();
   /*
-  server = parent;
-  p_ptr = new AuthManagerPrivate;
   db = parent->getDatabase();
-
-  QFile file("server/rsa_pub");
-  file.open(QIODevice::ReadOnly);
-  QTextStream in(&file);
-  public_key = in.readAll();
   */
+
+  std::string public_key;
+  std::ifstream file("server/rsa_pub");
+  if (file) {
+    std::ostringstream ss;
+    ss << file.rdbuf();
+    public_key = ss.str();
+  }
+
+  cbor_item_t *cb = cbor_build_bytestring((cbor_data)public_key.c_str(), public_key.size());
+  cbor_serialize_alloc(cb, &public_key_cbor_buf, &public_key_cbor_bufsize);
+  cbor_decref(&cb);
 }
 
 AuthManager::~AuthManager() noexcept {
   // delete p_ptr;
+  free(public_key_cbor_buf);
+}
+
+std::string_view AuthManager::getPublicKeyCbor() const {
+  return { (char *)public_key_cbor_buf, public_key_cbor_bufsize };
 }
 
 void AuthManager::processNewConnection(std::shared_ptr<ClientSocket> conn) {

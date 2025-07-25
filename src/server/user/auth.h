@@ -10,15 +10,16 @@ class AuthManager {
 public:
   AuthManager();
   ~AuthManager() noexcept;
-  // auto getPublicKey() const { return public_key; }
+  std::string_view getPublicKeyCbor() const;
 
   void processNewConnection(std::shared_ptr<ClientSocket> conn);
 
 private:
+  unsigned char *public_key_cbor_buf;
+  size_t public_key_cbor_bufsize;
+  std::unique_ptr<AuthManagerPrivate> p_ptr;
   /*
   Sqlite3 *db;
-  QString public_key;
-  AuthManagerPrivate *p_ptr;
 
   bool loadSetupData(const QCborArray &msg);
   bool checkVersion();

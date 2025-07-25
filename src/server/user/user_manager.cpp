@@ -1,7 +1,12 @@
 #include "server/user/user_manager.h"
 #include "server/user/player.h"
+#include "server/user/auth.h"
 #include "server/server.h"
 #include "network/client_socket.h"
+
+UserManager::UserManager() {
+  m_auth = std::make_unique<AuthManager>();
+}
 
 Player *UserManager::findPlayer(int id) const {
   return online_players_map.at(id).get();
@@ -62,11 +67,8 @@ void UserManager::processNewConnection(std::shared_ptr<ClientSocket> client) {
   }
   */
 
-  const char *hello = "hello, world!";
-  client->send({ hello, std::strlen(hello) });
-
   // network delay test
-  // sendEarlyPacket(client, "NetworkDelayTest", QCborValue(auth->getPublicKey().toUtf8()).toCbor());
+  server->sendEarlyPacket(client.get(), "NetworkDelayTest", m_auth->getPublicKeyCbor());
   // Note: the client should send a setup string next
   // connect(client, &ClientSocket::message_got, auth, &AuthManager::processNewConnection);
   // client->timerSignup.start(30000);

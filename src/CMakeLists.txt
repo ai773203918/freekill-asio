@@ -14,7 +14,7 @@ set(freekill_SRCS
 
   "server/server.cpp"
 
-  # "server/user/auth.cpp"
+  "server/user/auth.cpp"
   "server/user/player.cpp"
   "server/user/user_manager.cpp"
 

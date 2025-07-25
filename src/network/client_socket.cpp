@@ -7,11 +7,50 @@ ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
 }
 
 void ClientSocket::start() {
-  wait_for_message();
+  auto self { shared_from_this() };
+  m_socket.async_read_some(
+    asio::buffer(m_data, max_length),
+    [this, self](asio::error_code err, std::size_t length) {
+      if (!err) {
+        getMessage(length);
+
+        start();
+      } else {
+        spdlog::info("client {} disconnected: {}", peerAddress(), err.message());
+        // TODO: call disconnected callback
+      }
+    }
+  );
 }
 
-void ClientSocket::wait_for_message() {
-  // m_socket.async_read_some();
+tcp::socket &ClientSocket::socket() {
+  return m_socket;
+}
+
+std::string ClientSocket::peerAddress() const {
+  return m_socket.remote_endpoint().address().to_string();
+}
+
+void ClientSocket::disconnectFromHost() {
+  // TODO: 后续创建新线程后必须回来考虑这个
+  m_socket.close();
+}
+
+// 此函数必须只能在主线程调用！
+void ClientSocket::send(const asio::const_buffer &msg) {
+  asio::async_write(m_socket, msg, [](const asio::error_code &, std::size_t) {
+    // no-op
+  });
+}
+
+// private methods
+
+void ClientSocket::getMessage(std::size_t length) {
+  cborBuffer.insert(cborBuffer.end(), m_data, m_data + length);
+
+  // TODO: 只是echo 实际逻辑后面补
+  send(asio::const_buffer(cborBuffer.data(), cborBuffer.size()));
+  cborBuffer.clear();
 }
 
 /*

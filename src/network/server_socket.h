@@ -13,18 +13,19 @@ public:
   ServerSocket(ServerSocket &&) = delete;
   ServerSocket(asio::io_context &io_ctx, tcp::endpoint end);
 
-  /*
-
-  // signal new_connection
-  std::function<void(ClientSocket *socket)> new_connection;
-  */
-
-private:
-  tcp::acceptor m_acceptor;
-
   void listen();
 
-  /*
+  // signal connectors
+  void set_new_connection_callback(std::function<void(std::shared_ptr<ClientSocket>)>);
+
+private:
+  asio::io_context &io_ctx;
+  tcp::acceptor m_acceptor;
+
+  // signals
+  std::shared_ptr<ClientSocket> new_connection_callback;
+
+  /* TODO: udp
   QUdpSocket *udpSocket;
 
   void processDatagram(const QByteArray &msg, const QHostAddress &addr, uint port);

@@ -5,7 +5,10 @@
 int main(int argc, char *argv[]) {
   try {
     asio::io_context io_ctx;
+
     ServerSocket server { io_ctx, tcp::endpoint(tcp::v6(), 9927u) };
+    server.listen();
+
     io_ctx.run();
   } catch (std::exception e) {
     spdlog::error(e.what());

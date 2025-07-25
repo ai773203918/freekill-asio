@@ -4,36 +4,34 @@
 #include "network/client_socket.h"
 
 ServerSocket::ServerSocket(asio::io_context &io_ctx, tcp::endpoint end):
-  m_acceptor { io_ctx, end }
+  io_ctx { io_ctx }, m_acceptor { io_ctx, end }
 {
-  spdlog::info("server listen on {}", end.port());
-  listen();
+  spdlog::info("server is ready to listen on {}", end.port());
 }
 
 void ServerSocket::listen() {
-  m_acceptor.async_accept([&](std::error_code ec, tcp::socket socket) {
-    if (!ec) {
-      spdlog::info("New client connected from [{}]:{}",
-                   socket.remote_endpoint().address().to_string(),
-                   socket.remote_endpoint().port());
+  m_acceptor.async_accept([this](const asio::error_code &err, tcp::socket socket) {
+    if (!err) {
+      auto conn = std::make_shared<ClientSocket>(std::move(socket));
+      spdlog::info("New client connected from {}",
+                   conn->peerAddress());
 
-      // 创建新会话并启动
-      auto sock = std::make_shared<ClientSocket>(std::move(socket));
+      conn->start();
     } else {
-      spdlog::error("Accept error: {}", ec.message());
+      spdlog::error("Accept error: {}", err.message());
     }
 
-    // 继续接受新的连接
     listen();
   });
 }
+
 
 /**
 void ServerSocket::processNewConnection() {
   QTcpSocket *socket = server->nextPendingConnection();
   ClientSocket *connection = new ClientSocket(socket);
   // 这里怎么能一断连就自己删呢，应该让上层的来
-  //connect(connection, &ClientSocket::disconnected, this,
+  // connect(connection, &ClientSocket::disconnected, this,
   //        [connection]() { connection->deleteLater(); });
   emit new_connection(connection);
 }

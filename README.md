@@ -34,6 +34,11 @@ __________________
 
 单一线程中emit信号就是直接调用槽函数。直接改成普通的函数调用。
 
+具体而言：
+
+- 将signal全部改成`<sig_name>_callback`
+- 将`QObject::connect`全部改成`set_<sig_name>_callback`
+
 ### 多线程之间信号槽替换方案
 
 原本FreeKill服务端主要是两个线程，线程之间通过Qt信号槽处理，具体而言：

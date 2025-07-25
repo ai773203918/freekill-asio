@@ -95,12 +95,16 @@ std::vector<cbor_item_t *> ClientSocket::readCborArrsFromBuffer(cbor_error *err)
   std::vector<cbor_item_t *> ret;
   size_t total_consumed = 0;
 
+  static struct cbor_callbacks callbacks = cbor_empty_callbacks;
+  struct cbor_decoder_result decode_result;
+
   while (true) {
     struct cbor_load_result result;
     // 尝试解析CBOR数据
     cbor_item_t *item = cbor_load(cbuf + total_consumed,
                                   len - total_consumed,
                                   &result);
+    cbor_stream_decode(cbuf, len, &callbacks, nullptr);
 
     // 处理解析结果
     if (result.error.code == CBOR_ERR_NONE) {

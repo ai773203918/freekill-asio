@@ -6,6 +6,21 @@
 
 using asio::ip::tcp;
 
+struct Packet {
+  int requestId;
+  int type;
+  std::string_view command;
+  std::string_view cborData;
+  int timeout;
+  int64_t timestamp;
+
+  int _len;
+
+  Packet() = default;
+  Packet(Packet &) = delete;
+  Packet(Packet &&) = delete;
+};
+
 class ClientSocket : public std::enable_shared_from_this<ClientSocket> {
 public:
   ClientSocket() = delete;
@@ -23,7 +38,7 @@ public:
 
   // signal connectors
   void set_disconnected_callback(std::function<void()>);
-  void set_message_got_callback(std::function<void(cbor_item_t *)>);
+  void set_message_got_callback(std::function<void(Packet &)>);
 
   /*
   void installAESKey(const QByteArray &key);
@@ -41,15 +56,13 @@ private:
 
   std::string m_peer_address;
 
-  std::vector<char> cborBuffer;
+  std::vector<unsigned char> cborBuffer;
 
-  bool getMessage(std::size_t length);
-
-  std::vector<cbor_item_t *> readCborArrsFromBuffer(cbor_error *err);
+  bool handleBuffer(size_t length);
 
   // signals
   std::function<void()> disconnected_callback = 0;
-  std::function<void(cbor_item_t *)> message_got_callback = 0;
+  std::function<void(Packet &)> message_got_callback = 0;
 
   /*
   QByteArray aesEnc(const QByteArray &in);

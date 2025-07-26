@@ -9,9 +9,12 @@ ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
     spdlog::info("client {} disconnected", peerAddress());
   };
 
-  message_got_callback = [this](cbor_item_t *item) {
-    spdlog::info("cbor item {} got", (void *)item);
-    cbor_describe(item, stdout);
+  message_got_callback = [this](Packet &item) {
+    spdlog::info("packet got: len={} reqId={} type={} command={} data={} bytes", item._len, item.requestId, item.type, item.command, item.cborData.size());
+    cbor_load_result sz;
+    auto dat = cbor_load((cbor_data)item.cborData.data(), item.cborData.size(), &sz);
+    cbor_describe(dat, stdout);
+    cbor_decref(&dat);
   };
 }
 
@@ -21,7 +24,7 @@ void ClientSocket::start() {
     asio::buffer(m_data, max_length),
     [this, self](asio::error_code err, std::size_t length) {
       if (!err) {
-        if (getMessage(length)) {
+        if (handleBuffer(length)) {
           // 再次read_some
           start();
         } else {
@@ -63,78 +66,167 @@ void ClientSocket::set_disconnected_callback(std::function<void()> f) {
   disconnected_callback = f;
 }
 
-void ClientSocket::set_message_got_callback(std::function<void(cbor_item_t *)> f) {
+void ClientSocket::set_message_got_callback(std::function<void(Packet &)> f) {
   message_got_callback = f;
 }
 
 // private methods
 
-bool ClientSocket::getMessage(std::size_t length) {
-  cborBuffer.insert(cborBuffer.end(), m_data, m_data + length);
-
-  cbor_error err;
-  auto arr = readCborArrsFromBuffer(&err);
-  if (err.code == CBOR_ERR_NOTENOUGHDATA || err.code == CBOR_ERR_NODATA) {
-    for (auto &a : arr) {
-      message_got_callback(a);
-      cbor_decref(&a);
-    }
-    return true;
-  } else {
-    // TODO: close conn?
-    // 反正肯定会有不合法数据的，比如invalid setup string
-    // 旧版客户端啥的
-    // disconnectFromHost();
-    return false;
+struct PacketBuilder {
+  explicit PacketBuilder(Packet &p) : pkt { p } {
+    reset();
   }
+
+  void handleInteger(int64_t value) {
+    if (!valid_packet) return;
+
+    switch (current_field) {
+      case 0: pkt.requestId = static_cast<int>(value); break;
+      case 1: pkt.type = static_cast<int>(value); break;
+      case 4: pkt.timeout = static_cast<int>(value); break;
+      case 5: pkt.timestamp = value; break;
+      default:
+        valid_packet = false;
+        return;
+    }
+
+    nextField();
+  }
+
+  void handleBytes(const cbor_data data, size_t len) {
+    if (!valid_packet) return;
+    std::string_view sv { (char *)data, len };
+
+    switch (current_field) {
+      case 2: 
+        pkt.command = sv;
+        break;
+      case 3:
+        pkt.cborData = sv;
+        break;
+      default:
+        valid_packet = false;
+        return;
+    }
+
+    nextField();
+  }
+
+  void startArray(size_t size) {
+    pkt._len = size;
+    valid_packet = true;
+    if (size != 4 && size != 6) {
+      valid_packet = false;
+    }
+  }
+
+  void reset() {
+    std::memset(&pkt, 0, sizeof(Packet));
+    current_field = 0;
+    valid_packet = false;
+  }
+
+  void nextField() {
+    current_field++;
+    if (current_field == pkt._len) {
+      message_got_callback(pkt);
+      handled++;
+      reset();
+    }
+  }
+
+  std::function<void(Packet &)> message_got_callback = 0;
+  Packet &pkt;
+  int current_field = 0;
+  bool valid_packet = false;
+  int handled = 0;
+};
+
+static struct cbor_callbacks *callbacks_ptr = nullptr;
+static struct cbor_callbacks callbacks = cbor_empty_callbacks;
+
+static void init_callbacks() {
+  callbacks.uint8 = [](void* self, uint8_t value) { 
+    static_cast<PacketBuilder*>(self)->handleInteger(value); 
+  };
+  callbacks.uint16 = [](void* self, uint16_t value) { 
+    static_cast<PacketBuilder*>(self)->handleInteger(value); 
+  };
+  callbacks.uint32 = [](void* self, uint32_t value) { 
+    static_cast<PacketBuilder*>(self)->handleInteger(value); 
+  };
+  callbacks.uint64 = [](void* self, uint64_t value) { 
+    static_cast<PacketBuilder*>(self)->handleInteger(value); 
+  };
+  callbacks.negint8 = [](void* self, uint8_t value) { 
+    static_cast<PacketBuilder*>(self)->handleInteger(-1 - value); 
+  };
+  callbacks.negint16 = [](void* self, uint16_t value) { 
+    static_cast<PacketBuilder*>(self)->handleInteger(-1 - value); 
+  };
+  callbacks.negint32 = [](void* self, uint32_t value) { 
+    static_cast<PacketBuilder*>(self)->handleInteger(-1 - value); 
+  };
+  callbacks.negint64 = [](void* self, uint64_t value) { 
+    static_cast<PacketBuilder*>(self)->handleInteger(-1 - static_cast<int64_t>(value)); 
+  };
+  callbacks.byte_string = [](void* self, const cbor_data data, size_t len) { 
+    static_cast<PacketBuilder*>(self)->handleBytes(data, len); 
+  };
+  callbacks.array_start = [](void* self, size_t size) { 
+    static_cast<PacketBuilder*>(self)->startArray(size); 
+  };
+
+  callbacks_ptr = &callbacks;
 }
 
-std::vector<cbor_item_t *> ClientSocket::readCborArrsFromBuffer(cbor_error *err) {
+bool ClientSocket::handleBuffer(size_t length) {
+  cborBuffer.insert(cborBuffer.end(), m_data, m_data + length);
+
   auto cbuf = (unsigned char *)cborBuffer.data();
   auto len = cborBuffer.size();
-  std::vector<cbor_item_t *> ret;
   size_t total_consumed = 0;
 
-  static struct cbor_callbacks callbacks = cbor_empty_callbacks;
+  if (!callbacks_ptr) {
+    init_callbacks();
+  }
+
   struct cbor_decoder_result decode_result;
+  Packet pkt;
+  PacketBuilder builder { pkt };
+  builder.message_got_callback = message_got_callback;
 
   while (true) {
-    struct cbor_load_result result;
-    // 尝试解析CBOR数据
-    cbor_item_t *item = cbor_load(cbuf + total_consumed,
-                                  len - total_consumed,
-                                  &result);
-    cbor_stream_decode(cbuf, len, &callbacks, nullptr);
-
-    // 处理解析结果
-    if (result.error.code == CBOR_ERR_NONE) {
-      if (cbor_isa_array(item)) {
-        ret.push_back(item);
-        total_consumed += result.read;
-      } else {
-        // 不是数组，停止解析
-        cbor_decref(&item);
-        break;
-      }
-    } else if (result.error.code == CBOR_ERR_NOTENOUGHDATA) {
-      // 数据不完整，保留剩余数据
-      err->code = result.error.code;
-      break;
-    } else {
-      // 其他错误，停止解析
-      err->code = result.error.code;
+    // 基于callbacks，边读缓冲区边构造packet并进一步调用回调处理packet
+    // 下面这个函数一次只读一个item
+    decode_result = cbor_stream_decode(cbuf, len, callbacks_ptr, &builder);
+    if (decode_result.status == CBOR_DECODER_ERROR) {
+      return false;
+    } else if (decode_result.status == CBOR_DECODER_NEDATA) {
       break;
     }
+
+    if (decode_result.read != 0) {
+      cbuf += decode_result.read;
+      len -= decode_result.read;
+      total_consumed += decode_result.read;
+    } else {
+      break;
+    }
+  }
+
+  if (builder.handled == 0 && !builder.valid_packet) {
+    return false;
   }
 
   // 对剩余的不全数据深拷贝 重新造bytes
-  std::vector<char> remaining_buffer;
+  std::vector<unsigned char> remaining_buffer;
   if (total_consumed < len) {
     remaining_buffer.assign(cborBuffer.begin() + total_consumed, cborBuffer.end());
     cborBuffer = remaining_buffer;
   }
 
-  return ret;
+  return true;
 }
 
 

@@ -8,8 +8,8 @@ class UserManager {
 public:
   explicit UserManager();
 
-  Player &findPlayer(int id) const;
-  Player &findPlayerByConnId(const std::string_view connId) const;
+  Player *findPlayer(int id) const;
+  Player *findPlayerByConnId(const std::string_view connId) const;
   void addPlayer(std::shared_ptr<Player> player);
   void removePlayer(int id);
   void removePlayerByConnId(const std::string_view connid);

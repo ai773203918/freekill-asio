@@ -2,20 +2,11 @@
 
 #include "server/room/room.h"
 #include "server/room/lobby.h"
-
-#ifdef FK_SERVER_ONLY
-static void *ClientInstance = nullptr;
-#else
-#include "client/client.h"
-#endif
-
 #include "network/client_socket.h"
-#include "server/gamelogic/roomthread.h"
 #include "server/server.h"
-#include "server/user/serverplayer.h"
-#include "core/util.h"
-#include "core/c-wrapper.h"
+#include "server/user/player.h"
 
+/*
 Room::Room(RoomThread *thread) {
   auto server = ServerInstance;
   id = server->nextRoomId;
@@ -730,3 +721,4 @@ void Room::decreaseRefCount() {
   if (lua_ref_count == 0 && m_abandoned)
     deleteLater();
 }
+*/

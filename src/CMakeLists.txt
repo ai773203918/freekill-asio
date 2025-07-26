@@ -3,7 +3,6 @@
 set(freekill_SRCS
   "main.cpp"
 
-  # "core/player.cpp"
   # "core/util.cpp"
   # "core/c-wrapper.cpp"
   # "core/packman.cpp"
@@ -18,9 +17,10 @@ set(freekill_SRCS
   "server/user/player.cpp"
   "server/user/user_manager.cpp"
 
-  # "server/room/roombase.cpp"
-  # "server/room/lobby.cpp"
-  # "server/room/room.cpp"
+  "server/room/roombase.cpp"
+  "server/room/lobby.cpp"
+  "server/room/room.cpp"
+  "server/room/room_manager.cpp"
 
   # "server/rpc-lua/jsonrpc.cpp"
   # "server/rpc-lua/rpc-lua.cpp"

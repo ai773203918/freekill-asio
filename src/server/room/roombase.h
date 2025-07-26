@@ -2,29 +2,38 @@
 #define _ROOMBASE_H
 
 class Server;
-class ServerPlayer;
+class Player;
 
-class RoomBase : public QObject {
- public:
-  Server *getServer() const;
+struct Packet;
+
+class RoomBase {
+public:
   bool isLobby() const;
-  QList<ServerPlayer *> getPlayers() const;
-  QList<ServerPlayer *> getOtherPlayers(ServerPlayer *expect) const;
-  ServerPlayer *findPlayer(int id) const;
 
-  void doBroadcastNotify(const QList<ServerPlayer *> targets,
+  int getId() const;
+
+  /*
+  QList<Player *> getPlayers() const;
+  QList<Player *> getOtherPlayers(Player *expect) const;
+  Player *findPlayer(int id) const;
+
+  void doBroadcastNotify(const QList<Player *> targets,
                          const QByteArray &command, const QByteArray &jsonData);
 
-  void chat(ServerPlayer *sender, const QString &jsonData);
+  void chat(Player *sender, const QString &jsonData);
 
-  virtual void addPlayer(ServerPlayer *player) = 0;
-  virtual void removePlayer(ServerPlayer *player) = 0;
-  virtual void handlePacket(ServerPlayer *sender, const QString &command,
-      const QString &jsonData) = 0;
- protected:
-  Server *server;
-  QList<ServerPlayer *> players;
-  QList<ServerPlayer *> observers;
+  */
+
+  virtual void addPlayer(Player &player) = 0;
+  virtual void removePlayer(Player &player) = 0;
+  virtual void handlePacket(Player &sender, const Packet &packet) = 0;
+
+protected:
+  int id;
+
+  // connId[]
+  std::vector<std::string> players;
+  std::vector<std::string> observers;
 };
 
 #endif // _ROOMBASE_H

@@ -59,16 +59,15 @@ public:
   std::string_view getUuid() const;
   void setUuid(const std::string &uuid);
 
+  RoomBase &getRoom() const;
+  void setRoom(RoomBase &room);
+
   /*
   // server stuff
   void setSocket(ClientSocket *socket);
   void removeSocket();  // For the running players
   ClientSocket *getSocket() const;
 
-
-  Server *getServer() const;
-  RoomBase *getRoom() const;
-  void setRoom(RoomBase *room);
 
   void speak(const  std::string &&message);
 
@@ -125,18 +124,13 @@ private:
   std::string connId;
   std::string uuid_str;
 
+  int roomId;       // Room that player is in, maybe lobby
+
   /*
   ClientSocket *socket;   // socket for communicating with client
   Router *router;
-  Server *server;
-  RoomBase *room;       // Room that player is in, maybe lobby
   bool m_thinking; // 是否在烧条？
   std::mutex m_thinking_mutex;
-
-
-  std::string &requestCommand;
-  std::string &requestData;
-
 
   int gameTime = 0; // 在这个房间的有效游戏时长(秒)
   QElapsedTimer gameTimer;

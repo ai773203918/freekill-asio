@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#ifndef _ROOM_H
-#define _ROOM_H
+#pragma once
 
 #include "server/room/roombase.h"
 
 class Server;
-class ServerPlayer;
+class Player;
 class RoomThread;
 
 /**
@@ -15,11 +14,15 @@ class RoomThread;
   该类负责表示游戏房间，与大厅进行交互以调整玩家
 */
 class Room : public RoomBase {
-  Q_OBJECT
- public:
+public:
   explicit Room(RoomThread *m_thread);
-  ~Room();
+  // ~Room();
 
+  void addPlayer(Player *player);
+  void removePlayer(Player *player);
+  void handlePacket(Player *sender, const Packet &packet);
+
+  /*
   // Property reader & setter
   // ==================================={
   int getId() const;
@@ -34,17 +37,15 @@ class Room : public RoomBase {
   void setSettings(QByteArray settings);
   bool isAbandoned() const;
 
-  ServerPlayer *getOwner() const;
-  void setOwner(ServerPlayer *owner);
+  Player *getOwner() const;
+  void setOwner(Player *owner);
 
-  void addPlayer(ServerPlayer *player);
-  void addRobot(ServerPlayer *player);
-  void removePlayer(ServerPlayer *player);
+  void addRobot(Player *player);
 
-  void addObserver(ServerPlayer *player);
-  void removeObserver(ServerPlayer *player);
-  QList<ServerPlayer *> getObservers() const;
-  bool hasObserver(ServerPlayer *player) const;
+  void addObserver(Player *player);
+  void removeObserver(Player *player);
+  QList<Player *> getObservers() const;
+  bool hasObserver(Player *player) const;
 
   int getTimeout() const;
   void setTimeout(int timeout);
@@ -66,8 +67,6 @@ class Room : public RoomBase {
   void removeRejectId(int id);
 
   // router用
-  void handlePacket(ServerPlayer *sender, const QString &command,
-                    const QString &jsonData);
 
   void setRequestTimer(int ms);
   void destroyRequestTimer();
@@ -83,10 +82,12 @@ class Room : public RoomBase {
  signals:
   void abandoned();
 
-  void playerAdded(ServerPlayer *player);
-  void playerRemoved(ServerPlayer *player);
+  void playerAdded(Player *player);
+  void playerRemoved(Player *player);
+  */
 
- private:
+private:
+  /*
   int id;               // Lobby's id is 0
   QString name;         // “阴间大乱斗”
   int capacity;         // by default is 5, max is 8
@@ -94,7 +95,7 @@ class Room : public RoomBase {
   QJsonObject settings_obj;  // JSON object
   bool m_abandoned;     // If room is empty, delete it
 
-  ServerPlayer *owner;  // who created this room?
+  Player *owner;  // who created this room?
   QList<int> runned_players;
   QList<int> rejected_players;
   int robot_id;
@@ -111,13 +112,12 @@ class Room : public RoomBase {
 
   void addRunRate(int id, const QString &mode);
   void updatePlayerGameData(int id, const QString &mode);
+  */
 
   // handle packet
-  void quitRoom(ServerPlayer *, const QString &);
-  void addRobotRequest(ServerPlayer *, const QString &);
-  void kickPlayer(ServerPlayer *, const QString &);
-  void ready(ServerPlayer *, const QString &);
-  void startGame(ServerPlayer *, const QString &);
+  void quitRoom(Player *, const Packet &);
+  void addRobotRequest(Player *, const Packet &);
+  void kickPlayer(Player *, const Packet &);
+  void ready(Player *, const Packet &);
+  void startGame(Player *, const Packet &);
 };
-
-#endif  // _ROOM_H

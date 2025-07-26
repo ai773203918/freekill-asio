@@ -1,14 +1,14 @@
 #include "server/room/roombase.h"
-#include "server/user/serverplayer.h"
-#include "server/server.h"
-#include "core/util.h"
-
-Server *RoomBase::getServer() const { return server; }
+#include "server/room/lobby.h"
+#include "server/user/player.h"
 
 bool RoomBase::isLobby() const {
-  return inherits("Lobby");
+  return dynamic_cast<const Lobby *>(this) != nullptr;
 }
 
+int RoomBase::getId() const { return id; }
+
+/*
 QList<ServerPlayer *> RoomBase::getPlayers() const { return players; }
 
 QList<ServerPlayer *> RoomBase::getOtherPlayers(ServerPlayer *expect) const {
@@ -64,3 +64,4 @@ void RoomBase::chat(ServerPlayer *sender, const QString &jsonData) {
         qUtf16Printable(sender->getScreenName()),
         qUtf16Printable(doc["msg"].toString()));
 }
+*/

@@ -1,36 +1,33 @@
 #include "server/room/lobby.h"
 #include "server/server.h"
-#include "server/user/serverplayer.h"
-#include "core/util.h"
-#include "core/c-wrapper.h"
+#include "server/user/player.h"
+#include "network/client_socket.h"
 
-Lobby::Lobby(Server *server) {
-  this->server = server;
-  setParent(server);
+Lobby::Lobby() {
+  id = 0;
 }
 
-void Lobby::addPlayer(ServerPlayer *player) {
-  if (!player) return;
+void Lobby::addPlayer(Player &player) {
+  players.push_back(std::string(player.getConnId()));
+  player.setRoom(*this);
 
-  players.append(player);
-  player->setRoom(this);
+  // if (player->getState() == Player::Robot) {
+  //   removePlayer(player);
+  //   player->deleteLater();
+  // } else {
+  //   player->doNotify("EnterLobby", QCborValue().toCbor());
+  // }
 
-  if (player->getState() == Player::Robot) {
-    removePlayer(player);
-    player->deleteLater();
-  } else {
-    player->doNotify("EnterLobby", QCborValue().toCbor());
-  }
-
-  server->updateOnlineInfo();
+  // server->updateOnlineInfo();
 }
 
-void Lobby::removePlayer(ServerPlayer *player) {
-  players.removeOne(player);
-  server->updateOnlineInfo();
+void Lobby::removePlayer(Player &player) {
+//   players.removeOne(player);
+//   server->updateOnlineInfo();
 }
 
-void Lobby::updateAvatar(ServerPlayer *sender, const QString &jsonData) {
+/*
+void Lobby::updateAvatar(Player *sender, const QString &jsonData) {
   auto arr = String2Json(jsonData).array();
   auto avatar = arr[0].toString();
 
@@ -44,7 +41,7 @@ void Lobby::updateAvatar(ServerPlayer *sender, const QString &jsonData) {
   }
 }
 
-void Lobby::updatePassword(ServerPlayer *sender, const QString &jsonData) {
+void Lobby::updatePassword(Player *sender, const QString &jsonData) {
   auto arr = String2Json(jsonData).array();
   auto oldpw = arr[0].toString();
   auto newpw = arr[1].toString();
@@ -73,7 +70,7 @@ void Lobby::updatePassword(ServerPlayer *sender, const QString &jsonData) {
   sender->doNotify("UpdatePassword", passed ? "1" : "0");
 }
 
-void Lobby::createRoom(ServerPlayer *sender, const QString &jsonData) {
+void Lobby::createRoom(Player *sender, const QString &jsonData) {
   auto arr = String2Json(jsonData).array();
   auto name = arr[0].toString();
   auto capacity = arr[1].toInt();
@@ -83,7 +80,7 @@ void Lobby::createRoom(ServerPlayer *sender, const QString &jsonData) {
   ServerInstance->createRoom(sender, name, capacity, timeout, settings);
 }
 
-void Lobby::getRoomConfig(ServerPlayer *sender, const QString &jsonData) {
+void Lobby::getRoomConfig(Player *sender, const QString &jsonData) {
   auto arr = String2Json(jsonData).array();
   auto roomId = arr[0].toInt();
   auto room = ServerInstance->findRoom(roomId);
@@ -96,7 +93,7 @@ void Lobby::getRoomConfig(ServerPlayer *sender, const QString &jsonData) {
   }
 }
 
-void Lobby::enterRoom(ServerPlayer *sender, const QString &jsonData) {
+void Lobby::enterRoom(Player *sender, const QString &jsonData) {
   auto arr = String2Json(jsonData).array();
   auto roomId = arr[0].toInt();
   auto room = ServerInstance->findRoom(roomId);
@@ -117,7 +114,7 @@ void Lobby::enterRoom(ServerPlayer *sender, const QString &jsonData) {
   }
 }
 
-void Lobby::observeRoom(ServerPlayer *sender, const QString &jsonData) {
+void Lobby::observeRoom(Player *sender, const QString &jsonData) {
   auto arr = String2Json(jsonData).array();
   auto roomId = arr[0].toInt();
   auto room = ServerInstance->findRoom(roomId);
@@ -138,25 +135,25 @@ void Lobby::observeRoom(ServerPlayer *sender, const QString &jsonData) {
   }
 }
 
-void Lobby::refreshRoomList(ServerPlayer *sender, const QString &) {
+void Lobby::refreshRoomList(Player *sender, const QString &) {
   ServerInstance->updateRoomList(sender);
 };
+*/
 
-typedef void (Lobby::*room_cb)(ServerPlayer *, const QString &);
+typedef void (Lobby::*room_cb)(Player &, const Packet &);
 
-void Lobby::handlePacket(ServerPlayer *sender, const QString &command,
-                        const QString &jsonData) {
-  static const QMap<QString, room_cb> lobby_actions = {
-    {"UpdateAvatar", &Lobby::updateAvatar},
-    {"UpdatePassword", &Lobby::updatePassword},
-    {"CreateRoom", &Lobby::createRoom},
-    {"GetRoomConfig", &Lobby::getRoomConfig},
-    {"EnterRoom", &Lobby::enterRoom},
-    {"ObserveRoom", &Lobby::observeRoom},
-    {"RefreshRoomList", &Lobby::refreshRoomList},
-    {"Chat", &Lobby::chat},
+void Lobby::handlePacket(Player &sender, const Packet &packet) {
+  static const std::unordered_map<std::string_view, room_cb> lobby_actions = {
+    // {"UpdateAvatar", &Lobby::updateAvatar},
+    // {"UpdatePassword", &Lobby::updatePassword},
+    // {"CreateRoom", &Lobby::createRoom},
+    // {"GetRoomConfig", &Lobby::getRoomConfig},
+    // {"EnterRoom", &Lobby::enterRoom},
+    // {"ObserveRoom", &Lobby::observeRoom},
+    // {"RefreshRoomList", &Lobby::refreshRoomList},
+    // {"Chat", &Lobby::chat},
   };
 
-  auto func = lobby_actions[command];
-  if (func) (this->*func)(sender, jsonData);
+  auto func = lobby_actions.at(packet.command);
+  if (func) (this->*func)(sender, packet);
 }

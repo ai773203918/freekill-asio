@@ -4,7 +4,9 @@
 
 class ServerSocket;
 class ClientSocket;
+
 class UserManager;
+class RoomManager;
 
 using asio::ip::tcp;
 
@@ -18,19 +20,11 @@ public:
   void listen(asio::io_context &io_ctx, tcp::endpoint end);
 
   UserManager &user_manager();
+  RoomManager &room_manager();
 
   void sendEarlyPacket(ClientSocket &client, const std::string_view &type, const std::string_view &msg);
 
   /*
-  void createRoom(Player *owner, const QString &name, int capacity,
-                  int timeout = 15, const QByteArray &settings = QByteArrayLiteral("{}"));
-
-  void removeRoom(int id);
-
-  Room *findRoom(int id) const;
-  Lobby *lobby() const;
-
-
   void updateRoomList(Player *teller);
   void updateOnlineInfo();
 
@@ -59,14 +53,9 @@ private:
   std::unique_ptr<ServerSocket> m_socket;
 
   std::unique_ptr<UserManager> m_user_manager;
+  std::unique_ptr<RoomManager> m_room_manager;
 
   /*
-  friend class Shell;
-
-  Lobby *m_lobby;
-  QMap<int, Room *> rooms;
-  int nextRoomId;
-  friend Room::Room(RoomThread *m_thread);
   QList<QString> temp_banlist;
 
   Sqlite3 *db;

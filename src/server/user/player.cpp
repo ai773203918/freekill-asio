@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "server/user/player.h"
+#include "server/server.h"
+#include "server/room/room_manager.h"
+#include "server/room/roombase.h"
 
 Player::Player() {}
 Player::~Player() {}
@@ -86,6 +89,15 @@ void Player::setDied(bool died) {
 
 std::string_view Player::getConnId() const { return connId; }
 
+RoomBase &Player::getRoom() const {
+  auto &room_manager = Server::instance().room_manager();
+  return *room_manager.findRoom(roomId);
+}
+
+void Player::setRoom(RoomBase &room) {
+  roomId = room.getId();
+}
+
 // std::string_view Player::getPeerAddress() const {
 //   auto p = server->findPlayer(getId());
 //   if (!p || p->getState() != Player::Online)
@@ -164,12 +176,6 @@ void Player::removeSocket() {
   socket = nullptr;
   router->removeSocket();
 }
-
-Server *Player::getServer() const { return server; }
-
-RoomBase *Player::getRoom() const { return room; }
-
-void Player::setRoom(RoomBase *room) { this->room = room; }
 
 void Player::speak(const std::string &message) { ; }
 

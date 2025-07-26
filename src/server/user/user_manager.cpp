@@ -8,12 +8,12 @@ UserManager::UserManager() {
   m_auth = std::make_unique<AuthManager>();
 }
 
-Player &UserManager::findPlayer(int id) const {
-  return *online_players_map.at(id).get();
+Player *UserManager::findPlayer(int id) const {
+  return online_players_map.at(id).get();
 }
 
-Player &UserManager::findPlayerByConnId(const std::string_view connId) const {
-  return *players_map.at(connId).get();
+Player *UserManager::findPlayerByConnId(const std::string_view connId) const {
+  return players_map.at(connId).get();
 }
 
 void UserManager::addPlayer(std::shared_ptr<Player> player) {

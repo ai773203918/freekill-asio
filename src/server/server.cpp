@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "server/server.h"
+#include "server/room/room_manager.h"
+#include "server/room/room.h"
+#include "server/room/lobby.h"
 #include "server/user/user_manager.h"
 #include "server/user/auth.h"
 #include "network/server_socket.h"
@@ -18,6 +21,8 @@ Server &Server::instance() {
 
 Server::Server() : m_socket { nullptr } {
   m_user_manager = std::make_unique<UserManager>();
+  m_room_manager = std::make_unique<RoomManager>();
+
   /*
   db = new Sqlite3;
   md5 = calcFileMD5();
@@ -87,6 +92,10 @@ void Server::listen(asio::io_context &io_ctx, asio::ip::tcp::endpoint end) {
 
 UserManager &Server::user_manager() {
   return *m_user_manager;
+}
+
+RoomManager &Server::room_manager() {
+  return *m_room_manager;
 }
 
 void Server::sendEarlyPacket(ClientSocket &client, const std::string_view &type, const std::string_view &msg) {

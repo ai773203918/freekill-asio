@@ -1,27 +1,25 @@
-#ifndef _LOBBY_H
-#define _LOBBY_H
+#pragma once
 
 #include "server/room/roombase.h"
 
+struct Packet;
+class Player;
+
 class Lobby : public RoomBase {
-  Q_OBJECT
- public:
-  Lobby(Server *server);
+public:
+  Lobby();
 
-  void addPlayer(ServerPlayer *player);
-  void removePlayer(ServerPlayer *player);
+  void addPlayer(Player &player);
+  void removePlayer(Player &player);
+  void handlePacket(Player &sender, const Packet &packet);
 
-  void handlePacket(ServerPlayer *sender, const QString &command,
-                    const QString &jsonData);
- private:
+private:
   // for handle packet
-  void updateAvatar(ServerPlayer *, const QString &);
-  void updatePassword(ServerPlayer *, const QString &);
-  void createRoom(ServerPlayer *, const QString &);
-  void getRoomConfig(ServerPlayer *, const QString &);
-  void enterRoom(ServerPlayer *, const QString &);
-  void observeRoom(ServerPlayer *, const QString &);
-  void refreshRoomList(ServerPlayer *, const QString &);
+  void updateAvatar(Player &, const Packet &);
+  void updatePassword(Player &, const Packet &);
+  void createRoom(Player &, const Packet &);
+  void getRoomConfig(Player &, const Packet &);
+  void enterRoom(Player &, const Packet &);
+  void observeRoom(Player &, const Packet &);
+  void refreshRoomList(Player &, const Packet &);
 };
-
-#endif // _LOBBY_H

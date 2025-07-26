@@ -8,12 +8,12 @@ UserManager::UserManager() {
   m_auth = std::make_unique<AuthManager>();
 }
 
-Player *UserManager::findPlayer(int id) const {
-  return online_players_map.at(id).get();
+Player &UserManager::findPlayer(int id) const {
+  return *online_players_map.at(id).get();
 }
 
-Player *UserManager::findPlayerByConnId(const std::string_view connId) const {
-  return players_map.at(connId).get();
+Player &UserManager::findPlayerByConnId(const std::string_view connId) const {
+  return *players_map.at(connId).get();
 }
 
 void UserManager::addPlayer(std::shared_ptr<Player> player) {
@@ -68,7 +68,7 @@ void UserManager::processNewConnection(std::shared_ptr<ClientSocket> client) {
   */
 
   // network delay test
-  server->sendEarlyPacket(client.get(), "NetworkDelayTest", m_auth->getPublicKeyCbor());
+  server.sendEarlyPacket(*client, "NetworkDelayTest", m_auth->getPublicKeyCbor());
   // Note: the client should send a setup string next
   // connect(client, &ClientSocket::message_got, auth, &AuthManager::processNewConnection);
   // client->timerSignup.start(30000);
@@ -90,7 +90,7 @@ void UserManager::createNewPlayer(std::shared_ptr<ClientSocket> client, std::str
 
   addPlayer(player);
 
-  setupPlayer(player.get());
+  setupPlayer(*player);
 
   // auto result = db->select(QString("SELECT totalGameTime FROM usergameinfo WHERE id=%1;").arg(id));
   // auto time = result[0]["totalGameTime"].toInt();
@@ -100,7 +100,7 @@ void UserManager::createNewPlayer(std::shared_ptr<ClientSocket> client, std::str
   // lobby()->addPlayer(player);
 }
 
-void UserManager::setupPlayer(Player *player, bool all_info) {
+void UserManager::setupPlayer(Player &player, bool all_info) {
   // tell the lobby player's basic property
   // QCborArray arr;
   // arr << player->getId();

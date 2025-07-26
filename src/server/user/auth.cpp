@@ -81,7 +81,7 @@ std::string_view AuthManager::getPublicKeyCbor() const {
 void AuthManager::processNewConnection(std::shared_ptr<ClientSocket> conn) {
   // client->timerSignup.stop();
   auto &server = Server::instance();
-  auto &user_manager = server->user_manager();
+  auto &user_manager = server.user_manager();
 
   // p_ptr->client = client;
 
@@ -96,7 +96,7 @@ void AuthManager::processNewConnection(std::shared_ptr<ClientSocket> conn) {
   // int id = obj["id"].toInt();
   // updateUserLoginData(id);
   // user_manager->createNewPlayer(conn, p_ptr->name, obj["avatar"], id, p_ptr->uuid);
-  user_manager->createNewPlayer(conn, "player", "liubei", 1, "12345678");
+  user_manager.createNewPlayer(conn, "player", "liubei", 1, "12345678");
 }
 
 /*

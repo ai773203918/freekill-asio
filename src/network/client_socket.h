@@ -6,19 +6,24 @@
 
 using asio::ip::tcp;
 
+// 为了省那几字节重排了一下字段
+// 实际应当是 `[ reqId, type, command, data, timeout, timestamp ]`
+
+// Router负责处理的东西
 struct Packet {
   int requestId;
   int type;
+  int timeout;
+  int _len;
+  int64_t timestamp;
   std::string_view command;
   std::string_view cborData;
-  int timeout;
-  int64_t timestamp;
-
-  int _len;
 
   Packet() = default;
   Packet(Packet &) = delete;
   Packet(Packet &&) = delete;
+
+  void describe();
 };
 
 class ClientSocket : public std::enable_shared_from_this<ClientSocket> {
@@ -45,7 +50,6 @@ public:
   void removeAESKey();
   bool aesReady() const { return aes_ready; }
   bool isConnected() const;
-  QString peerName() const;
   QTimer timerSignup;
   */
 

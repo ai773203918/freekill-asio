@@ -10,16 +10,16 @@ using asio::ip::tcp;
 
 class Server {
 public:
-  static std::unique_ptr<Server> &instance();
+  static Server &instance();
   Server(Server &) = delete;
   Server(Server &&) = delete;
   ~Server();
 
   void listen(asio::io_context &io_ctx, tcp::endpoint end);
 
-  std::unique_ptr<UserManager> &user_manager();
+  UserManager &user_manager();
 
-  void sendEarlyPacket(ClientSocket *client, const std::string_view &type, const std::string_view &msg);
+  void sendEarlyPacket(ClientSocket &client, const std::string_view &type, const std::string_view &msg);
 
   /*
   void createRoom(Player *owner, const QString &name, int capacity,

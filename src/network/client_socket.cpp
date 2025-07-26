@@ -9,13 +9,7 @@ ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
     spdlog::info("client {} disconnected", peerAddress());
   };
 
-  message_got_callback = [this](Packet &item) {
-    spdlog::info("packet got: len={} reqId={} type={} command={} data={} bytes", item._len, item.requestId, item.type, item.command, item.cborData.size());
-    cbor_load_result sz;
-    auto dat = cbor_load((cbor_data)item.cborData.data(), item.cborData.size(), &sz);
-    cbor_describe(dat, stdout);
-    cbor_decref(&dat);
-  };
+  message_got_callback = std::bind(&Packet::describe, std::placeholders::_1);
 }
 
 void ClientSocket::start() {
@@ -71,6 +65,14 @@ void ClientSocket::set_message_got_callback(std::function<void(Packet &)> f) {
 }
 
 // private methods
+
+void Packet::describe() {
+  spdlog::info("Item data: len={} reqId={} type={} command={} data={} bytes", _len, requestId, type, command, cborData.size());
+  cbor_load_result sz;
+  auto dat = cbor_load((cbor_data)cborData.data(), cborData.size(), &sz);
+  cbor_describe(dat, stdout);
+  cbor_decref(&dat);
+}
 
 struct PacketBuilder {
   explicit PacketBuilder(Packet &p) : pkt { p } {

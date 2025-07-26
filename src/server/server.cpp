@@ -9,11 +9,11 @@
 
 static std::unique_ptr<Server> server_instance = nullptr;
 
-std::unique_ptr<Server> &Server::instance() {
+Server &Server::instance() {
   if (!server_instance) {
     server_instance = std::unique_ptr<Server>(new Server);
   }
-  return server_instance;
+  return *server_instance;
 }
 
 Server::Server() : m_socket { nullptr } {
@@ -85,11 +85,11 @@ void Server::listen(asio::io_context &io_ctx, asio::ip::tcp::endpoint end) {
   m_socket->listen();
 }
 
-std::unique_ptr<UserManager> &Server::user_manager() {
-  return m_user_manager;
+UserManager &Server::user_manager() {
+  return *m_user_manager;
 }
 
-void Server::sendEarlyPacket(ClientSocket *client, const std::string_view &type, const std::string_view &msg) {
+void Server::sendEarlyPacket(ClientSocket &client, const std::string_view &type, const std::string_view &msg) {
   int rc; // 全部ignore
   cbor_item_t *root = cbor_new_definite_array(4);
   rc = cbor_array_push(root, cbor_build_negint8(1));
@@ -102,7 +102,7 @@ void Server::sendEarlyPacket(ClientSocket *client, const std::string_view &type,
   size_t buffer_size;
   cbor_serialize_alloc(root, &buffer, &buffer_size);
 
-  client->send({ buffer, buffer_size });
+  client.send({ buffer, buffer_size });
 
   free(buffer);
   cbor_decref(&root);

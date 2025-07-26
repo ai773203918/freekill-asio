@@ -8,8 +8,8 @@ class UserManager {
 public:
   explicit UserManager();
 
-  Player *findPlayer(int id) const;
-  Player *findPlayerByConnId(const std::string_view connId) const;
+  Player &findPlayer(int id) const;
+  Player &findPlayerByConnId(const std::string_view connId) const;
   void addPlayer(std::shared_ptr<Player> player);
   void removePlayer(int id);
   void removePlayerByConnId(const std::string_view connid);
@@ -18,7 +18,7 @@ public:
 
   void createNewPlayer(std::shared_ptr<ClientSocket> client, std::string_view name, std::string_view avatar, int id, std::string_view uuid_str);
 
-  void setupPlayer(Player *player, bool all_info = true);
+  void setupPlayer(Player &player, bool all_info = true);
 
 private:
   std::unique_ptr<AuthManager> m_auth;

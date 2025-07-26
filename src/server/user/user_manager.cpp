@@ -70,7 +70,8 @@ void UserManager::processNewConnection(std::shared_ptr<ClientSocket> client) {
   // network delay test
   server.sendEarlyPacket(*client, "NetworkDelayTest", m_auth->getPublicKeyCbor());
   // Note: the client should send a setup string next
-  // connect(client, &ClientSocket::message_got, auth, &AuthManager::processNewConnection);
+  client->set_message_got_callback(
+    std::bind(&AuthManager::processNewConnection, m_auth.get(), client, std::placeholders::_1));
   // client->timerSignup.start(30000);
 }
 

@@ -144,8 +144,8 @@ struct PacketBuilder {
   int handled = 0;
 };
 
-static struct cbor_callbacks *callbacks_ptr = nullptr;
 static struct cbor_callbacks callbacks = cbor_empty_callbacks;
+static std::once_flag callbacks_flag;
 
 static void init_callbacks() {
   callbacks.uint8 = [](void* self, uint8_t value) { 
@@ -178,8 +178,6 @@ static void init_callbacks() {
   callbacks.array_start = [](void* self, size_t size) { 
     static_cast<PacketBuilder*>(self)->startArray(size); 
   };
-
-  callbacks_ptr = &callbacks;
 }
 
 bool ClientSocket::handleBuffer(size_t length) {
@@ -189,9 +187,7 @@ bool ClientSocket::handleBuffer(size_t length) {
   auto len = cborBuffer.size();
   size_t total_consumed = 0;
 
-  if (!callbacks_ptr) {
-    init_callbacks();
-  }
+  std::call_once(callbacks_flag, init_callbacks);
 
   struct cbor_decoder_result decode_result;
   Packet pkt;
@@ -201,7 +197,7 @@ bool ClientSocket::handleBuffer(size_t length) {
   while (true) {
     // 基于callbacks，边读缓冲区边构造packet并进一步调用回调处理packet
     // 下面这个函数一次只读一个item
-    decode_result = cbor_stream_decode(cbuf, len, callbacks_ptr, &builder);
+    decode_result = cbor_stream_decode(cbuf, len, &callbacks, &builder);
     if (decode_result.status == CBOR_DECODER_ERROR) {
       return false;
     } else if (decode_result.status == CBOR_DECODER_NEDATA) {
@@ -281,11 +277,6 @@ void ClientSocket::getMessage() {
   //   }
   //   emit message_got(msg.simplified());
   // }
-}
-
-void ClientSocket::disconnectFromHost() {
-  aes_ready = false;
-  socket->disconnectFromHost();
 }
 
 void ClientSocket::send(const QByteArray &msg) {

@@ -1,27 +1,67 @@
 #include "server/user/auth.h"
 #include "server/user/user_manager.h"
 #include "server/server.h"
+#include "network/client_socket.h"
+#include "network/router.h"
 #include <openssl/bn.h>
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
 
-class AuthManagerPrivate {
-public:
+struct AuthManagerPrivate {
   AuthManagerPrivate();
   ~AuthManagerPrivate() {
     RSA_free(rsa);
+  }
+
+  void reset() {
+    current_idx = 0;
+    name = "";
+    password = "";
+    password_decrypted = "";
+    md5 = "";
+    version = "unknown";
+    uuid = "";
+  }
+  
+  bool is_valid() {
+    return current_idx == 5;
+  }
+
+  void handle(cbor_data data, size_t sz) {
+    auto sv = std::string_view { (char *)data, sz };
+    switch (current_idx) {
+      case 0:
+        name = sv;
+        break;
+      case 1:
+        password = sv;
+        break;
+      case 2:
+        md5 = sv;
+        break;
+      case 3:
+        version = sv;
+        break;
+      case 4:
+        uuid = sv;
+        break;
+    }
+    current_idx++;
   }
 
   RSA *rsa;
 
   // setup message
   std::weak_ptr<ClientSocket> client;
-  // QString name;
-  // QByteArray password;
-  // QByteArray password_decrypted;
-  // QString md5;
-  // QString version;
-  // QString uuid;
+  std::string_view name;
+  std::string_view password;
+  std::string_view password_decrypted;
+  std::string_view md5;
+  std::string_view version;
+  std::string_view uuid;
+
+  // parsing
+  int current_idx;
 };
 
 AuthManagerPrivate::AuthManagerPrivate() {
@@ -78,15 +118,15 @@ std::string_view AuthManager::getPublicKeyCbor() const {
   return { (char *)public_key_cbor_buf, public_key_cbor_bufsize };
 }
 
-void AuthManager::processNewConnection(std::shared_ptr<ClientSocket> conn) {
+void AuthManager::processNewConnection(std::shared_ptr<ClientSocket> conn, Packet &packet) {
   // client->timerSignup.stop();
   auto &server = Server::instance();
   auto &user_manager = server.user_manager();
 
-  // p_ptr->client = client;
+  p_ptr->client = conn;
 
-  // if (!loadSetupData(arr)) { return; }
-  // if (!checkVersion()) { return; }
+  if (!loadSetupData(packet)) { return; }
+  if (!checkVersion()) { return; }
   // if (!checkIfUuidNotBanned()) { return; }
   // if (!checkMd5()) { return; }
 
@@ -99,38 +139,58 @@ void AuthManager::processNewConnection(std::shared_ptr<ClientSocket> conn) {
   user_manager.createNewPlayer(conn, "player", "liubei", 1, "12345678");
 }
 
-/*
-bool AuthManager::loadSetupData(const QCborArray &doc) {
-  QCborArray arr;
-  if (doc.size() != 4 || doc[0].toInteger() != -2 ||
-    doc[1].toInteger() != (Router::TYPE_NOTIFICATION | Router::SRC_CLIENT | Router::DEST_SERVER) ||
-    doc[2].toByteArray() != "Setup")
+static struct cbor_callbacks callbacks = cbor_empty_callbacks;
+static std::once_flag callbacks_flag;
+static void init_callbacks() {
+  callbacks.string = [](void *u, cbor_data data, size_t sz) {
+    static_cast<AuthManagerPrivate *>(u)->handle(data, sz);
+  };
+  callbacks.byte_string = [](void *u, cbor_data data, size_t sz) {
+    static_cast<AuthManagerPrivate *>(u)->handle(data, sz);
+  };
+}
+
+bool AuthManager::loadSetupData(Packet &packet) {
+  std::call_once(callbacks_flag, init_callbacks);
+  auto data = packet.cborData;
+  cbor_decoder_result res;
+  int consumed = 0;
+
+  if (packet._len != 4 || packet.requestId != -2 ||
+    packet.type != (Router::TYPE_NOTIFICATION | Router::SRC_CLIENT | Router::DEST_SERVER) ||
+    packet.command != "Setup")
   {
     goto FAIL;
   }
 
-  arr = QCborValue::fromCbor(doc[3].toByteArray()).toArray();
-
-  if (arr.size() != 5) {
-    goto FAIL;
+  p_ptr->reset();
+  // 一个array带5个bytes 懒得判那么细了解析出5个就行
+  for (int i = 0; i < 6; i++) {
+    res = cbor_stream_decode((cbor_data)data.data() + consumed, data.size() - consumed, &callbacks, p_ptr.get());
+    if (res.status != CBOR_DECODER_FINISHED) {
+      break;
+    }
+    consumed += res.read;
   }
 
-  p_ptr->name = arr[0].toString();
-  p_ptr->password = arr[1].toByteArray();
-  p_ptr->md5 = arr[2].toString();
-  p_ptr->version = arr[3].toString();
-  p_ptr->uuid = arr[4].toString();
+  if (!p_ptr->is_valid()) {
+    goto FAIL;
+  }
 
   return true;
 
 FAIL:
-  qWarning() << "Invalid setup string:" << doc.toCborValue().toDiagnosticNotation();
-  server->sendEarlyPacket(p_ptr->client, "ErrorDlg", "INVALID SETUP STRING");
-  p_ptr->client->disconnectFromHost();
+  spdlog::warn("Invalid setup string: version={}", p_ptr->version); 
+  if (auto client = p_ptr->client.lock()) {
+    Server::instance().sendEarlyPacket(*client, "ErrorDlg", "INVALID SETUP STRING");
+    client->disconnectFromHost();
+  }
+
   return false;
 }
 
 bool AuthManager::checkVersion() {
+  /* TODO 服务端需要配置一个allowed_version的选项；目前返true了事
   auto client_ver = QVersionNumber::fromString(p_ptr->version);
   auto ver = QVersionNumber::fromString(FK_VERSION);
   int cmp = QVersionNumber::compare(ver, client_ver);
@@ -148,9 +208,11 @@ bool AuthManager::checkVersion() {
     p_ptr->client->disconnectFromHost();
     return false;
   }
+  */
   return true;
 }
 
+/*
 bool AuthManager::checkIfUuidNotBanned() {
   auto uuid_str = p_ptr->uuid;
   Sqlite3::QueryResult result2 = { {} };

@@ -6,23 +6,26 @@ class Sqlite3;
 class ClientSocket;
 class AuthManagerPrivate;
 
+struct Packet;
+
 class AuthManager {
 public:
   AuthManager();
   ~AuthManager() noexcept;
   std::string_view getPublicKeyCbor() const;
 
-  void processNewConnection(std::shared_ptr<ClientSocket> conn);
+  void processNewConnection(std::shared_ptr<ClientSocket> conn, Packet &packet);
 
 private:
   unsigned char *public_key_cbor_buf;
   size_t public_key_cbor_bufsize;
   std::unique_ptr<AuthManagerPrivate> p_ptr;
+
+  bool loadSetupData(Packet &packet);
+  bool checkVersion();
   /*
   Sqlite3 *db;
 
-  bool loadSetupData(const QCborArray &msg);
-  bool checkVersion();
   bool checkIfUuidNotBanned();
   bool checkMd5();
   QMap<QString, QString> checkPassword();

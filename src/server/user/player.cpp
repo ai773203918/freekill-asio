@@ -9,6 +9,8 @@
 
 #include <uuid/uuid.h>
 
+static int nextConnId = 0;
+
 Player::Player() {
   m_router = std::make_unique<Router>(this, nullptr, Router::TYPE_SERVER);
 
@@ -22,11 +24,8 @@ Player::Player() {
   // connect(this, &Player::stateChanged, this, &Player::onStateChanged);
   // connect(this, &Player::readyChanged, this, &Player::onReadyChanged);
 
-  uuid_t uuid;
-  char uuid_buf[37];
-  uuid_generate(uuid);
-  uuid_unparse(uuid, uuid_buf);
-  connId = std::string(uuid_buf);
+  connId = nextConnId++;
+  if (nextConnId >= 0x7FFFFF00) nextConnId = 0;
 
   alive = true;
   m_thinking = false;
@@ -113,7 +112,7 @@ void Player::setDied(bool died) {
   this->died = died;
 }
 
-std::string_view Player::getConnId() const { return connId; }
+int Player::getConnId() const { return connId; }
 
 RoomBase &Player::getRoom() const {
   auto &room_manager = Server::instance().room_manager();

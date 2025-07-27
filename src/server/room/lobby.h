@@ -22,4 +22,6 @@ private:
   void enterRoom(Player &, const Packet &);
   void observeRoom(Player &, const Packet &);
   void refreshRoomList(Player &, const Packet &);
+
+  std::unordered_map<int, bool> players;
 };

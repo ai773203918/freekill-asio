@@ -39,5 +39,4 @@ target_link_libraries(freekill-asio PRIVATE
   OpenSSL::Crypto
   git2
   spdlog::spdlog
-  uuid
 )

@@ -20,7 +20,7 @@ Player *UserManager::findPlayer(int id) const {
   return nullptr;
 }
 
-Player *UserManager::findPlayerByConnId(const std::string_view connId) const {
+Player *UserManager::findPlayerByConnId(int connId) const {
   auto it = players_map.find(connId);
   if (it != players_map.end()) {
     return it->second.get();
@@ -41,13 +41,13 @@ void UserManager::addPlayer(std::shared_ptr<Player> player) {
 }
 
 void UserManager::removePlayer(int id) {
-  if (online_players_map[id]) {
+  if (online_players_map.find(id) != online_players_map.end()) {
     online_players_map.erase(id);
   }
 }
 
-void UserManager::removePlayerByConnId(const std::string_view connId) {
-  if (players_map[connId]) {
+void UserManager::removePlayerByConnId(int connId) {
+  if (players_map.find(connId) != players_map.end()) {
     players_map.erase(connId);
   }
 }

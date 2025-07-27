@@ -30,10 +30,6 @@ public:
 
 protected:
   int id;
-
-  // connId[]
-  std::vector<std::string> players;
-  std::vector<std::string> observers;
 };
 
 #endif // _ROOMBASE_H

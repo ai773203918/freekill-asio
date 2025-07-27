@@ -8,7 +8,7 @@ Lobby::Lobby() {
 }
 
 void Lobby::addPlayer(Player &player) {
-  players.push_back(std::string(player.getConnId()));
+  players[player.getConnId()] = true;
   player.setRoom(*this);
 
   // if (player->getState() == Player::Robot) {
@@ -22,7 +22,8 @@ void Lobby::addPlayer(Player &player) {
 }
 
 void Lobby::removePlayer(Player &player) {
-//   players.removeOne(player);
+  auto connId = player.getConnId();
+  players.erase(connId);
 //   server->updateOnlineInfo();
 }
 

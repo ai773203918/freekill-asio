@@ -54,7 +54,7 @@ public:
   bool isDied() const;
   void setDied(bool died);
 
-  std::string_view getConnId() const;
+  int getConnId() const;
 
   // std::string_view getPeerAddress() const;
   std::string_view getUuid() const;
@@ -118,7 +118,7 @@ private:
   int winCount = 0;
   int runCount = 0;
 
-  std::string connId;
+  int connId;
   std::string uuid_str;
 
   int roomId;       // Room that player is in, maybe lobby

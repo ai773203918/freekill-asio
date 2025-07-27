@@ -9,10 +9,10 @@ public:
   explicit UserManager();
 
   Player *findPlayer(int id) const;
-  Player *findPlayerByConnId(const std::string_view connId) const;
+  Player *findPlayerByConnId(int connId) const;
   void addPlayer(std::shared_ptr<Player> player);
   void removePlayer(int id);
-  void removePlayerByConnId(const std::string_view connid);
+  void removePlayerByConnId(int connid);
 
   void processNewConnection(std::shared_ptr<ClientSocket> client);
 
@@ -24,6 +24,6 @@ private:
   std::unique_ptr<AuthManager> m_auth;
 
   // connId -> Player &
-  std::unordered_map<std::string_view, std::shared_ptr<Player>> players_map;
+  std::unordered_map<int, std::shared_ptr<Player>> players_map;
   std::unordered_map<int, std::shared_ptr<Player>> online_players_map;
 };

@@ -6,6 +6,11 @@
 #include "server/server.h"
 #include "server/user/player.h"
 
+// 此类从游戏开始时创建，游戏结束时释放或者释放时释放
+// 负责管理清掉人机和跑路的人
+class GameSession {
+};
+
 /*
 Room::Room(RoomThread *thread) {
   auto server = ServerInstance;

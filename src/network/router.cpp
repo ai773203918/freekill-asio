@@ -1,48 +1,63 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "network/router.h"
+#include "network/client_socket.h"
+#include "server/user/player.h"
+#include "core/c-wrapper.h"
 
-/*
-Router::Router(QObject *parent, ClientSocket *socket, RouterType type)
-    : QObject(parent) {
+Router::Router(Player *player, ClientSocket *socket, RouterType type) {
   this->type = type;
+  this->player = player;
   this->socket = nullptr;
   setSocket(socket);
-  expectedReplyId = -1;
-  replyTimeout = 0;
-  extraReplyReadySemaphore = nullptr;
+  // expectedReplyId = -1;
+  // replyTimeout = 0;
+  // extraReplyReadySemaphore = nullptr;
 }
 
-Router::~Router() { abortRequest(); }
+Router::~Router() {
+  //abortRequest();
+}
 
 ClientSocket *Router::getSocket() const { return socket; }
 
 void Router::setSocket(ClientSocket *socket) {
   if (this->socket != nullptr) {
-    this->socket->disconnect(this);
-    disconnect(this->socket);
-    this->socket->deleteLater();
+    // this->socket->disconnect(this);
+    // disconnect(this->socket);
+    // this->socket->deleteLater();
   }
 
   this->socket = nullptr;
   if (socket != nullptr) {
-    connect(this, &Router::messageReady, socket, &ClientSocket::send);
-    connect(socket, &ClientSocket::message_got, this, &Router::handlePacket);
-    connect(socket, &ClientSocket::disconnected, this, &Router::abortRequest);
-    socket->setParent(this);
+    // connect(this, &Router::messageReady, socket, &ClientSocket::send);
+    socket->set_message_got_callback(
+      std::bind(&Router::handlePacket, this, std::placeholders::_1));
+    socket->set_disconnected_callback(
+      std::bind(&Player::onDisconnected, player));
+    // socket->setParent(this);
     this->socket = socket;
   }
 }
 
 void Router::removeSocket() {
-  socket->disconnect(this);
+  // socket->disconnect(this);
   socket = nullptr;
 }
 
-bool Router::isConsoleStart() const {
-  return socket->peerAddress() == "127.0.0.1";
+void Router::set_message_ready_callback(std::function<void(const std::vector<uint8_t>&)> callback) {
+  message_ready_callback = std::move(callback);
 }
 
+void Router::set_reply_ready_callback(std::function<void()> callback) {
+  reply_ready_callback = std::move(callback);
+}
+
+void Router::set_notification_got_callback(std::function<void(const Packet &)> callback) {
+  notification_got_callback = std::move(callback);
+}
+
+/*
 void Router::setReplyReadySemaphore(QSemaphore *semaphore) {
   extraReplyReadySemaphore = semaphore;
 }
@@ -86,18 +101,20 @@ void Router::reply(int type, const QByteArray &command, const QByteArray &cborDa
 
   sendMessage(body.toCborValue().toCbor());
 }
+*/
 
-void Router::notify(int type, const QByteArray &command, const QByteArray &cborData) {
-  QCborArray body {
+void Router::notify(int type, const std::string_view &command, const std::string_view &data) {
+  if (!socket) return;
+  auto buf = Cbor::encodeArray({
     -2,
-    type,
+    Router::TYPE_NOTIFICATION | Router::SRC_SERVER | Router::DEST_CLIENT,
     command,
-    cborData,
-  };
-
-  sendMessage(body.toCborValue().toCbor());
+    data,
+  });
+  socket->send({ buf.c_str(), buf.size() });
 }
 
+/*
 int Router::getTimeout() const { return requestTimeout; }
 
 // cancel last request from the sender
@@ -132,22 +149,18 @@ void Router::abortRequest() {
   }
   replyMutex.unlock();
 }
+*/
 
-void Router::handlePacket(const QCborArray &packet) {
-  int requestId = packet[0].toInteger();
-  int type = packet[1].toInteger();
-  auto command = packet[2].toByteArray();
-  auto cborData = packet[3].toByteArray();
+void Router::handlePacket(const Packet &packet) {
+  int requestId = packet.requestId;
+  int type = packet.type;
+  auto command = packet.command;
+  auto cborData = packet.cborData;
 
   if (type & TYPE_NOTIFICATION) {
-    emit notification_got(command, cborData);
-  } else if (type & TYPE_REQUEST) {
-    this->requestId = requestId;
-    this->requestTimeout = packet[4].toInteger();
-    this->requestTimestamp = packet[5].toInteger();
-
-    emit request_got(command, cborData);
+    notification_got_callback(packet);
   } else if (type & TYPE_REPLY) {
+    /*
     QMutexLocker locker(&replyMutex);
 
     if (requestId != this->expectedReplyId)
@@ -169,9 +182,11 @@ void Router::handlePacket(const QCborArray &packet) {
 
     locker.unlock();
     emit replyReady();
+    */
   }
 }
 
+/*
 void Router::sendMessage(const QByteArray &msg) {
   auto connType = qApp->thread() == QThread::currentThread()
     ? Qt::DirectConnection : Qt::BlockingQueuedConnection;

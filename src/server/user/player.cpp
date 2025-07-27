@@ -4,8 +4,34 @@
 #include "server/server.h"
 #include "server/room/room_manager.h"
 #include "server/room/roombase.h"
+#include "network/client_socket.h"
+#include "network/router.h"
 
-Player::Player() {}
+#include <uuid/uuid.h>
+
+Player::Player() {
+  m_router = std::make_unique<Router>(this, nullptr, Router::TYPE_SERVER);
+
+  // connect(router, &Router::notification_got, this, &Player::onNotificationGot);
+  m_router->set_notification_got_callback(
+    std::bind(&Player::onNotificationGot, this, std::placeholders::_1));
+  // connect(router, &Router::replyReady, this, &Player::onReplyReady);
+
+  roomId = 0;
+  // connect(this, &Player::kicked, this, &Player::kick);
+  // connect(this, &Player::stateChanged, this, &Player::onStateChanged);
+  // connect(this, &Player::readyChanged, this, &Player::onReadyChanged);
+
+  uuid_t uuid;
+  char uuid_buf[37];
+  uuid_generate(uuid);
+  uuid_unparse(uuid, uuid_buf);
+  connId = std::string(uuid_buf);
+
+  alive = true;
+  m_thinking = false;
+}
+
 Player::~Player() {}
 
 int Player::getId() const { return id; }
@@ -98,6 +124,10 @@ void Player::setRoom(RoomBase &room) {
   roomId = room.getId();
 }
 
+Router &Player::router() const {
+  return *m_router;
+}
+
 // std::string_view Player::getPeerAddress() const {
 //   auto p = server->findPlayer(getId());
 //   if (!p || p->getState() != Player::Online)
@@ -114,71 +144,6 @@ void Player::setUuid(const std::string &uuid) {
 }
 
 /*
- *
-Player::Player(RoomBase *roombase) {
-  socket = nullptr;
-  router = new Router(this, socket, Router::TYPE_SERVER);
-  connect(router, &Router::notification_got, this, &Player::onNotificationGot);
-  connect(router, &Router::replyReady, this, &Player::onReplyReady);
-
-  setState(Player::Online);
-  room = roombase;
-  server = room->getServer();
-  connect(this, &Player::kicked, this, &Player::kick);
-  connect(this, &Player::stateChanged, this, &Player::onStateChanged);
-  connect(this, &Player::readyChanged, this, &Player::onReadyChanged);
-
-  connId = QUuid::createUuid().toString();
-  alive = true;
-  m_thinking = false;
-}
-
-Player::~Player() {
-  // 机器人直接被Room删除了
-  if (getId() < 0) return;
-
-  // 真人的话 需要先退出房间，再退出大厅
-  room->removePlayer(this);
-  if (room != nullptr) {
-    room->removePlayer(this);
-  }
-
-  // 最后服务器删除他
-  if (server->findPlayer(getId()) == this)
-    server->removePlayer(getId());
-
-  server->removePlayerByConnId(connId);
-}
-
-void Player::setSocket(ClientSocket *socket) {
-  if (this->socket != nullptr) {
-    this->socket->disconnect(this);
-    disconnect(this->socket);
-    this->socket->deleteLater();
-  }
-
-  this->socket = nullptr;
-  if (socket != nullptr) {
-    connect(socket, &ClientSocket::disconnected, this,
-            &Player::onDisconnected);
-    this->socket = socket;
-  }
-
-  router->setSocket(socket);
-}
-
-ClientSocket *Player::getSocket() const { return socket; }
-
-// 处理跑路玩家专用，就单纯把socket置为null
-// 因为后面还会用到socket所以不删除
-void Player::removeSocket() {
-  socket->disconnect(this);
-  socket = nullptr;
-  router->removeSocket();
-}
-
-void Player::speak(const std::string &message) { ; }
-
 void Player::doRequest(const QByteArray &command, const QByteArray &jsonData,
                              int timeout, qint64 timestamp) {
   if (getState() != Player::Online)
@@ -202,15 +167,117 @@ std::string Player::waitForReply(int timeout) {
   }
   return ret;
 }
+*/
 
-void Player::doNotify(const QByteArray &command, const QByteArray &jsonData) {
+void Player::doNotify(const std::string_view &command, const std::string_view &data) {
   if (getState() != Player::Online)
     return;
+
   int type =
       Router::TYPE_NOTIFICATION | Router::SRC_SERVER | Router::DEST_CLIENT;
-  router->notify(type, command, jsonData);
+
+  // 包体至少得传点东西，传个null吧
+  m_router->notify(type, command, data == "" ? "\xF6" : data);
 }
 
+bool Player::thinking() {
+  std::lock_guard<std::mutex> locker { m_thinking_mutex };
+  return m_thinking;
+}
+
+void Player::setThinking(bool t) {
+  std::lock_guard<std::mutex> locker { m_thinking_mutex };
+  m_thinking = t;
+}
+
+void Player::set_state_changed_callback(std::function<void()> callback) {
+  state_changed_callback = std::move(callback);
+}
+
+void Player::set_ready_changed_callback(std::function<void()> callback) {
+  ready_changed_callback = std::move(callback);
+}
+
+void Player::set_kicked_callback(std::function<void()> callback) {
+  kicked_callback = std::move(callback);
+}
+
+void Player::onNotificationGot(const Packet &packet) {
+  if (packet.command == "Heartbeat") {
+    alive = true;
+    return;
+  }
+
+  auto &room_manager = Server::instance().room_manager();
+  auto room = room_manager.findRoom(roomId);
+  room->handlePacket(*this, packet);
+}
+
+void Player::onDisconnected() {
+  spdlog::info("Player {} disconnected", id);
+  // if (server->getPlayers().count() <= 10) {
+  //     server->broadcast("ServerMessage", tr("%1 logged out").arg(getScreenName()).toUtf8());;
+  // }
+
+  /* TODO 这段逻辑转交给Room处理
+  auto _room = getRoom();
+  if (_room->isLobby()) {
+    setState(Player::Robot); // 大厅！然而又不能设Offline
+    deleteLater();
+  } else {
+    auto room = qobject_cast<Room *>(_room);
+    if (room->isStarted()) {
+      if (room->getObservers().contains(this)) {
+        room->removeObserver(this);
+        deleteLater();
+        return;
+      }
+      if (thinking()) {
+        auto thread = qobject_cast<RoomThread *>(room->parent());
+        thread->wakeUp(room->getId(), "player_disconnect");
+      }
+      setState(Player::Offline);
+      setSocket(nullptr);
+      // TODO: add a robot
+    } else {
+      setState(Player::Robot); // 大厅！然而又不能设Offline
+      // 这里有一个多线程问题，可能与Room::gameOver同时deleteLater导致出事
+      // FIXME: 这种解法肯定不安全
+      if (!room->insideGameOver)
+        deleteLater();
+    }
+  }
+  */
+}
+
+/*
+ *
+Player::~Player() {
+  // 机器人直接被Room删除了
+  if (getId() < 0) return;
+
+  // 真人的话 需要先退出房间，再退出大厅
+  room->removePlayer(this);
+  if (room != nullptr) {
+    room->removePlayer(this);
+  }
+
+  // 最后服务器删除他
+  if (server->findPlayer(getId()) == this)
+    server->removePlayer(getId());
+
+  server->removePlayerByConnId(connId);
+}
+
+// 处理跑路玩家专用，就单纯把socket置为null
+// 因为后面还会用到socket所以不删除
+void Player::removeSocket() {
+  socket->disconnect(this);
+  socket = nullptr;
+  router->removeSocket();
+}
+
+void Player::speak(const std::string &message) { ; }
 void Player::prepareForRequest(const std::string &command,
                                      const std::string &data) {
   requestCommand = command;
@@ -248,16 +315,6 @@ void Player::reconnect(ClientSocket *client) {
   }
 }
 
-bool Player::thinking() {
-  QMutexLocker locker(&m_thinking_mutex);
-  return m_thinking;
-}
-
-void Player::setThinking(bool t) {
-  QMutexLocker locker(&m_thinking_mutex);
-  m_thinking = t;
-}
-
 void Player::startGameTimer() {
   gameTime = 0;
   gameTimer.start();
@@ -273,15 +330,6 @@ void Player::resumeGameTimer() {
 
 int Player::getGameTime() {
   return gameTime + (getState() == Player::Online ? gameTimer.elapsed() / 1000 : 0);
-}
-
-void Player::onNotificationGot(const QByteArray &c, const QByteArray &j) {
-  if (c == "Heartbeat") {
-    alive = true;
-    return;
-  }
-
-  room->handlePacket(this, c, j);
 }
 
 void Player::onReplyReady() {
@@ -321,41 +369,6 @@ void Player::onReadyChanged() {
   if (room && !room->isLobby()) {
     room->doBroadcastNotify(room->getPlayers(), "ReadyChanged",
                             QCborArray { getId(), isReady() }.toCborValue().toCbor());
-  }
-}
-
-void Player::onDisconnected() {
-  qInfo() << "Player" << getId() << "disconnected";
-  if (server->getPlayers().count() <= 10) {
-      server->broadcast("ServerMessage", tr("%1 logged out").arg(getScreenName()).toUtf8());;
-  }
-
-  auto _room = getRoom();
-  if (_room->isLobby()) {
-    setState(Player::Robot); // 大厅！然而又不能设Offline
-    deleteLater();
-  } else {
-    auto room = qobject_cast<Room *>(_room);
-    if (room->isStarted()) {
-      if (room->getObservers().contains(this)) {
-        room->removeObserver(this);
-        deleteLater();
-        return;
-      }
-      if (thinking()) {
-        auto thread = qobject_cast<RoomThread *>(room->parent());
-        thread->wakeUp(room->getId(), "player_disconnect");
-      }
-      setState(Player::Offline);
-      setSocket(nullptr);
-      // TODO: add a robot
-    } else {
-      setState(Player::Robot); // 大厅！然而又不能设Offline
-      // 这里有一个多线程问题，可能与Room::gameOver同时deleteLater导致出事
-      // FIXME: 这种解法肯定不安全
-      if (!room->insideGameOver)
-        deleteLater();
-    }
   }
 }
 */

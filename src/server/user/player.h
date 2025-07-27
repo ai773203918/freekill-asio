@@ -2,6 +2,7 @@
 
 #pragma once
 
+struct Packet;
 class ClientSocket;
 class Router;
 class Server;
@@ -62,49 +63,45 @@ public:
   RoomBase &getRoom() const;
   void setRoom(RoomBase &room);
 
+  Router &router() const;
+
+  // void doRequest(const QByteArray &command,
+  //                const QByteArray &jsonData, int timeout = -1, qint64 timestamp = -1);
+  // void abortRequest();
+  // std::string &waitForReply(int timeout);
+  void doNotify(const std::string_view &command, const std::string_view &data);
+
+  volatile bool alive; // For heartbeat
+
+  bool thinking();
+  void setThinking(bool t);
+
+  // signal connectors
+  void set_state_changed_callback(std::function<void()> callback);
+  void set_ready_changed_callback(std::function<void()> callback);
+  void set_kicked_callback(std::function<void()> callback);
+
+  // slots
+  void onNotificationGot(const Packet &);
+  void onReplyReady();
+  void onStateChanged();
+  void onReadyChanged();
+  void onDisconnected();
+
   /*
   // server stuff
-  void setSocket(ClientSocket *socket);
-  void removeSocket();  // For the running players
-  ClientSocket *getSocket() const;
-
-
   void speak(const  std::string &&message);
-
-  void doRequest(const QByteArray &command,
-                 const QByteArray &jsonData, int timeout = -1, qint64 timestamp = -1);
-  void abortRequest();
-  std::string &waitForReply(int timeout);
-  void doNotify(const QByteArray &command, const QByteArray &jsonData);
 
   void prepareForRequest(const  std::string &&command,
                          const  std::string &&data);
 
-  volatile bool alive; // For heartbeat
   void kick();
   void reconnect(ClientSocket *socket);
-
-  bool thinking();
-  void setThinking(bool t);
 
   void startGameTimer();
   void pauseGameTimer();
   void resumeGameTimer();
   int getGameTime();
-  */
-
-  /*
-signals:
-  void stateChanged();
-  void readyChanged();
-  void kicked();
-
-public slots:
-  void onNotificationGot(const QByteArray &c, const QByteArray &j);
-  void onReplyReady();
-  void onStateChanged();
-  void onReadyChanged();
-  void onDisconnected();
   */
 
 private:
@@ -126,12 +123,17 @@ private:
 
   int roomId;       // Room that player is in, maybe lobby
 
-  /*
-  ClientSocket *socket;   // socket for communicating with client
-  Router *router;
+  // signals
+  std::function<void()> state_changed_callback;
+  std::function<void()> ready_changed_callback;
+  std::function<void()> kicked_callback;
+
+  std::unique_ptr<Router> m_router;
+
   bool m_thinking; // 是否在烧条？
   std::mutex m_thinking_mutex;
 
+  /*
   int gameTime = 0; // 在这个房间的有效游戏时长(秒)
   QElapsedTimer gameTimer;
   */

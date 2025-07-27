@@ -4,7 +4,7 @@ set(freekill_SRCS
   "main.cpp"
 
   # "core/util.cpp"
-  # "core/c-wrapper.cpp"
+  "core/c-wrapper.cpp"
   # "core/packman.cpp"
 
   "network/server_socket.cpp"
@@ -39,4 +39,5 @@ target_link_libraries(freekill-asio PRIVATE
   OpenSSL::Crypto
   git2
   spdlog::spdlog
+  uuid
 )

@@ -10,6 +10,8 @@
 #include "network/client_socket.h"
 #include "network/router.h"
 
+#include "core/c-wrapper.h"
+
 static std::unique_ptr<Server> server_instance = nullptr;
 
 Server &Server::instance() {
@@ -99,22 +101,13 @@ RoomManager &Server::room_manager() {
 }
 
 void Server::sendEarlyPacket(ClientSocket &client, const std::string_view &type, const std::string_view &msg) {
-  int rc; // 全部ignore
-  cbor_item_t *root = cbor_new_definite_array(4);
-  rc = cbor_array_push(root, cbor_build_negint8(1));
-  rc = cbor_array_push(root, cbor_build_uint16(
-    Router::TYPE_NOTIFICATION | Router::SRC_SERVER | Router::DEST_CLIENT));
-  rc = cbor_array_push(root, cbor_build_bytestring((cbor_data)type.data(), type.size()));
-  rc = cbor_array_push(root, cbor_build_bytestring((cbor_data)msg.data(), msg.size()));
-
-  unsigned char *buffer;
-  size_t buffer_size;
-  cbor_serialize_alloc(root, &buffer, &buffer_size);
-
-  client.send({ buffer, buffer_size });
-
-  free(buffer);
-  cbor_decref(&root);
+  auto buf = Cbor::encodeArray({
+    -2,
+    Router::TYPE_NOTIFICATION | Router::SRC_SERVER | Router::DEST_CLIENT,
+    type,
+    msg,
+  });
+  client.send({ buf.c_str(), buf.size() });
 }
 
 /*

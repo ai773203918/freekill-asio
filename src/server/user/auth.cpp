@@ -22,7 +22,7 @@ struct AuthManagerPrivate {
     version = "unknown";
     uuid = "";
   }
-  
+
   bool is_valid() {
     return current_idx == 5;
   }

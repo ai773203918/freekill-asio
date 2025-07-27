@@ -40,6 +40,7 @@ bool Sqlite3::checkString(const char *str) {
   return !std::regex_search(str, exp);
 }
 
+/*
 // callback for handling SELECT expression
 static int callback(void *jsonDoc, int argc, char **argv, char **cols) {
   QMap<QString, QString> obj;
@@ -81,7 +82,101 @@ void Sqlite3::exec(const std::string &sql) {
   auto bytes = sql.c_str();
   sqlite3_exec(db, bytes, nullptr, nullptr, nullptr);
 }
+*/
 
 std::uint64_t Sqlite3::getMemUsage() {
   return sqlite3_memory_used();
+}
+
+// -----------------
+
+template <typename T>
+cbor_item_t* build_cbor_int(T value) {
+  static_assert(std::is_integral_v<T>, "Integer type required");
+
+  if constexpr (std::is_signed_v<T>) {
+    // 处理有符号整数
+    if (value >= 0) {
+      // 正数作为无符号处理
+      uint64_t uvalue = static_cast<uint64_t>(value);
+      if (uvalue <= 0xFF) return cbor_build_uint8(uvalue);
+      if (uvalue <= 0xFFFF) return cbor_build_uint16(uvalue);
+      if (uvalue <= 0xFFFFFFFF) return cbor_build_uint32(uvalue);
+      return cbor_build_uint64(uvalue);
+    } else {
+      // 负数
+      int64_t ivalue = static_cast<int64_t>(value);
+      if (ivalue >= -128) return cbor_build_negint8(-(ivalue+1));
+      if (ivalue >= -32768) return cbor_build_negint16(-(ivalue+1));
+      if (ivalue >= -2147483648LL) return cbor_build_negint32(-(ivalue+1));
+      return cbor_build_negint64(-(ivalue+1));
+    }
+  } else {
+    // 处理无符号整数
+    if (value <= 0xFF) return cbor_build_uint8(value);
+    if (value <= 0xFFFF) return cbor_build_uint16(value);
+    if (value <= 0xFFFFFFFF) return cbor_build_uint32(value);
+    return cbor_build_uint64(value);
+  }
+}
+
+cbor_item_t* build_cbor_item(int8_t value) { return build_cbor_int(value); }
+cbor_item_t* build_cbor_item(int16_t value) { return build_cbor_int(value); }
+cbor_item_t* build_cbor_item(int32_t value) { return build_cbor_int(value); }
+cbor_item_t* build_cbor_item(int64_t value) { return build_cbor_int(value); }
+cbor_item_t* build_cbor_item(uint8_t value) { return build_cbor_int(value); }
+cbor_item_t* build_cbor_item(uint16_t value) { return build_cbor_int(value); }
+cbor_item_t* build_cbor_item(uint32_t value) { return build_cbor_int(value); }
+cbor_item_t* build_cbor_item(uint64_t value) { return build_cbor_int(value); }
+
+cbor_item_t* build_cbor_item(const std::string_view& value) {
+  return cbor_build_bytestring((cbor_data)value.data(), value.size());
+}
+
+cbor_item_t* build_cbor_item(const char* value) {
+  return cbor_build_string(value);
+}
+
+cbor_item_t* build_cbor_item(bool value) {
+  return cbor_build_bool(value);
+}
+
+std::string Cbor::encodeArray(std::initializer_list<std::variant<
+                              int, unsigned int, int64_t, uint64_t,
+                              std::string_view, const char*, bool>> items) {
+
+  cbor_item_t* array = cbor_new_definite_array(items.size());
+  if (!array) {
+    throw std::runtime_error("Failed to create CBOR array");
+  }
+
+  size_t i = 0;
+  for (const auto& item : items) {
+    cbor_item_t* cbor_item = std::visit([](auto&& arg) {
+      return build_cbor_item(arg);
+    }, item);
+
+    if (!cbor_item || !cbor_array_set(array, i, cbor_item)) {
+      cbor_decref(&array);
+      if (cbor_item) cbor_decref(&cbor_item);
+      throw std::runtime_error("Failed to add item to CBOR array");
+    }
+    cbor_decref(&cbor_item);
+    i++;
+  }
+
+  size_t buffer_size;
+  unsigned char* buffer = nullptr;
+  size_t serialized = cbor_serialize_alloc(array, &buffer, &buffer_size);
+  cbor_decref(&array);
+
+  if (serialized == 0) {
+    free(buffer);
+    throw std::runtime_error("Failed to serialize CBOR data");
+  }
+
+  std::string result(reinterpret_cast<char*>(buffer), buffer_size);
+  free(buffer);
+
+  return result;
 }

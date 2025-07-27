@@ -2,6 +2,8 @@
 
 #pragma once
 
+struct Packet;
+class Player;
 class ClientSocket;
 
 class Router {
@@ -23,12 +25,18 @@ public:
     TYPE_CLIENT
   };
 
-  Router(ClientSocket *socket, RouterType type);
+  Router() = delete;
+  Router(Player *player, ClientSocket *socket, RouterType type);
   ~Router();
 
   ClientSocket *getSocket() const;
   void setSocket(ClientSocket *socket);
   void removeSocket();
+
+  // signal connectors
+  void set_message_ready_callback(std::function<void(const std::vector<uint8_t>&)> callback);
+  void set_reply_ready_callback(std::function<void()> callback);
+  void set_notification_got_callback(std::function<void(const Packet &)> callback);
 
   /*
   void setReplyReadySemaphore(QSemaphore *semaphore);
@@ -36,8 +44,10 @@ public:
   void request(int type, const QByteArray &command,
               const QByteArray &cborData, int timeout, qint64 timestamp = -1);
   void reply(int type, const QByteArray &command, const QByteArray &cborData);
-  void notify(int type, const QByteArray &command, const QByteArray &cborData);
+  */
+  void notify(int type, const std::string_view &command, const std::string_view &cborData);
 
+  /*
   int getTimeout() const;
 
   void cancelRequest();
@@ -47,20 +57,18 @@ public:
 
   int getRequestId() const { return requestId; }
   qint64 getRequestTimestamp() { return requestTimestamp; }
-
-signals:
-  void messageReady(const QByteArray &msg);
-  void replyReady();
-
-  void notification_got(const QByteArray &command, const QByteArray &cborData);
-  void request_got(const QByteArray &command, const QByteArray &cborData);
+  */
 
 protected:
-  void handlePacket(const QCborArray &packet);
+  void handlePacket(const Packet &packet);
 
 private:
-  std::unique_ptr<ClientSocket> socket;
+  ClientSocket *socket;
+  Player *player = nullptr;
+
   RouterType type;
+
+/*
 
   // For client side
   int requestId;
@@ -78,4 +86,9 @@ private:
 
   void sendMessage(const QByteArray &msg);
   */
+
+  // signals
+  std::function<void(const std::vector<uint8_t>&)> message_ready_callback;
+  std::function<void()> reply_ready_callback;
+  std::function<void(const Packet &)> notification_got_callback;
 };

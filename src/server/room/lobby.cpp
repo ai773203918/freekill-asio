@@ -15,7 +15,7 @@ void Lobby::addPlayer(Player &player) {
   //   removePlayer(player);
   //   player->deleteLater();
   // } else {
-  //   player->doNotify("EnterLobby", QCborValue().toCbor());
+  player.doNotify("EnterLobby", "");
   // }
 
   // server->updateOnlineInfo();
@@ -154,6 +154,9 @@ void Lobby::handlePacket(Player &sender, const Packet &packet) {
     // {"Chat", &Lobby::chat},
   };
 
-  auto func = lobby_actions.at(packet.command);
-  if (func) (this->*func)(sender, packet);
+  auto iter = lobby_actions.find(packet.command);
+  if (iter != lobby_actions.end()) {
+    auto func = iter->second;
+    (this->*func)(sender, packet);
+  }
 }

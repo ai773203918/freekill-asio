@@ -22,3 +22,10 @@ public:
 private:
   sqlite3 *db;
 };
+
+class Cbor {
+public:
+  static std::string encodeArray(std::initializer_list<std::variant<
+    int, unsigned int, int64_t, uint64_t,
+    std::string_view, const char*, bool>> items);
+};

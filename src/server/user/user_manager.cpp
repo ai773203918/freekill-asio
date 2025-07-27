@@ -2,18 +2,30 @@
 #include "server/user/player.h"
 #include "server/user/auth.h"
 #include "server/server.h"
+#include "server/room/room_manager.h"
+#include "server/room/lobby.h"
 #include "network/client_socket.h"
+#include "network/router.h"
+#include "core/c-wrapper.h"
 
 UserManager::UserManager() {
   m_auth = std::make_unique<AuthManager>();
 }
 
 Player *UserManager::findPlayer(int id) const {
-  return online_players_map.at(id).get();
+  auto it = online_players_map.find(id);
+  if (it != online_players_map.end()) {
+    return it->second.get();
+  }
+  return nullptr;
 }
 
 Player *UserManager::findPlayerByConnId(const std::string_view connId) const {
-  return players_map.at(connId).get();
+  auto it = players_map.find(connId);
+  if (it != players_map.end()) {
+    return it->second.get();
+  }
+  return nullptr;
 }
 
 void UserManager::addPlayer(std::shared_ptr<Player> player) {
@@ -78,9 +90,10 @@ void UserManager::processNewConnection(std::shared_ptr<ClientSocket> client) {
 void UserManager::createNewPlayer(std::shared_ptr<ClientSocket> client, std::string_view name, std::string_view avatar, int id, std::string_view uuid_str) {
   // create new Player and setup
   auto player = std::make_shared<Player>();
-  // player->setSocket(client);
+  player->router().setSocket(client.get());
   // player->setParent(this);
   // client->disconnect(this);
+  player->setState(Player::Online);
   player->setScreenName(name.data());
   player->setAvatar(avatar.data());
   player->setId(id);
@@ -98,17 +111,19 @@ void UserManager::createNewPlayer(std::shared_ptr<ClientSocket> client, std::str
   // player->addTotalGameTime(time);
   // player->doNotify("AddTotalGameTime", QCborArray{ id, time }.toCborValue().toCbor());
 
-  // lobby()->addPlayer(player);
+  auto lobby = Server::instance().room_manager().lobby();
+  lobby.addPlayer(*player);
 }
 
 void UserManager::setupPlayer(Player &player, bool all_info) {
   // tell the lobby player's basic property
-  // QCborArray arr;
-  // arr << player->getId();
-  // arr << player->getScreenName();
-  // arr << player->getAvatar();
-  // arr << QDateTime::currentMSecsSinceEpoch();
-  // player->doNotify("Setup", arr.toCborValue().toCbor());
+  player.doNotify("Setup", Cbor::encodeArray({
+    player.getId(),
+    player.getScreenName().data(),
+    player.getAvatar().data(),
+    std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::system_clock::now().time_since_epoch()).count(),
+  }));
 
   // if (all_info) {
   //   player->doNotify("SetServerSettings", QCborArray {

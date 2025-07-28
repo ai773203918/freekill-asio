@@ -2,49 +2,35 @@
 
 #include <git2.h>
 #include <git2/errors.h>
+#include <string>
 #include "core/packman.h"
 #include "core/c-wrapper.h"
-#include "core/util.h"
-#include "ui/qmlbackend.h"
 
 PackMan *Pacman = nullptr;
 
-PackMan::PackMan(QObject *parent) : QObject(parent) {
+PackMan::PackMan() {
   git_libgit2_init();
-  db = new Sqlite3("./packages/packages.db", "./packages/init.sql");
+  db = std::make_unique<Sqlite3>("./packages/packages.db", "./packages/init.sql");
 
-  QDir d("packages");
-
-  // For old version
-  for (auto e : QmlBackend::ls("packages")) {
-    if (e.endsWith(".disabled") && d.exists(e) && !d.exists(e.chopped(9))) {
-      d.rename(e, e.chopped(9));
-    }
-  }
-
-  for (auto obj : db->select("SELECT name, enabled FROM packages;")) {
+  for (auto &obj : db->select("SELECT name, enabled FROM packages;")) {
     auto pack = obj["name"];
-    auto enabled = obj["enabled"].toInt() == 1;
+    auto enabled = obj["enabled"] == "1";
 
     if (!enabled) {
-      disabled_packs << pack;
+      disabled_packs.push_back(pack);
     }
   }
-
-#ifdef Q_OS_ANDROID
-  git_libgit2_opts(GIT_OPT_SET_SSL_CERT_LOCATIONS, NULL, "./certs");
-#endif
 }
 
 PackMan::~PackMan() {
   git_libgit2_shutdown();
-  delete db;
 }
 
-QStringList PackMan::getDisabledPacks() {
+std::vector<std::string> &PackMan::getDisabledPacks() {
   return disabled_packs;
 }
 
+/*
 QString PackMan::getPackSummary() {
   return db->selectJson("SELECT name, url, hash FROM packages WHERE enabled = 1;");
 }
@@ -65,26 +51,11 @@ void PackMan::loadSummary(const QString &jsonData, bool useThread) {
       auto url = obj["url"].toString();
       int err = 0;
 
-#ifndef FK_SERVER_ONLY
-      // 应该会有一个拓展包页面，提示页面目前下载哪个包了
-      Backend->notifyUI("SetDownloadingPackage", name);
-#endif
-
       if (db->select(
               QString("SELECT name FROM packages WHERE name='%1';").arg(name))
               .isEmpty()) {
         err = downloadNewPack(url);
         if (err != 0) {
-#ifndef FK_SERVER_ONLY
-          QString msg;
-          if (err != 100) {
-            auto error = git_error_last();
-            msg = QString("Error: %1").arg(error->message);
-          } else {
-            msg = "Workspace is dirty.";
-          }
-          Backend->notifyUI("PackageDownloadError", msg);
-#endif
           continue;
         }
       }
@@ -94,16 +65,6 @@ void PackMan::loadSummary(const QString &jsonData, bool useThread) {
       if (head(name) != obj["hash"].toString()) {
         err = updatePack(name, obj["hash"].toString());
         if (err != 0) {
-#ifndef FK_SERVER_ONLY
-          QString msg;
-          if (err != 100) {
-            auto error = git_error_last();
-            msg = QString("Error: %1").arg(error->message);
-          } else {
-            msg = "Workspace is dirty.";
-          }
-          Backend->notifyUI("PackageDownloadError", msg);
-#endif
           continue;
         }
       }
@@ -118,73 +79,61 @@ void PackMan::loadSummary(const QString &jsonData, bool useThread) {
     thread->start();
     connect(thread, &QThread::finished, [=]() {
       thread->deleteLater();
-#ifndef FK_SERVER_ONLY
-      Backend->notifyUI("DownloadComplete", "");
-#endif
     });
   } else {
     f();
   }
 }
+*/
 
-int PackMan::downloadNewPack(const QString &url, bool useThread) {
-  static auto sql_select = QString("SELECT name FROM packages \
-    WHERE name = '%1';");
-  static auto sql_update = QString("INSERT INTO packages (name,url,hash,enabled) \
-      VALUES ('%1','%2','%3',1);");
+int PackMan::downloadNewPack(const char *u) {
+  static constexpr const char *sql_select = "SELECT name FROM packages \
+    WHERE name = '{}';";
+  static constexpr const char *sql_update = "INSERT INTO packages (name,url,hash,enabled) \
+    VALUES ('{}','{}','{}',1);";
 
-  auto threadFunc = [=]() -> int {
-    int err = clone(url);
-    if (err < 0)
-      return err;
-
-    auto u = url;
-    while (u.endsWith('/')) {
-      u.chop(1);
-    }
-    QString fileName = QUrl(u).fileName();
-    if (fileName.endsWith(".git"))
-      fileName.chop(4);
-
-    auto result = db->select(sql_select.arg(fileName));
-    if (result.isEmpty()) {
-      db->exec(sql_update.arg(fileName).arg(url)
-                      .arg(err < 0 ? "XXXXXXXX" : head(fileName)));
-    }
-
+  int err = clone(u);
+  if (err < 0)
     return err;
-  };
-  if (useThread) {
-    auto thread = QThread::create(threadFunc);
-    thread->start();
-    connect(thread, &QThread::finished, [=]() {
-      thread->deleteLater();
-#ifndef FK_SERVER_ONLY
-      Backend->notifyUI("DownloadComplete", "");
-#endif
-    });
-    return 0;
-  } else {
-    return threadFunc();
+
+  auto url = std::string { u };
+  while (!url.empty() && url.back() == '/') {
+    url.pop_back();
+  }
+
+  auto fileName = url.substr(url.find_last_of('/') + 1);
+  if (fileName.size() > 4 && fileName.substr(fileName.size() - 4) == ".git") {
+    fileName = fileName.substr(0, fileName.size() - 4);
+  }
+
+  auto result = db->select(std::format(sql_select, fileName));
+  if (result.empty()) {
+    db->exec(std::format(sql_update, fileName, url, head(fileName.c_str())));
+  }
+
+  return err;
+}
+
+void PackMan::enablePack(const char *pack) {
+  db->exec(
+      std::format("UPDATE packages SET enabled = 1 WHERE name = '{}';", pack));
+
+  auto it = std::remove(disabled_packs.begin(), disabled_packs.end(), pack);
+  if (it != disabled_packs.end()) {
+    disabled_packs.erase(it, disabled_packs.end());
   }
 }
 
-void PackMan::enablePack(const QString &pack) {
+void PackMan::disablePack(const char *pack) {
   db->exec(
-      QString("UPDATE packages SET enabled = 1 WHERE name = '%1';").arg(pack));
+    std::format("UPDATE packages SET enabled = 0 WHERE name = '{}';", pack));
 
-  disabled_packs.removeOne(pack);
+  auto it = std::find(disabled_packs.begin(), disabled_packs.end(), pack);
+  if (it == disabled_packs.end())
+    disabled_packs.push_back(pack);
 }
 
-void PackMan::disablePack(const QString &pack) {
-  db->exec(
-    QString("UPDATE packages SET enabled = 0 WHERE name = '%1';").arg(pack));
-
-  if (!disabled_packs.contains(pack))
-    disabled_packs << pack;
-}
-
-int PackMan::updatePack(const QString &pack, const QString &hash) {
+int PackMan::updatePack(const char *pack, const char *hash) {
   int err;
   // 先status 检查dirty 后面全是带--force的操作
   err = status(pack);
@@ -199,7 +148,7 @@ int PackMan::updatePack(const QString &pack, const QString &hash) {
   return 0;
 }
 
-int PackMan::upgradePack(const QString &pack) {
+int PackMan::upgradePack(const char *pack) {
   int err;
   // 先status 检查dirty 后面全是带--force的操作
   err = status(pack);
@@ -215,45 +164,48 @@ int PackMan::upgradePack(const QString &pack) {
   if (err < 0)
     return err;
 
-  db->exec(QString("UPDATE packages SET hash = '%1' WHERE name = '%2';")
-                  .arg(head(pack))
-                  .arg(pack));
+  db->exec(std::format("UPDATE packages SET hash = '%1' WHERE name = '%2';",
+                  head(pack), pack));
   return 0;
 }
 
-void PackMan::removePack(const QString &pack) {
-  auto result = db->select(QString("SELECT enabled FROM packages \
-  WHERE name = '%1';")
-                                           .arg(pack));
-  if (result.isEmpty())
+void PackMan::removePack(const char *pack) {
+  auto result = db->select(std::format("SELECT enabled FROM packages \
+    WHERE name = '{}';", pack));
+  if (result.empty())
     return;
 
-  bool enabled = result[0]["enabled"].toInt() == 1;
-  db->exec(QString("DELETE FROM packages WHERE name = '%1';").arg(pack));
-  QDir d(QString("packages/%1").arg(pack));
-  d.removeRecursively();
+  bool enabled = result[0]["enabled"] == "1";
+  db->exec(std::format("DELETE FROM packages WHERE name = '{}';", pack));
+
+  std::error_code ec;
+  std::filesystem::remove_all(std::format("packages/{}", pack), ec);
+  if (ec) {
+    spdlog::error("Failed to remove directory: {}", ec.message());
+  }
 }
 
+/*
 QString PackMan::listPackages() {
   return db->selectJson("SELECT * FROM packages;");
 }
+*/
 
-void PackMan::forceCheckoutMaster(const QString &pack) {
+void PackMan::forceCheckoutMaster(const char *pack) {
   checkout_branch(pack, "master");
 }
 
 void PackMan::syncCommitHashToDatabase() {
   for (auto e : db->select("SELECT name FROM packages;")) {
     auto pack = e["name"];
-    db->exec(QString("UPDATE packages SET hash = '%1' WHERE name = '%2';")
-             .arg(head(pack))
-             .arg(pack));
+    db->exec(std::format("UPDATE packages SET hash = '{}' WHERE name = '{}';",
+             head(pack.c_str()), pack));
   }
 }
 
 #define GIT_FAIL                                                               \
   const git_error *e = git_error_last();                                       \
-  qCritical("Error %d/%d: %s\n", err, e->klass, e->message)
+  spdlog::critical("Error {}/{}: {}", err, e->klass, e->message)
 
 #define GIT_CHK_CLEAN  \
   if (err < 0) {     \
@@ -263,80 +215,58 @@ void PackMan::syncCommitHashToDatabase() {
 
 static int transfer_progress_cb(const git_indexer_progress *stats,
                                 void *payload) {
-  if (Backend == nullptr) {
-    Q_UNUSED(payload);
-    if (stats->received_objects == stats->total_objects) {
-      printf("Resolving deltas %u/%u\r", stats->indexed_deltas,
-             stats->total_deltas);
-    } else if (stats->total_objects > 0) {
-      printf("Received %u/%u objects (%u) in %zu bytes\r",
-             stats->received_objects, stats->total_objects,
-             stats->indexed_objects, stats->received_bytes);
-    }
-  } else {
-#ifndef FK_SERVER_ONLY
-    Backend->notifyUI("PackageTransferProgress", QJsonObject {
-      { "received_objects", qint64(stats->received_objects) },
-      { "total_objects", qint64(stats->total_objects) },
-      { "indexed_objects", qint64(stats->indexed_objects) },
-      { "received_bytes", qint64(stats->received_bytes) },
-      { "indexed_deltas", qint64(stats->indexed_deltas) },
-      { "total_deltas", qint64(stats->total_deltas) },
-    });
-
-    // if (stats->received_objects == stats->total_objects) {
-    //   auto msg = QString("Resolving deltas %1/%2")
-    //                  .arg(stats->indexed_deltas)
-    //                  .arg(stats->total_deltas);
-    //   Backend->notifyUI("UpdateBusyText", msg);
-    // } else if (stats->total_objects > 0) {
-    //   auto msg = QString("Received %1/%2 objects (%3) in %4 KiB")
-    //                  .arg(stats->received_objects)
-    //                  .arg(stats->total_objects)
-    //                  .arg(stats->indexed_objects)
-    //                  .arg(stats->received_bytes / 1024);
-    //   Backend->notifyUI("UpdateBusyText", msg);
-    // }
-#endif
+  if (stats->received_objects == stats->total_objects) {
+    printf("Resolving deltas %u/%u\r", stats->indexed_deltas,
+           stats->total_deltas);
+  } else if (stats->total_objects > 0) {
+    printf("Received %u/%u objects (%u) in %zu bytes\r",
+           stats->received_objects, stats->total_objects,
+           stats->indexed_objects, stats->received_bytes);
   }
 
   return 0;
 }
 
-int PackMan::clone(const QString &u) {
+int PackMan::clone(const char *u) {
   git_repository *repo = NULL;
-  auto url = u;
-  while (url.endsWith('/')) {
-    url.chop(1);
+  auto url = std::string { u };
+  while (!url.empty() && url.back() == '/') {
+    url.pop_back();
   }
-  QString fileName = QUrl(url).fileName();
-  if (fileName.endsWith(".git"))
-    fileName.chop(4);
-  fileName = QStringLiteral("packages/") + fileName;
+
+  auto fileName = url.substr(url.find_last_of('/') + 1);
+  if (fileName.size() > 4 && fileName.substr(fileName.size() - 4) == ".git") {
+    fileName = fileName.substr(0, fileName.size() - 4);
+  }
+  auto clonePath = std::filesystem::path("packages") / fileName;
 
   git_clone_options opt;
   git_clone_init_options(&opt, GIT_CLONE_OPTIONS_VERSION);
   opt.fetch_opts.proxy_opts.version = 1;
   opt.fetch_opts.callbacks.transfer_progress = transfer_progress_cb;
-  int err = git_clone(&repo, url.toUtf8(), fileName.toUtf8(), &opt);
+  int err = git_clone(&repo, url.c_str(), clonePath.string().c_str(), &opt);
   if (err < 0) {
+    std::error_code ec;
+    std::filesystem::remove_all(clonePath, ec);
+    if (ec) {
+      spdlog::error("Failed to remove directory: {}", ec.message());
+    }
     GIT_FAIL;
-    // QDir(fileName).removeRecursively();
-    // QDir(".").rmdir(fileName);
   } else {
-    if (Backend == nullptr)
-      printf("\n");
+    printf("\n");
   }
+
+clean:
   git_repository_free(repo);
   return err;
 }
 
 // git fetch && git checkout FETCH_HEAD -f
-int PackMan::pull(const QString &name) {
+int PackMan::pull(const char *name) {
   git_repository *repo = NULL;
   int err;
   git_remote *remote = NULL;
-  auto path = QString("packages/%1").arg(name).toUtf8();
+  auto path = std::format("packages/{}", name);
   git_fetch_options opt;
   git_fetch_init_options(&opt, GIT_FETCH_OPTIONS_VERSION);
   opt.proxy_opts.version = 1;
@@ -345,7 +275,7 @@ int PackMan::pull(const QString &name) {
   git_checkout_options opt2 = GIT_CHECKOUT_OPTIONS_INIT;
   opt2.checkout_strategy = GIT_CHECKOUT_FORCE;
 
-  err = git_repository_open(&repo, path);
+  err = git_repository_open(&repo, path.c_str());
   GIT_CHK_CLEAN;
 
   // first git fetch origin
@@ -362,8 +292,7 @@ int PackMan::pull(const QString &name) {
   err = git_checkout_head(repo, &opt2);
   GIT_CHK_CLEAN;
 
-  if (Backend == nullptr)
-    printf("\n");
+  printf("\n");
 
 clean:
   git_remote_free(remote);
@@ -371,17 +300,16 @@ clean:
   return err;
 }
 
-int PackMan::checkout(const QString &name, const QString &hash) {
+int PackMan::checkout(const char *name, const char *hash) {
   git_repository *repo = NULL;
   int err;
   git_oid oid = {0};
   git_checkout_options opt = GIT_CHECKOUT_OPTIONS_INIT;
   opt.checkout_strategy = GIT_CHECKOUT_FORCE;
-  auto path = QString("packages/%1").arg(name).toUtf8();
-  auto sha = hash.toLatin1();
-  err = git_repository_open(&repo, path);
+  auto path = std::format("packages/{}", name);
+  err = git_repository_open(&repo, path.c_str());
   GIT_CHK_CLEAN;
-  err = git_oid_fromstr(&oid, sha);
+  err = git_oid_fromstr(&oid, hash);
   GIT_CHK_CLEAN;
   err = git_repository_set_head_detached(repo, &oid);
   GIT_CHK_CLEAN;
@@ -394,7 +322,7 @@ clean:
 }
 
 // git checkout -B branch origin/branch --force
-int PackMan::checkout_branch(const QString &name, const QString &branch) {
+int PackMan::checkout_branch(const char *name, const char *branch) {
   git_repository *repo = NULL;
   git_oid oid = {0};
   int err;
@@ -405,17 +333,17 @@ int PackMan::checkout_branch(const QString &name, const QString &branch) {
   git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
   checkout_opts.checkout_strategy = GIT_CHECKOUT_FORCE;
 
-  QString local_branch;
-  QString remote_branch;
+  std::string local_branch;
+  std::string remote_branch;
 
   // 打开仓库
-  auto path = QString("packages/%1").arg(name).toUtf8();
-  err = git_repository_open(&repo, path);
+  auto path = std::format("packages/{}", name);
+  err = git_repository_open(&repo, path.c_str());
   GIT_CHK_CLEAN;
 
   // 查找远程分支的引用 (refs/remotes/origin/branch)
-  remote_branch = QString("refs/remotes/origin/%1").arg(branch);
-  err = git_reference_lookup(&remote_ref, repo, remote_branch.toUtf8());
+  remote_branch = std::format("refs/remotes/origin/{}", branch);
+  err = git_reference_lookup(&remote_ref, repo, remote_branch.c_str());
   GIT_CHK_CLEAN;
 
   // 获取远程分支指向的对象
@@ -426,15 +354,15 @@ int PackMan::checkout_branch(const QString &name, const QString &branch) {
   git_oid_cpy(&oid, git_object_id(obj));
 
    // 查找本地分支的引用
-  local_branch = QString("refs/heads/%1").arg(branch);
-  err = git_reference_lookup(&branch_ref, repo, local_branch.toUtf8());
+  local_branch = std::string("refs/heads/{}", branch);
+  err = git_reference_lookup(&branch_ref, repo, local_branch.c_str());
   if (err == 0) {
     // 分支存在，强制重置
     err = git_reference_set_target(&new_branch_ref, branch_ref, &oid, "reset: moving to remote branch");
     GIT_CHK_CLEAN;
   } else {
     // 分支不存在，创建新分支
-    err = git_branch_create(&new_branch_ref, repo, branch.toUtf8(),
+    err = git_branch_create(&new_branch_ref, repo, branch,
         (git_commit*)obj, 0);
     GIT_CHK_CLEAN;
   }
@@ -457,14 +385,14 @@ clean:
   return err;
 }
 
-int PackMan::status(const QString &name) {
+int PackMan::status(const char *name) {
   git_repository *repo = NULL;
   int err;
   git_status_list *status_list = NULL;
   size_t i, maxi;
   const git_status_entry *s;
-  auto path = QString("packages/%1").arg(name).toUtf8();
-  err = git_repository_open(&repo, path);
+  auto path = std::format("packages/{}", name);
+  err = git_repository_open(&repo, path.c_str());
   GIT_CHK_CLEAN;
   err = git_status_list_new(&status_list, repo, NULL);
   GIT_CHK_CLEAN;
@@ -475,7 +403,7 @@ int PackMan::status(const QString &name) {
     if (s->status != GIT_STATUS_CURRENT && s->status != GIT_STATUS_IGNORED) {
       git_status_list_free(status_list);
       git_repository_free(repo);
-      qCritical("Workspace is dirty.");
+      spdlog::critical("Workspace is dirty.");
       return 100;
     }
   }
@@ -486,14 +414,14 @@ clean:
   return err;
 }
 
-QString PackMan::head(const QString &name) {
+std::string PackMan::head(const char *name) {
   git_repository *repo = NULL;
   int err;
   git_object *obj = NULL;
   const git_oid *oid;
   char buf[42] = {0};
-  auto path = QString("packages/%1").arg(name).toUtf8();
-  err = git_repository_open(&repo, path);
+  auto path = std::format("packages/{}", name);
+  err = git_repository_open(&repo, path.c_str());
   GIT_CHK_CLEAN;
   err = git_revparse_single(&obj, repo, "HEAD");
   GIT_CHK_CLEAN;
@@ -502,12 +430,12 @@ QString PackMan::head(const QString &name) {
   git_oid_tostr(buf, 41, oid);
   git_object_free(obj);
   git_repository_free(repo);
-  return QString(buf);
+  return std::string { buf };
 
 clean:
   git_object_free(obj);
   git_repository_free(repo);
-  return QString("0000000000000000000000000000000000000000");
+  return "0000000000000000000000000000000000000000";
 }
 
 #undef GIT_FAIL

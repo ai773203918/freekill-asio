@@ -2,9 +2,7 @@
 #include "server/rpc-lua/jsonrpc.h"
 #include "core/packman.h"
 
-#ifdef Q_OS_LINUX
 #include <unistd.h>
-#endif
 
 #ifdef RPC_DEBUG
 #include "core/util.h"

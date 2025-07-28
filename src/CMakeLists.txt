@@ -5,7 +5,7 @@ set(freekill_SRCS
 
   # "core/util.cpp"
   "core/c-wrapper.cpp"
-  # "core/packman.cpp"
+  "core/packman.cpp"
 
   "network/server_socket.cpp"
   "network/client_socket.cpp"

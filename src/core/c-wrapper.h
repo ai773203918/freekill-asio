@@ -21,6 +21,7 @@ public:
 
 private:
   sqlite3 *db;
+  std::mutex select_lock;
 };
 
 class Cbor {

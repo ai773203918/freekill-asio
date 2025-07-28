@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "core/packman.h"
 #include "server/server.h"
 #include "server/gamelogic/roomthread.h"
 
 int main(int argc, char *argv[]) {
+  Pacman = new PackMan; // TODO 别用new 改成Server::instance那样
+
   asio::io_context io_ctx;
 
   auto &server = Server::instance();

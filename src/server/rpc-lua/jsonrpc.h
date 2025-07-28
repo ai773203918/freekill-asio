@@ -53,8 +53,8 @@ bool checkParams(const QCborArray &params, Types... expectedTypes) {
 
 struct JsonRpcError {
   int code;
-  QString message;
-  std::optional<QCborValue> data;
+  const char *message;
+  // std::optional<QCborValue> data;
 };
 
 // 错误对象集合

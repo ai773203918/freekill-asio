@@ -154,21 +154,18 @@ void Shell::removeCommand(StringList &list) {
 }
 
 void Shell::upgradeCommand(StringList &list) {
-  /*
   if (list.empty()) {
-    auto arr = QJsonDocument::fromJson(Pacman->listPackages().toUtf8()).array();
-    for (auto a : arr) {
-      auto obj = a.toObject();
-      Pacman->upgradePack(obj["name"].toString());
+    auto arr = Pacman->listPackages();
+    for (auto &a : arr) {
+      Pacman->upgradePack(a["name"].c_str());
     }
-    ServerInstance->refreshMd5();
+    // ServerInstance->refreshMd5();
     return;
   }
 
   auto pack = list[0];
-  Pacman->upgradePack(pack);
-  ServerInstance->refreshMd5();
-  */
+  Pacman->upgradePack(pack.c_str());
+  // ServerInstance->refreshMd5();
 }
 
 void Shell::enableCommand(StringList &list) {
@@ -194,19 +191,13 @@ void Shell::disableCommand(StringList &list) {
 }
 
 void Shell::lspkgCommand(StringList &) {
-  /*
-  auto arr = QJsonDocument::fromJson(Pacman->listPackages().toUtf8()).array();
+  auto arr = Pacman->listPackages();
   spdlog::info("Name\tVersion\t\tEnabled");
   spdlog::info("------------------------------");
-  for (auto a : arr) {
-    auto obj = a.toObject();
-    auto hash = obj["hash"].toString();
-    spdlog::info("%ls\t%ls\t%ls",
-          qUtf16Printable(obj["name"].toString()),
-          qUtf16Printable(hash.first(8)),
-          qUtf16Printable(obj["enabled"].toString()));
+  for (auto &a : arr) {
+    auto hash = a["hash"];
+    spdlog::info("{}\t{}\t{}", a["name"], hash.substr(0, 8), a["enabled"]);
   }
-  */
 }
 
 void Shell::syncpkgCommand(StringList &) {
@@ -673,7 +664,7 @@ void Shell::handleLine(char *bytes) {
     return;
   }
 
-  spdlog::info("Running command: \"{}\"", bytes);
+  spdlog::info("Running command: '{}'", bytes);
 
   if (!strncmp(bytes, "crash", 5)) {
     spdlog::error("Crashing."); // should dump core
@@ -694,7 +685,7 @@ void Shell::handleLine(char *bytes) {
   auto it = handler_map.find(command_list[0]);
   if (it == handler_map.end()) {
     auto bytes = command_list[0];
-    spdlog::warn("Unknown command \"{}\". Type \"help\" for hints.", bytes);
+    spdlog::warn("Unknown command '{}'. Type 'help' for hints.", bytes);
   } else {
     command_list.erase(command_list.begin());
     (this->*it->second)(command_list);
@@ -928,7 +919,7 @@ void Shell::run() {
   printf("certain conditions; For more information visit "
          "http://www.gnu.org/licenses.\n\n");
 
-  printf("[freekill-asio v0.0.1] Welcome to CLI. Enter \"help\" for usage hints.\n");
+  printf("[freekill-asio v0.0.1] Welcome to CLI. Enter 'help' for usage hints.\n");
 
   while (true) {
     char *bytes = readline(prompt);

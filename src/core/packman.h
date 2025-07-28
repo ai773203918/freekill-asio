@@ -3,7 +3,7 @@
 #ifndef _PACKMAN_H
 #define _PACKMAN_H
 
-class Sqlite3;
+#include "c-wrapper.h"
 
 class PackMan {
 
@@ -23,7 +23,7 @@ public:
   int updatePack(const char *pack, const char *hash);
   int upgradePack(const char *pack);
   void removePack(const char *pack);
-  // QString listPackages();
+  Sqlite3::QueryResult listPackages();
 
   void forceCheckoutMaster(const char *pack);
 

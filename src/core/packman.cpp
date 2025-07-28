@@ -125,6 +125,11 @@ void PackMan::enablePack(const char *pack) {
 }
 
 void PackMan::disablePack(const char *pack) {
+  if (strcmp(pack, "freekill-core") == 0) {
+    spdlog::warn("Package 'freekill-core' cannot be disabled.");
+    return;
+  }
+
   db->exec(
     std::format("UPDATE packages SET enabled = 0 WHERE name = '{}';", pack));
 
@@ -185,11 +190,9 @@ void PackMan::removePack(const char *pack) {
   }
 }
 
-/*
-QString PackMan::listPackages() {
-  return db->selectJson("SELECT * FROM packages;");
+Sqlite3::QueryResult PackMan::listPackages() {
+  return db->select("SELECT * FROM packages;");
 }
-*/
 
 void PackMan::forceCheckoutMaster(const char *pack) {
   checkout_branch(pack, "master");
@@ -354,7 +357,7 @@ int PackMan::checkout_branch(const char *name, const char *branch) {
   git_oid_cpy(&oid, git_object_id(obj));
 
    // 查找本地分支的引用
-  local_branch = std::string("refs/heads/{}", branch);
+  local_branch = std::format("refs/heads/{}", branch);
   err = git_reference_lookup(&branch_ref, repo, local_branch.c_str());
   if (err == 0) {
     // 分支存在，强制重置

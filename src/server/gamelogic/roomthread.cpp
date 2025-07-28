@@ -2,16 +2,16 @@
 
 #include "server/gamelogic/roomthread.h"
 #include "server/server.h"
-#include "core/util.h"
+// #include "core/util.h"
 #include "core/c-wrapper.h"
-#include "server/rpc-lua/rpc-lua.h"
-#include "server/gamelogic/rpc-dispatchers.h"
-#include "server/user/serverplayer.h"
+// #include "server/rpc-lua/rpc-lua.h"
+// #include "server/gamelogic/rpc-dispatchers.h"
+#include "server/user/player.h"
 
-#ifndef FK_SERVER_ONLY
-#include "client/client.h"
-#endif
+#include <sys/eventfd.h>
+#include <unistd.h>
 
+/*
 Scheduler::Scheduler(RoomThread *thread) {
   if (!ServerInstance->isRpcEnabled()) {
     L = new Lua;
@@ -83,41 +83,78 @@ void Scheduler::removeObserver(const QString &connId, int roomId) {
 
   L->call("RemoveObserver", { roomId, player->getId() });
 }
+*/
 
-RoomThread::RoomThread(Server *server) {
-  setObjectName("Room");
-  setParent(server);
-  m_server = server;
-  m_capacity = server->getConfig("roomCountPerThread").toInt(200);
-  md5 = server->getMd5();
+RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {}, main_io_ctx { main_ctx },
+  m_thread {} // 调用start后才有效
+{
+  static int nextThreadId = 0;
+  m_id = nextThreadId++;
+  // setObjectName("Room");
+  // setParent(server);
+  // m_server = server;
+  // m_capacity = server->getConfig("roomCountPerThread").toInt(200);
+  // md5 = server->getMd5();
 
+  // 这段改为手动调start()
   // 需要等待scheduler创建完毕 不然极端情况下可能导致玩家发的信号接收不到
-  QEventLoop loop;
-  connect(this, &RoomThread::scheduler_ready, &loop, &QEventLoop::quit);
+  // QEventLoop loop;
+  // connect(this, &RoomThread::scheduler_ready, &loop, &QEventLoop::quit);
   start();
-  loop.exec();
+  // loop.exec();
 }
 
+int RoomThread::id() const {
+  return m_id;
+}
+
+asio::io_context &RoomThread::context() {
+  return io_ctx;
+}
+
+void RoomThread::start() {
+  // 在run中创建，这样就能在接下来的exec中处理事件了
+  // m_scheduler = new Scheduler(this);
+  // connect(this, &RoomThread::pushRequest, m_scheduler, &Scheduler::handleRequest);
+  // connect(this, &RoomThread::delay, m_scheduler, &Scheduler::doDelay);
+  // connect(this, &RoomThread::wakeUp, m_scheduler, &Scheduler::resumeRoom);
+
+  // connect(this, &RoomThread::setPlayerState, m_scheduler, &Scheduler::setPlayerState);
+  // connect(this, &RoomThread::addObserver, m_scheduler, &Scheduler::addObserver);
+  // connect(this, &RoomThread::removeObserver, m_scheduler, &Scheduler::removeObserver);
+
+  // emit scheduler_ready();
+
+  evt_fd = ::eventfd(0, 0);
+  m_thread = std::thread([&](){
+    // 直到调用quit()写evt_fd之前都让他一直等下去
+    asio::posix::stream_descriptor eventfd_desc(io_ctx, evt_fd);
+    char buf[16];
+    eventfd_desc.async_read_some(
+      asio::buffer(buf, 16),
+      [&](asio::error_code err, std::size_t length) {
+        if (!err) {
+          ::close(evt_fd);
+          spdlog::info("quit() called, eventfd is closed");
+        }
+      });
+
+    io_ctx.run();
+    spdlog::info("Roomthread quitting");
+  });
+}
+
+void RoomThread::quit() {
+  uint64_t value = 1;
+  ::write(evt_fd, &value, sizeof(value));
+}
+
+/*
 RoomThread::~RoomThread() {
   if (isRunning()) {
     quit(); wait();
   }
   delete m_scheduler;
-}
-
-void RoomThread::run() {
-  // 在run中创建，这样就能在接下来的exec中处理事件了
-  m_scheduler = new Scheduler(this);
-  connect(this, &RoomThread::pushRequest, m_scheduler, &Scheduler::handleRequest);
-  connect(this, &RoomThread::delay, m_scheduler, &Scheduler::doDelay);
-  connect(this, &RoomThread::wakeUp, m_scheduler, &Scheduler::resumeRoom);
-
-  connect(this, &RoomThread::setPlayerState, m_scheduler, &Scheduler::setPlayerState);
-  connect(this, &RoomThread::addObserver, m_scheduler, &Scheduler::addObserver);
-  connect(this, &RoomThread::removeObserver, m_scheduler, &Scheduler::removeObserver);
-
-  emit scheduler_ready();
-  exec();
 }
 
 Server *RoomThread::getServer() const {
@@ -166,3 +203,4 @@ void RoomThread::onRoomAbandoned() {
     wakeUp(room->getId(), "abandon");
   }
 }
+*/

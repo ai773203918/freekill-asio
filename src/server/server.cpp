@@ -9,6 +9,7 @@
 #include "network/server_socket.h"
 #include "network/client_socket.h"
 #include "network/router.h"
+#include "server/gamelogic/roomthread.h"
 
 #include "core/c-wrapper.h"
 
@@ -83,7 +84,10 @@ Server::~Server() {
 }
 
 void Server::listen(asio::io_context &io_ctx, asio::ip::tcp::endpoint end) {
+  main_io_ctx = &io_ctx;
   m_socket = std::make_unique<ServerSocket>(io_ctx, end);
+
+  createThread();
 
   // connect(m_socket, SIGNAL(new_connection), user_manager, SLOT(processNewConnection))
   m_socket->set_new_connection_callback(
@@ -108,6 +112,26 @@ void Server::sendEarlyPacket(ClientSocket &client, const std::string_view &type,
     msg,
   });
   client.send({ buf.c_str(), buf.size() });
+}
+
+void Server::createThread() {
+  auto thr = std::make_unique<RoomThread>(*main_io_ctx);
+  m_threads[thr->id()] = std::move(thr);
+}
+
+void Server::removeThread(int threadId) {
+  auto it = m_threads.find(threadId);
+  if (it != m_threads.end()) {
+    m_threads.erase(threadId);
+  }
+}
+
+RoomThread *Server::getThread(int threadId) {
+  auto it = m_threads.find(threadId);
+  if (it != m_threads.end()) {
+    return it->second.get();
+  }
+  return nullptr;
 }
 
 /*

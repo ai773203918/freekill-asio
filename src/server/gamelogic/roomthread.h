@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#ifndef _ROOMTHREAD_H
-#define _ROOMTHREAD_H
+#pragma once
 
 class LuaInterface;
 class Room;
@@ -9,9 +8,9 @@ class Server;
 class ServerPlayer;
 class RoomThread;
 
-class Scheduler : public QObject {
-  Q_OBJECT
+class Scheduler {
  public:
+  /*
   explicit Scheduler(RoomThread *m_thread);
   ~Scheduler();
 
@@ -29,18 +28,19 @@ class Scheduler : public QObject {
 
  private:
   LuaInterface *L;
+  */
 };
 
-/**
-  @brief RoomThread用来调度多个房间，运行游戏逻辑。
+class RoomThread {
+public:
+  explicit RoomThread(asio::io_context &main_ctx);
 
-  RoomThread作为新线程运行，线程中运行着事件循环，通过事件机制（信号槽）
-  完成对多个房间的调度；在调度房间的过程中，会通过Lua运行实际游戏逻辑。
-*/
-class RoomThread : public QThread {
-  Q_OBJECT
- public:
-  explicit RoomThread(Server *m_server);
+  int id() const;
+  asio::io_context &context();
+
+  void quit();
+
+  /*
   ~RoomThread();
 
   Server *getServer() const;
@@ -69,19 +69,23 @@ class RoomThread : public QThread {
 
  public slots:
   void onRoomAbandoned();
+  */
 
- protected:
-  virtual void run();
+private:
+  int m_id = 0;
 
- private:
-  Server *m_server;
-  // Rooms用findChildren<Room *>拿
+  std::thread m_thread;
+  int evt_fd;
+  asio::io_context io_ctx;
+  asio::io_context &main_io_ctx;
+
+  std::vector<int> m_rooms;
+
+  void start();
+  /*
   int m_capacity;
   QString md5;
 
   Scheduler *m_scheduler;
+  */
 };
-
-Q_DECLARE_METATYPE(RoomThread *)
-
-#endif // _ROOMTHREAD_H

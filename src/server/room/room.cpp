@@ -11,30 +11,29 @@
 class GameSession {
 };
 
-/*
-Room::Room(RoomThread *thread) {
-  auto server = ServerInstance;
-  id = server->nextRoomId;
-  server->nextRoomId++;
-  this->server = server;
+Room::Room() {
+  static int nextRoomId = 0;
+  id = nextRoomId++;
 
-  setParent(thread);
-  md5 = thread->getMd5();
-  connect(this, &Room::abandoned, thread, &RoomThread::onRoomAbandoned);
+  // setParent(thread);
+  // md5 = thread->getMd5();
+  // connect(this, &Room::abandoned, thread, &RoomThread::onRoomAbandoned);
 
-  m_abandoned = false;
-  owner = nullptr;
-  gameStarted = false;
-  robot_id = -2; // -1 is reserved in UI logic
-  timeout = 15;
+  // m_abandoned = false;
+  // owner = nullptr;
+  // gameStarted = false;
+  // robot_id = -2; // -1 is reserved in UI logic
+  // timeout = 15;
 
-  m_ready = true;
+  // m_ready = true;
 
-  auto lobby = server->lobby();
-  connect(this, &Room::playerAdded, server->lobby(), &Lobby::removePlayer);
-  connect(this, &Room::playerRemoved, server->lobby(), &Lobby::addPlayer);
+  // 这集不connect了，必须手动写明玩家的移入移出，这种信号太容易翻车了
+  // auto lobby = server->lobby();
+  // connect(this, &Room::playerAdded, server->lobby(), &Lobby::removePlayer);
+  // connect(this, &Room::playerRemoved, server->lobby(), &Lobby::addPlayer);
 }
 
+/*
 Room::~Room() {
   // 标记为过期 避免封人
   md5 = "";
@@ -53,21 +52,19 @@ Room::~Room() {
   server->removeRoom(getId());
   server->updateOnlineInfo();
 }
+*/
 
-int Room::getId() const { return id; }
+std::string &Room::getName() { return name; }
 
-void Room::setId(int id) { this->id = id; }
-
-QString Room::getName() const { return name; }
-
-void Room::setName(const QString &name) { this->name = name; }
+void Room::setName(const std::string_view &name) { this->name = name; }
 
 int Room::getCapacity() const { return capacity; }
 
 void Room::setCapacity(int capacity) { this->capacity = capacity; }
 
-bool Room::isFull() const { return players.count() == capacity; }
+bool Room::isFull() const { return players.size() == capacity; }
 
+/*
 const QByteArray Room::getSettings() const { return settings; }
 
 const QJsonObject Room::getSettingsObject() const { return settings_obj; }

@@ -15,23 +15,21 @@ class RoomThread;
 */
 class Room : public RoomBase {
 public:
-  explicit Room(RoomThread *m_thread);
+  explicit Room();
   // ~Room();
 
   void addPlayer(Player *player);
   void removePlayer(Player *player);
   void handlePacket(Player *sender, const Packet &packet);
 
-  /*
   // Property reader & setter
   // ==================================={
-  int getId() const;
-  void setId(int id);
-  QString getName() const;
-  void setName(const QString &name);
+  std::string &getName();
+  void setName(const std::string_view &name);
   int getCapacity() const;
   void setCapacity(int capacity);
   bool isFull() const;
+  /*
   const QJsonObject getSettingsObject() const;
   const QByteArray getSettings() const;
   void setSettings(QByteArray settings);
@@ -87,18 +85,21 @@ public:
   */
 
 private:
+  int m_thread_id = 0;
 
   // connId[]
   std::vector<int> players;
   std::vector<int> observers;
-  /*
-  QString name;         // “阴间大乱斗”
+
+  std::string name;         // “阴间大乱斗”
   int capacity;         // by default is 5, max is 8
+  int m_owner_id;
+
+  /*
   QByteArray settings;  // JSON string
   QJsonObject settings_obj;  // JSON object
   bool m_abandoned;     // If room is empty, delete it
 
-  Player *owner;  // who created this room?
   QList<int> runned_players;
   QList<int> rejected_players;
   int robot_id;

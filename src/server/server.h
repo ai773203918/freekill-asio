@@ -7,6 +7,7 @@ class ClientSocket;
 
 class UserManager;
 class RoomManager;
+class RoomThread;
 
 using asio::ip::tcp;
 
@@ -23,6 +24,10 @@ public:
   RoomManager &room_manager();
 
   void sendEarlyPacket(ClientSocket &client, const std::string_view &type, const std::string_view &msg);
+
+  void createThread();
+  void removeThread(int threadId);
+  RoomThread *getThread(int threadId);
 
   /*
   void updateRoomList(Player *teller);
@@ -54,6 +59,9 @@ private:
 
   std::unique_ptr<UserManager> m_user_manager;
   std::unique_ptr<RoomManager> m_room_manager;
+  std::unordered_map<int, std::unique_ptr<RoomThread>> m_threads;
+
+  asio::io_context *main_io_ctx = nullptr;
 
   /*
   QList<QString> temp_banlist;

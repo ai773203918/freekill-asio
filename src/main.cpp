@@ -2,6 +2,7 @@
 
 #include "core/packman.h"
 #include "server/server.h"
+#include "server/cli/shell.h"
 #include "server/gamelogic/roomthread.h"
 
 int main(int argc, char *argv[]) {
@@ -16,6 +17,9 @@ int main(int argc, char *argv[]) {
   if (thr) {
     thr->quit();
   }
+
+  Shell shell;
+  shell.start();
 
   io_ctx.run();
 }

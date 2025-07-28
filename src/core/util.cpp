@@ -2,8 +2,8 @@
 
 #include "core/util.h"
 #include "core/packman.h"
-#include <QSysInfo>
 
+/*
 static void writeFileMD5(QFile &dest, const QString &fname) {
   QFile f(fname);
   if (!f.open(QIODevice::ReadOnly)) {
@@ -98,19 +98,16 @@ QString GetDeviceUuid() {
 QString GetDisabledPacks() {
   return JsonArray2Bytes(QJsonArray::fromStringList(Pacman->getDisabledPacks()));
 }
+*/
 
-QString Color(const QString &raw, fkShell::TextColor color,
+std::string Color(const std::string &raw, fkShell::TextColor color,
               fkShell::TextType type) {
-#ifdef Q_OS_LINUX
   static const char *suffix = "\e[0;0m";
   int col = 30 + color;
   int t = type == fkShell::Bold ? 1 : 0;
-  auto prefix = QString("\e[%2;%1m").arg(col).arg(t);
+  auto prefix = std::format("\e[{};{}m", t, col);
 
   return prefix + raw + suffix;
-#else
-  return raw;
-#endif
 }
 
 /**

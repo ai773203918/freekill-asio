@@ -2,98 +2,101 @@
 
 #include "server/cli/shell.h"
 #include "core/packman.h"
-#include "server/rpc-lua/rpc-lua.h"
+// #include "server/rpc-lua/rpc-lua.h"
 #include "server/server.h"
-#include "server/user/serverplayer.h"
+#include "server/user/player.h"
+#include "server/user/user_manager.h"
+#include "server/room/room_manager.h"
 #include "server/gamelogic/roomthread.h"
 #include "core/util.h"
 #include "core/c-wrapper.h"
-#ifdef FK_USE_READLINE
+
 #include <readline/history.h>
 #include <readline/readline.h>
 #include <signal.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
-#else
 #include <cstdio>
 #include <cstring>
-#include <iostream>
-#endif
-#include <QJsonDocument>
 
 Shell *ShellInstance = nullptr;
-static const char *prompt = "Fk> ";
+static constexpr const char *prompt = "fk-asio> ";
 
-void Shell::helpCommand(QStringList &) {
-  qInfo("Frequently used commands:");
+void Shell::helpCommand(StringList &) {
+  spdlog::info("Frequently used commands:");
 #define HELP_MSG(a, b)                                                         \
-  qInfo((a), qUtf16Printable(Color((b), fkShell::Cyan)));
+  spdlog::info((a), Color((b), fkShell::Cyan));
 
-  HELP_MSG("%ls: Display this help message.", "help");
-  HELP_MSG("%ls: Shut down the server.", "quit");
-  HELP_MSG("%ls: Crash the server. Useful when encounter dead loop.", "crash");
-  HELP_MSG("%ls: List all online players.", "lsplayer");
-  HELP_MSG("%ls: List all running rooms, or show player of room by an <id>.", "lsroom");
-  HELP_MSG("%ls: Reload server config file.", "reloadconf/r");
-  HELP_MSG("%ls: Kick a player by his <id>.", "kick");
-  HELP_MSG("%ls: Broadcast message.", "msg/m");
-  HELP_MSG("%ls: Broadcast message to a room.", "msgroom/mr");
-  HELP_MSG("%ls: Ban 1 or more accounts, IP, UUID by their <name>.", "ban");
-  HELP_MSG("%ls: Unban 1 or more accounts by their <name>.", "unban");
+  HELP_MSG("{}: Display this help message.", "help");
+  HELP_MSG("{}: Shut down the server.", "quit");
+  HELP_MSG("{}: Crash the server. Useful when encounter dead loop.", "crash");
+  HELP_MSG("{}: List all online players.", "lsplayer");
+  HELP_MSG("{}: List all running rooms, or show player of room by an <id>.", "lsroom");
+  HELP_MSG("{}: Reload server config file.", "reloadconf/r");
+  HELP_MSG("{}: Kick a player by his <id>.", "kick");
+  HELP_MSG("{}: Broadcast message.", "msg/m");
+  HELP_MSG("{}: Broadcast message to a room.", "msgroom/mr");
+  HELP_MSG("{}: Ban 1 or more accounts, IP, UUID by their <name>.", "ban");
+  HELP_MSG("{}: Unban 1 or more accounts by their <name>.", "unban");
   HELP_MSG(
-      "%ls: Ban 1 or more IP address. "
+      "{}: Ban 1 or more IP address. "
       "At least 1 <name> required.",
       "banip");
   HELP_MSG(
-      "%ls: Unban 1 or more IP address. "
+      "{}: Unban 1 or more IP address. "
       "At least 1 <name> required.",
       "unbanip");
   HELP_MSG(
-      "%ls: Ban 1 or more UUID. "
+      "{}: Ban 1 or more UUID. "
       "At least 1 <name> required.",
       "banuuid");
   HELP_MSG(
-      "%ls: Unban 1 or more UUID. "
+      "{}: Unban 1 or more UUID. "
       "At least 1 <name> required.",
       "unbanuuid");
-  HELP_MSG("%ls: reset <name>'s password to 1234.", "resetpassword/rp");
-  HELP_MSG("%ls: View status of server.", "stat/gc");
-  HELP_MSG("%ls: View detail information (Lua) of room by an id.", "dumproom");
-  HELP_MSG("%ls: Kick all players in a room, then abandon it.", "killroom");
-  qInfo();
-  qInfo("===== Package commands =====");
-  HELP_MSG("%ls: Install a new package from <url>.", "install");
-  HELP_MSG("%ls: Remove a package.", "remove");
-  HELP_MSG("%ls: List all packages.", "pkgs");
-  HELP_MSG("%ls: Get packages hash from file system and write to database.", "syncpkgs");
-  HELP_MSG("%ls: Enable a package.", "enable");
-  HELP_MSG("%ls: Disable a package.", "disable");
-  HELP_MSG("%ls: Upgrade a package. Leave empty to upgrade all.", "upgrade/u");
-  qInfo("For more commands, check the documentation.");
+  HELP_MSG("{}: reset <name>'s password to 1234.", "resetpassword/rp");
+  HELP_MSG("{}: View status of server.", "stat/gc");
+  HELP_MSG("{}: View detail information (Lua) of room by an id.", "dumproom");
+  HELP_MSG("{}: Kick all players in a room, then abandon it.", "killroom");
+  spdlog::info("");
+  spdlog::info("===== Package commands =====");
+  HELP_MSG("{}: Install a new package from <url>.", "install");
+  HELP_MSG("{}: Remove a package.", "remove");
+  HELP_MSG("{}: List all packages.", "pkgs");
+  HELP_MSG("{}: Get packages hash from file system and write to database.", "syncpkgs");
+  HELP_MSG("{}: Enable a package.", "enable");
+  HELP_MSG("{}: Disable a package.", "disable");
+  HELP_MSG("{}: Upgrade a package. Leave empty to upgrade all.", "upgrade/u");
+  spdlog::info("For more commands, check the documentation.");
 
 #undef HELP_MSG
 }
 
 Shell::~Shell() {
-  wait();
-#ifdef FK_USE_READLINE
+  // TODO 关机
+  // wait();
   rl_clear_history();
-#endif
 }
 
-void Shell::lspCommand(QStringList &) {
-  if (ServerInstance->players.size() == 0) {
-    qInfo("No online player.");
-    return;
-  }
-  qInfo("Current %lld online player(s) are:", ServerInstance->players.size());
-  for (auto player : ServerInstance->players) {
-    qInfo() << player->getId() << "," << player->getScreenName();
-  }
+void Shell::start() {
+  m_thread = std::thread(&Shell::run, this);
 }
 
-void Shell::lsrCommand(QStringList &list) {
-  if (!list.isEmpty() && !list[0].isEmpty()) {
+void Shell::lspCommand(StringList &) {
+  auto &user_manager = Server::instance().user_manager();
+  // if (players.size() == 0) {
+  //   spdlog::info("No online player.");
+  //   return;
+  // }
+  // spdlog::info("Current %lld online player(s) are:", ServerInstance->players.size());
+  // for (auto player : ServerInstance->players) {
+  //   spdlog::info() << player->getId() << "," << player->getScreenName();
+  // }
+}
+
+void Shell::lsrCommand(StringList &list) {
+  /*
+  if (!list.empty() && !list[0].empty()) {
     auto pid = list[0];
     bool ok;
     int id = pid.toInt(&ok);
@@ -101,57 +104,58 @@ void Shell::lsrCommand(QStringList &list) {
 
     auto room = ServerInstance->findRoom(id);
     if (!room) {
-      qInfo("No such room.");
+      spdlog::info("No such room.");
     } else {
       auto config = QJsonDocument::fromJson(room->getSettings());
       auto pw = config["password"].toString();
-      qInfo() << room->getId() << "," << (pw.isEmpty() ? QString("%1").arg(room->getName()) :
+      spdlog::info() << room->getId() << "," << (pw.empty() ? QString("%1").arg(room->getName()) :
           QString("%1 [pw=%2]").arg(room->getName()).arg(pw));
-      qInfo("Players in this room:");
+      spdlog::info("Players in this room:");
 
       for (auto p : room->getPlayers()) {
-        qInfo() << p->getId() << "," << p->getScreenName();
+        spdlog::info() << p->getId() << "," << p->getScreenName();
       }
     }
 
     return;
   }
   if (ServerInstance->rooms.size() == 0) {
-    qInfo("No running room.");
+    spdlog::info("No running room.");
     return;
   }
-  qInfo("Current %lld running rooms are:", ServerInstance->rooms.size());
+  spdlog::info("Current %lld running rooms are:", ServerInstance->rooms.size());
   for (auto room : ServerInstance->rooms) {
     auto config = QJsonDocument::fromJson(room->getSettings());
     auto pw = config["password"].toString();
-    qInfo() << room->getId() << "," << (pw.isEmpty() ? QString("%1").arg(room->getName()) :
+    spdlog::info() << room->getId() << "," << (pw.empty() ? QString("%1").arg(room->getName()) :
         QString("%1 [pw=%2]").arg(room->getName()).arg(pw));
   }
+  */
 }
 
-void Shell::installCommand(QStringList &list) {
-  if (list.isEmpty()) {
-    qWarning("The 'install' command need a URL to install.");
+void Shell::installCommand(StringList &list) {
+  if (list.empty()) {
+    spdlog::warn("The 'install' command need a URL to install.");
     return;
   }
 
   auto url = list[0];
-  Pacman->downloadNewPack(url);
+  Pacman->downloadNewPack(url.c_str());
 }
 
-void Shell::removeCommand(QStringList &list) {
-  if (list.isEmpty()) {
-    qWarning("The 'remove' command need a package name to remove.");
+void Shell::removeCommand(StringList &list) {
+  if (list.empty()) {
+    spdlog::warn("The 'remove' command need a package name to remove.");
     return;
   }
 
   auto pack = list[0];
-  Pacman->removePack(pack);
+  Pacman->removePack(pack.c_str());
 }
 
-void Shell::upgradeCommand(QStringList &list) {
-  if (list.isEmpty()) {
-    // qWarning("The 'upgrade' command need a package name to upgrade.");
+void Shell::upgradeCommand(StringList &list) {
+  /*
+  if (list.empty()) {
     auto arr = QJsonDocument::fromJson(Pacman->listPackages().toUtf8()).array();
     for (auto a : arr) {
       auto obj = a.toObject();
@@ -164,55 +168,59 @@ void Shell::upgradeCommand(QStringList &list) {
   auto pack = list[0];
   Pacman->upgradePack(pack);
   ServerInstance->refreshMd5();
+  */
 }
 
-void Shell::enableCommand(QStringList &list) {
-  if (list.isEmpty()) {
-    qWarning("The 'enable' command need a package name to enable.");
+void Shell::enableCommand(StringList &list) {
+  if (list.empty()) {
+    spdlog::warn("The 'enable' command need a package name to enable.");
     return;
   }
 
   auto pack = list[0];
-  Pacman->enablePack(pack);
-  ServerInstance->refreshMd5();
+  Pacman->enablePack(pack.c_str());
+  // ServerInstance->refreshMd5();
 }
 
-void Shell::disableCommand(QStringList &list) {
-  if (list.isEmpty()) {
-    qWarning("The 'disable' command need a package name to disable.");
+void Shell::disableCommand(StringList &list) {
+  if (list.empty()) {
+    spdlog::warn("The 'disable' command need a package name to disable.");
     return;
   }
 
   auto pack = list[0];
-  Pacman->disablePack(pack);
-  ServerInstance->refreshMd5();
+  Pacman->disablePack(pack.c_str());
+  // ServerInstance->refreshMd5();
 }
 
-void Shell::lspkgCommand(QStringList &) {
+void Shell::lspkgCommand(StringList &) {
+  /*
   auto arr = QJsonDocument::fromJson(Pacman->listPackages().toUtf8()).array();
-  qInfo("Name\tVersion\t\tEnabled");
-  qInfo("------------------------------");
+  spdlog::info("Name\tVersion\t\tEnabled");
+  spdlog::info("------------------------------");
   for (auto a : arr) {
     auto obj = a.toObject();
     auto hash = obj["hash"].toString();
-    qInfo("%ls\t%ls\t%ls",
+    spdlog::info("%ls\t%ls\t%ls",
           qUtf16Printable(obj["name"].toString()),
           qUtf16Printable(hash.first(8)),
           qUtf16Printable(obj["enabled"].toString()));
   }
+  */
 }
 
-void Shell::syncpkgCommand(QStringList &) {
+void Shell::syncpkgCommand(StringList &) {
   Pacman->syncCommitHashToDatabase();
-  qInfo("Done.");
+  spdlog::info("Done.");
 }
 
-void Shell::kickCommand(QStringList &list) {
-  if (list.isEmpty()) {
-    qWarning("The 'kick' command needs a player id.");
+void Shell::kickCommand(StringList &list) {
+  if (list.empty()) {
+    spdlog::warn("The 'kick' command needs a player id.");
     return;
   }
 
+  /*
   auto pid = list[0];
   bool ok;
   int id = pid.toInt(&ok);
@@ -223,44 +231,46 @@ void Shell::kickCommand(QStringList &list) {
   if (p) {
     p->kicked();
   }
+  */
 }
 
-void Shell::msgCommand(QStringList &list) {
-  if (list.isEmpty()) {
-    qWarning("The 'msg' command needs message body.");
+void Shell::msgCommand(StringList &list) {
+  if (list.empty()) {
+    spdlog::warn("The 'msg' command needs message body.");
     return;
   }
 
-  auto msg = list.join(' ');
-  ServerInstance->broadcast("ServerMessage", msg.toUtf8());
+  // auto msg = list.join(' ');
+  // ServerInstance->broadcast("ServerMessage", msg.toUtf8());
 }
 
-void Shell::msgRoomCommand(QStringList &list) {
+void Shell::msgRoomCommand(StringList &list) {
+  /*
   if (list.count() < 2) {
-    qWarning("The 'msgroom' command needs <roomId> and message body.");
+    spdlog::warn("The 'msgroom' command needs <roomId> and message body.");
     return;
   }
 
   auto roomId = list.takeFirst().toInt();
   auto room = ServerInstance->findRoom(roomId);
   if (!room) {
-    qInfo("No such room.");
+    spdlog::info("No such room.");
     return;
   }
   auto msg = list.join(' ');
   room->doBroadcastNotify(room->getPlayers(), "ServerMessage", msg.toUtf8());
+  */
 }
 
-
-
-static void banAccount(Sqlite3 *db, const QString &name, bool banned) {
+static void banAccount(Sqlite3 *db, const std::string_view &name, bool banned) {
+  /*
   if (!Sqlite3::checkString(name))
     return;
   QString sql_find = QString("SELECT * FROM userinfo \
         WHERE name='%1';")
                          .arg(name);
   auto result = db->select(sql_find);
-  if (result.isEmpty())
+  if (result.empty())
     return;
   auto obj = result[0];
   int id = obj["id"].toInt();
@@ -273,15 +283,17 @@ static void banAccount(Sqlite3 *db, const QString &name, bool banned) {
     if (p) {
       p->kicked();
     }
-    qInfo("Banned %s.", name.toUtf8().constData());
+    spdlog::info("Banned {}.", name.toUtf8().constData());
   } else {
-    qInfo("Unbanned %s.", name.toUtf8().constData());
+    spdlog::info("Unbanned {}.", name.toUtf8().constData());
   }
+  */
 }
 
-void Shell::banCommand(QStringList &list) {
-  if (list.isEmpty()) {
-    qWarning("The 'ban' command needs at least 1 <name>.");
+void Shell::banCommand(StringList &list) {
+  /*
+  if (list.empty()) {
+    spdlog::warn("The 'ban' command needs at least 1 <name>.");
     return;
   }
 
@@ -293,11 +305,13 @@ void Shell::banCommand(QStringList &list) {
 
   // banipCommand(list);
   // banUuidCommand(list);
+  // */
 }
 
-void Shell::unbanCommand(QStringList &list) {
-  if (list.isEmpty()) {
-    qWarning("The 'unban' command needs at least 1 <name>.");
+void Shell::unbanCommand(StringList &list) {
+  /*
+  if (list.empty()) {
+    spdlog::warn("The 'unban' command needs at least 1 <name>.");
     return;
   }
 
@@ -309,9 +323,11 @@ void Shell::unbanCommand(QStringList &list) {
 
   // unbanipCommand(list);
   unbanUuidCommand(list);
+  */
 }
 
-static void banIPByName(Sqlite3 *db, const QString &name, bool banned) {
+static void banIPByName(Sqlite3 *db, const std::string_view &name, bool banned) {
+  /*
   if (!Sqlite3::checkString(name))
     return;
 
@@ -319,7 +335,7 @@ static void banIPByName(Sqlite3 *db, const QString &name, bool banned) {
         WHERE name='%1';")
                          .arg(name);
   auto result = db->select(sql_find);
-  if (result.isEmpty())
+  if (result.empty())
     return;
   auto obj = result[0];
   int id = obj["id"].toInt();
@@ -332,16 +348,18 @@ static void banIPByName(Sqlite3 *db, const QString &name, bool banned) {
     if (p) {
       p->kicked();
     }
-    qInfo("Banned IP %s.", addr.toUtf8().constData());
+    spdlog::info("Banned IP {}.", addr.toUtf8().constData());
   } else {
     db->exec(QString("DELETE FROM banip WHERE ip='%1';").arg(addr));
-    qInfo("Unbanned IP %s.", addr.toUtf8().constData());
+    spdlog::info("Unbanned IP {}.", addr.toUtf8().constData());
   }
+  */
 }
 
-void Shell::banipCommand(QStringList &list) {
-  if (list.isEmpty()) {
-    qWarning("The 'banip' command needs at least 1 <name>.");
+void Shell::banipCommand(StringList &list) {
+  /*
+  if (list.empty()) {
+    spdlog::warn("The 'banip' command needs at least 1 <name>.");
     return;
   }
 
@@ -350,11 +368,13 @@ void Shell::banipCommand(QStringList &list) {
   for (auto name : list) {
     banIPByName(db, name, true);
   }
+  */
 }
 
-void Shell::unbanipCommand(QStringList &list) {
-  if (list.isEmpty()) {
-    qWarning("The 'unbanip' command needs at least 1 <name>.");
+void Shell::unbanipCommand(StringList &list) {
+  /*
+  if (list.empty()) {
+    spdlog::warn("The 'unbanip' command needs at least 1 <name>.");
     return;
   }
 
@@ -363,9 +383,11 @@ void Shell::unbanipCommand(QStringList &list) {
   for (auto name : list) {
     banIPByName(db, name, false);
   }
+  */
 }
 
-static void banUuidByName(Sqlite3 *db, const QString &name, bool banned) {
+static void banUuidByName(Sqlite3 *db, const std::string_view &name, bool banned) {
+  /*
   if (!Sqlite3::checkString(name))
     return;
 
@@ -373,13 +395,13 @@ static void banUuidByName(Sqlite3 *db, const QString &name, bool banned) {
         WHERE name='%1';")
                          .arg(name);
   auto result = db->select(sql_find);
-  if (result.isEmpty())
+  if (result.empty())
     return;
   auto obj = result[0];
   int id = obj["id"].toInt();
 
   auto result2 = db->select(QString("SELECT * FROM uuidinfo WHERE id=%1;").arg(id));
-  if (result2.isEmpty())
+  if (result2.empty())
     return;
 
   auto uuid = result2[0]["uuid"];
@@ -391,16 +413,18 @@ static void banUuidByName(Sqlite3 *db, const QString &name, bool banned) {
     if (p) {
       p->kicked();
     }
-    qInfo("Banned UUID %s.", uuid.toUtf8().constData());
+    spdlog::info("Banned UUID {}.", uuid.toUtf8().constData());
   } else {
     db->exec(QString("DELETE FROM banuuid WHERE uuid='%1';").arg(uuid));
-    qInfo("Unbanned UUID %s.", uuid.toUtf8().constData());
+    spdlog::info("Unbanned UUID {}.", uuid.toUtf8().constData());
   }
+  */
 }
 
-void Shell::banUuidCommand(QStringList &list) {
-  if (list.isEmpty()) {
-    qWarning("The 'banuuid' command needs at least 1 <name>.");
+void Shell::banUuidCommand(StringList &list) {
+  /*
+  if (list.empty()) {
+    spdlog::warn("The 'banuuid' command needs at least 1 <name>.");
     return;
   }
 
@@ -409,11 +433,13 @@ void Shell::banUuidCommand(QStringList &list) {
   for (auto name : list) {
     banUuidByName(db, name, true);
   }
+  */
 }
 
-void Shell::unbanUuidCommand(QStringList &list) {
-  if (list.isEmpty()) {
-    qWarning("The 'unbanuuid' command needs at least 1 <name>.");
+void Shell::unbanUuidCommand(StringList &list) {
+  /*
+  if (list.empty()) {
+    spdlog::warn("The 'unbanuuid' command needs at least 1 <name>.");
     return;
   }
 
@@ -422,16 +448,18 @@ void Shell::unbanUuidCommand(QStringList &list) {
   for (auto name : list) {
     banUuidByName(db, name, false);
   }
+  */
 }
 
-void Shell::reloadConfCommand(QStringList &) {
-  ServerInstance->readConfig();
-  qInfo("Reloaded server config file.");
+void Shell::reloadConfCommand(StringList &) {
+  // ServerInstance->readConfig();
+  spdlog::info("Reloaded server config file.");
 }
 
-void Shell::resetPasswordCommand(QStringList &list) {
-  if (list.isEmpty()) {
-    qWarning("The 'resetpassword' command needs at least 1 <name>.");
+void Shell::resetPasswordCommand(StringList &list) {
+  /*
+  if (list.empty()) {
+    spdlog::warn("The 'resetpassword' command needs at least 1 <name>.");
     return;
   }
 
@@ -442,8 +470,10 @@ void Shell::resetPasswordCommand(QStringList &list) {
           'dbdc2ad3d9625407f55674a00b58904242545bfafedac67485ac398508403ade',\
           salt='00000000' WHERE name='%1';").arg(name));
   }
+  */
 }
 
+/*
 static QString formatMsDuration(qint64 time) {
   QString ret;
 
@@ -467,15 +497,17 @@ static QString formatMsDuration(qint64 time) {
   ret = QString("%1 days, ").arg(time) + ret;
   return ret;
 }
+*/
 
-void Shell::statCommand(QStringList &) {
+void Shell::statCommand(StringList &) {
+  /*
   auto server = ServerInstance;
   auto uptime_ms = server->getUptime();
-  qInfo("uptime: %s", formatMsDuration(uptime_ms).toUtf8().constData());
+  spdlog::info("uptime: {}", formatMsDuration(uptime_ms).toUtf8().constData());
 
   auto players = server->getPlayers();
-  qInfo("Player(s) logged in: %lld", players.count());
-  qInfo("Next roomId: %d", server->nextRoomId); // FIXME: friend class
+  spdlog::info("Player(s) logged in: %lld", players.count());
+  spdlog::info("Next roomId: %d", server->nextRoomId); // FIXME: friend class
 
   auto threads = server->findChildren<RoomThread *>();
   static const char *getmem = "return collectgarbage('count') / 1024";
@@ -497,24 +529,26 @@ void Shell::statCommand(QStringList &) {
     if (rooms.count() == 0 && outdated) {
       thr->deleteLater();
     } else {
-      qInfo("RoomThread %p | %ls | %lld room(s) %s", thr, qUtf16Printable(stat_str), rooms.count(),
+      spdlog::info("RoomThread %p | %ls | %lld room(s) {}", thr, qUtf16Printable(stat_str), rooms.count(),
             outdated ? "| Outdated" : "");
     }
   }
 
-  qInfo("Database memory usage: %.2f MiB",
+  spdlog::info("Database memory usage: %.2f MiB",
         ((double)server->db->getMemUsage()) / 1048576);
+  */
 }
 
-void Shell::dumpRoomCommand(QStringList &list) {
-  if (list.isEmpty() || list[0].isEmpty()) {
+void Shell::dumpRoomCommand(StringList &list) {
+  /*
+  if (list.empty() || list[0].isEmpty()) {
     static const char *code =
       "local _, reqRoom = debug.getupvalue(ResumeRoom, 1)\n"
       "for id, room in pairs(reqRoom.runningRooms) do\n"
-      "  fk.qInfo(string.format('<Lua> Room #%d', id))\n"
+      "  fk.spdlog::info(string.format('<Lua> Room #%d', id))\n"
       "end\n";
     for (auto thr : ServerInstance->findChildren<RoomThread *>()) {
-      qInfo("== Lua room info of RoomThread %p ==", thr);
+      spdlog::info("== Lua room info of RoomThread %p ==", thr);
       thr->getLua()->eval(code);
     }
     return;
@@ -527,24 +561,26 @@ void Shell::dumpRoomCommand(QStringList &list) {
 
   auto room = ServerInstance->findRoom(id);
   if (!room) {
-    qInfo("No such room.");
+    spdlog::info("No such room.");
   } else {
     static auto code = QStringLiteral(
       "(function(id)\n"
       "  local _, reqRoom = debug.getupvalue(ResumeRoom, 1)\n"
       "  local room = reqRoom.runningRooms[id]\n"
-      "  if not room then fk.qInfo('<Lua> No such room.'); return end\n"
-      "  fk.qInfo(string.format('== <Lua> Data of room %d ==', id))\n"
-      "  fk.qInfo(json.encode(room:toJsonObject(room.players[1])))\n"
+      "  if not room then fk.spdlog::info('<Lua> No such room.'); return end\n"
+      "  fk.spdlog::info(string.format('== <Lua> Data of room %d ==', id))\n"
+      "  fk.spdlog::info(json.encode(room:toJsonObject(room.players[1])))\n"
       "end)\n");
     auto L = qobject_cast<RoomThread *>(room->parent())->getLua();
     L->eval(code + QStringLiteral("(%1)").arg(id));
   }
+  */
 }
 
-void Shell::killRoomCommand(QStringList &list) {
-  if (list.isEmpty() || list[0].isEmpty()) {
-    qWarning("Need room id to do this.");
+void Shell::killRoomCommand(StringList &list) {
+  /*
+  if (list.empty() || list[0].isEmpty()) {
+    spdlog::warn("Need room id to do this.");
     return;
   }
 
@@ -555,17 +591,17 @@ void Shell::killRoomCommand(QStringList &list) {
 
   auto room = ServerInstance->findRoom(id);
   if (!room) {
-    qInfo("No such room.");
+    spdlog::info("No such room.");
   } else {
-    qInfo("Killing room %d", id);
+    spdlog::info("Killing room %d", id);
     for (auto player : room->getPlayers()) {
       if (player->getId() > 0) emit player->kicked();
     }
     emit room->abandoned();
   }
+  */
 }
 
-#ifdef FK_USE_READLINE
 static void sigintHandler(int) {
   rl_reset_line_state();
   rl_replace_line("", 0);
@@ -574,12 +610,10 @@ static void sigintHandler(int) {
 }
 static char **fk_completion(const char *text, int start, int end);
 static char *null_completion(const char *, int) { return NULL; }
-#endif
 
 Shell::Shell() {
   ShellInstance = this;
-  setObjectName("Shell");
-#ifdef FK_USE_READLINE
+  // setObjectName("Shell");
   // Setup readline here
 
   // 别管Ctrl+C了
@@ -590,9 +624,8 @@ Shell::Shell() {
   signal(SIGINT, sigintHandler);
   rl_attempted_completion_function = fk_completion;
   rl_completion_entry_function = null_completion;
-#endif
 
-  static const QHash<QString, void (Shell::*)(QStringList &)> handlers = {
+  static const std::unordered_map<std::string_view, void (Shell::*)(StringList &)> handlers = {
     {"help", &Shell::helpCommand},
     {"?", &Shell::helpCommand},
     {"lsplayer", &Shell::lspCommand},
@@ -633,46 +666,50 @@ Shell::Shell() {
 
 void Shell::handleLine(char *bytes) {
   if (!bytes || !strncmp(bytes, "quit", 4)) {
-    qInfo("Server is shutting down.");
-    qApp->quit();
+    spdlog::info("Server is shutting down.");
+    // TODO 更优雅的关机
+    std::exit(0);
     done = true;
     return;
   }
 
-  qInfo("Running command: \"%s\"", bytes);
+  spdlog::info("Running command: \"{}\"", bytes);
 
   if (!strncmp(bytes, "crash", 5)) {
-    qFatal("Crashing."); // should dump core
+    spdlog::error("Crashing."); // should dump core
+    std::exit(1);
     return;
   }
 
-#ifdef FK_USE_READLINE
   add_history(bytes);
-#endif
 
-  auto command = QString(bytes);
-  auto command_list = command.split(' ');
-  auto func = handler_map[command_list.first()];
-  if (!func) {
-    auto bytes = command_list.first().toUtf8();
-    qWarning("Unknown command \"%s\". Type \"help\" for hints.",
-        bytes.constData());
+  auto command = std::string { bytes };
+  std::istringstream iss(command);
+  std::vector<std::string> command_list;
+
+  for (std::string token; iss >> token;) {
+    command_list.push_back(token);
+  }
+
+  auto it = handler_map.find(command_list[0]);
+  if (it == handler_map.end()) {
+    auto bytes = command_list[0];
+    spdlog::warn("Unknown command \"{}\". Type \"help\" for hints.", bytes);
   } else {
-    command_list.removeFirst();
-    (this->*func)(command_list);
+    command_list.erase(command_list.begin());
+    (this->*it->second)(command_list);
   }
 
   free(bytes);
 }
 
-#ifdef FK_USE_READLINE
 void Shell::redisplay() {
-  QString tmp = syntaxHighlight(rl_line_buffer);
+  // QString tmp = syntaxHighlight(rl_line_buffer);
   rl_clear_visible_line();
   rl_forced_update_display();
 
   //moveCursorToStart();
-  //printf("\r%s%s", prompt, tmp.toUtf8().constData());
+  //printf("\r{}{}", prompt, tmp.toUtf8().constData());
 }
 
 void Shell::moveCursorToStart() {
@@ -690,6 +727,7 @@ bool Shell::lineDone() const {
   return (bool)rl_done;
 }
 
+/*
 // 最简单的语法高亮，若命令可执行就涂绿，否则涂红
 QString Shell::syntaxHighlight(char *bytes) {
   QString ret(bytes);
@@ -704,12 +742,14 @@ QString Shell::syntaxHighlight(char *bytes) {
   ret.replace(0, command.length(), colored_command);
   return ret;
 }
+*/
 
 static void linehandler(char *bytes) {
   ShellInstance->handleLine(bytes);
 }
 
 char *Shell::generateCommand(const char *text, int state) {
+  /*
   static int list_index, len;
   static auto keys = handler_map.keys();
   const char *name;
@@ -726,6 +766,7 @@ char *Shell::generateCommand(const char *text, int state) {
       return strdup(name);
     }
   }
+  */
 
   return NULL;
 }
@@ -735,7 +776,7 @@ static char *command_generator(const char *text, int state) {
 }
 
 static char *repo_generator(const char *text, int state) {
-  static QStringList recommend_repos = {
+  static constexpr const char *recommend_repos[] = {
     "https://gitee.com/Qsgs-Fans/standard_ex",
     "https://gitee.com/Qsgs-Fans/shzl",
     "https://gitee.com/Qsgs-Fans/sp",
@@ -763,8 +804,8 @@ static char *repo_generator(const char *text, int state) {
     len = strlen(text);
   }
 
-  while (list_index < recommend_repos.count()) {
-    name = recommend_repos[list_index].toUtf8().constData();
+  while (list_index < std::size(recommend_repos)) {
+    name = recommend_repos[list_index];
     ++list_index;
     if (strncmp(name, text, len) == 0) {
       return strdup(name);
@@ -775,6 +816,7 @@ static char *repo_generator(const char *text, int state) {
 }
 
 static char *package_generator(const char *text, int state) {
+  /*
   static QJsonArray arr;
   static int list_index, len;
   const char *name;
@@ -792,11 +834,13 @@ static char *package_generator(const char *text, int state) {
       return strdup(name);
     }
   }
+  */
 
   return NULL;
 }
 
 static char *user_generator(const char *text, int state) {
+  /*
   // TODO: userinfo表需要一个cache机制
   static Sqlite3::QueryResult arr;
   static int list_index, len;
@@ -815,11 +859,13 @@ static char *user_generator(const char *text, int state) {
       return strdup(name);
     }
   }
+  */
 
   return NULL;
 };
 
 static char *banned_user_generator(const char *text, int state) {
+  /*
   // TODO: userinfo表需要一个cache机制
   static Sqlite3::QueryResult arr;
   static int list_index, len;
@@ -839,6 +885,7 @@ static char *banned_user_generator(const char *text, int state) {
       return strdup(name);
     }
   }
+  */
 
   return NULL;
 };
@@ -848,50 +895,43 @@ static char **fk_completion(const char* text, int start, int end) {
   if (start == 0) {
     matches = rl_completion_matches(text, command_generator);
   } else {
-    auto command_list = QString(rl_line_buffer).split(' ');
-    if (command_list.length() > 2) return NULL;
+    auto str = std::string { rl_line_buffer };
+    std::istringstream iss(str);
+    std::vector<std::string> command_list;
+
+    for (std::string token; iss >> token;) {
+      command_list.push_back(token);
+    }
+
+    if (command_list.size() > 2) return NULL;
     auto command = command_list[0];
     if (command == "install") {
       matches = rl_completion_matches(text, repo_generator);
     } else if (command == "remove" || command == "upgrade"
         || command == "enable" || command == "disable") {
       matches = rl_completion_matches(text, package_generator);
-    } else if (command.startsWith("ban") || command == "resetpassword" || command == "rp") {
+    } else if (command.compare(0, 3, "ban") || command == "resetpassword" || command == "rp") {
       matches = rl_completion_matches(text, user_generator);
-    } else if (command.startsWith("unban")) {
+    } else if (command.compare(0, 5, "unban")) {
       matches = rl_completion_matches(text, banned_user_generator);
     }
   }
 
   return matches;
 }
-#endif
 
 void Shell::run() {
-  printf("\rFreeKill, Copyright (C) 2022-2024, GNU GPL'd, by Notify et al.\n");
+  printf("\rfreekill-asio, Copyright (C) 2025, GNU GPL'd, by Notify et al.\n");
   printf("This program comes with ABSOLUTELY NO WARRANTY.\n");
   printf(
       "This is free software, and you are welcome to redistribute it under\n");
   printf("certain conditions; For more information visit "
          "http://www.gnu.org/licenses.\n\n");
 
-  printf("[v%s] Welcome to CLI. Enter \"help\" for usage hints.\n", FK_VERSION);
+  printf("[freekill-asio v0.0.1] Welcome to CLI. Enter \"help\" for usage hints.\n");
 
   while (true) {
-#ifdef FK_USE_READLINE
     char *bytes = readline(prompt);
-#else
-    char *bytes;
-    printf("\rfk> ");
-    fflush(stdin);
-    std::string str;
-    std::getline(std::cin, str);
-    if (std::cin.fail()) {
-      bytes = NULL;
-    } else {
-      bytes = strdup(str.c_str());
-    }
-#endif
     handleLine(bytes);
     if (done) break;
   }

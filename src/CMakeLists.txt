@@ -3,7 +3,7 @@
 set(freekill_SRCS
   "main.cpp"
 
-  # "core/util.cpp"
+  "core/util.cpp"
   "core/c-wrapper.cpp"
   "core/packman.cpp"
 
@@ -28,7 +28,7 @@ set(freekill_SRCS
   "server/gamelogic/roomthread.cpp"
   # "server/gamelogic/rpc-dispatchers.cpp"
 
-  # "server/cli/shell.cpp"
+  "server/cli/shell.cpp"
 )
 
 target_precompile_headers(freekill-asio PRIVATE pch.h)
@@ -39,4 +39,5 @@ target_link_libraries(freekill-asio PRIVATE
   OpenSSL::Crypto
   git2
   spdlog::spdlog
+  readline
 )

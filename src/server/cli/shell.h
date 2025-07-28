@@ -3,57 +3,57 @@
 #ifndef _SHELL_H
 #define _SHELL_H
 
-class Shell: public QThread {
-  Q_OBJECT
+class Shell {
 public:
+  typedef std::vector<std::string> StringList;
   Shell();
   ~Shell();
 
+  void start();
   void handleLine(char *);
 
 protected:
   virtual void run();
 
 private:
-  bool done = false;
-  QHash<QString, void (Shell::*)(QStringList &)> handler_map;
-  void helpCommand(QStringList &);
-  void quitCommand(QStringList &);
-  void lspCommand(QStringList &);
-  void lsrCommand(QStringList &);
-  void installCommand(QStringList &);
-  void removeCommand(QStringList &);
-  void upgradeCommand(QStringList &);
-  void lspkgCommand(QStringList &);
-  void syncpkgCommand(QStringList &);
-  void enableCommand(QStringList &);
-  void disableCommand(QStringList &);
-  void kickCommand(QStringList &);
-  void msgCommand(QStringList &);
-  void msgRoomCommand(QStringList &);
-  void banCommand(QStringList &);
-  void banipCommand(QStringList &);
-  void banUuidCommand(QStringList &);
-  void unbanCommand(QStringList &);
-  void unbanipCommand(QStringList &);
-  void unbanUuidCommand(QStringList &);
-  void reloadConfCommand(QStringList &);
-  void resetPasswordCommand(QStringList &);
-  void statCommand(QStringList &);
-  void dumpRoomCommand(QStringList &);
-  void killRoomCommand(QStringList &);
+  std::thread m_thread;
 
-#ifdef FK_USE_READLINE
+  bool done = false;
+  std::unordered_map<std::string_view, void (Shell::*)(StringList &)> handler_map;
+  void helpCommand(StringList &);
+  void quitCommand(StringList &);
+  void lspCommand(StringList &);
+  void lsrCommand(StringList &);
+  void installCommand(StringList &);
+  void removeCommand(StringList &);
+  void upgradeCommand(StringList &);
+  void lspkgCommand(StringList &);
+  void syncpkgCommand(StringList &);
+  void enableCommand(StringList &);
+  void disableCommand(StringList &);
+  void kickCommand(StringList &);
+  void msgCommand(StringList &);
+  void msgRoomCommand(StringList &);
+  void banCommand(StringList &);
+  void banipCommand(StringList &);
+  void banUuidCommand(StringList &);
+  void unbanCommand(StringList &);
+  void unbanipCommand(StringList &);
+  void unbanUuidCommand(StringList &);
+  void reloadConfCommand(StringList &);
+  void resetPasswordCommand(StringList &);
+  void statCommand(StringList &);
+  void dumpRoomCommand(StringList &);
+  void killRoomCommand(StringList &);
+
 private:
-  QString syntaxHighlight(char *);
+  // QString syntaxHighlight(char *);
 public:
   void redisplay();
   void moveCursorToStart();
   void clearLine();
   bool lineDone() const;
   char *generateCommand(const char *, int);
-
-#endif
 };
 
 extern Shell *ShellInstance;

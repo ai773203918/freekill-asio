@@ -1,178 +1,157 @@
 #include "server/rpc-lua/rpc-lua.h"
 #include "server/rpc-lua/jsonrpc.h"
-#include "core/packman.h"
 
 #include <unistd.h>
 
-#ifdef RPC_DEBUG
-#include "core/util.h"
+RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
+  child_stdin { ctx }, child_stdout { ctx }
+{
+  // env.insert("FK_RPC_MODE", "cbor");
 
-static QJsonValue decodeBase64Strings(const QJsonValue &val) {
-  if (val.isString()) {
-    QByteArray decoded = QByteArray::fromBase64(val.toString().toUtf8());
-    QString decodedStr = QString::fromUtf8(decoded);
-    return QJsonValue(decodedStr);
-  } else if (val.isObject()) {
-    QJsonObject obj = val.toObject();
-    for (auto it = obj.begin(); it != obj.end(); ++it) {
-      it.value() = decodeBase64Strings(it.value());
+  int stdin_pipe[2];  // [0]=read, [1]=write
+  int stdout_pipe[2]; // [0]=read, [1]=write
+  if (::pipe(stdin_pipe) == -1 || pipe(stdout_pipe) == -1) {
+    throw std::runtime_error("Failed to create pipes");
+  }
+
+  pid_t pid = fork();
+  if (pid == 0) { // child
+    // 关闭父进程用的 pipe 端
+    ::close(stdin_pipe[1]);  // 关闭父进程的写入端（子进程只读 stdin）
+    ::close(stdout_pipe[0]); // 关闭父进程的读取端（子进程只写 stdout）
+
+    // 重定向 stdin/stdout
+    ::dup2(stdin_pipe[0], STDIN_FILENO);   // 子进程的 stdin ← 父进程的写入端
+    ::dup2(stdout_pipe[1], STDOUT_FILENO); // 子进程的 stdout → 父进程的读取端
+    ::close(stdin_pipe[0]);
+    ::close(stdout_pipe[1]);
+
+    if (int err = ::chdir("packages/freekill-core"); err != 0) {
+      std::exit(err);
     }
-    return obj;
-  } else if (val.isArray()) {
-    QJsonArray arr = val.toArray();
-    for (int i = 0; i < arr.size(); ++i) {
-      arr[i] = decodeBase64Strings(arr[i]);
-    }
-    return arr;
+
+    ::setenv("FK_RPC_MODE", "cbor", 1);
+    ::execlp("lua5.4", "lua5.4", "lua/server/rpc/entry.lua", nullptr);
+    std::exit(EXIT_FAILURE);
+  } else if (pid > 0) { // 父进程
+    // 关闭子进程用的 pipe 端
+    close(stdin_pipe[0]);   // 关闭子进程的读取端（父进程只写 stdin）
+    close(stdout_pipe[1]);  // 关闭子进程的写入端（父进程只读 stdout）
+
+    // 使用 asio 包装 pipe
+    child_stdin.assign(stdin_pipe[1]);   // 父进程写入子进程 stdin
+    child_stdout.assign(stdout_pipe[0]);  // 父进程读取子进程 stdout
+
+    // 异步读取子进程的 stdout
+    // async_read_stdout();
+    // 并非异步读取 这部分都是同步读写
   } else {
-    return val;
+    throw std::runtime_error("Failed to fork process");
   }
-}
-
-static QByteArray mapToJson(const QCborValue &val, bool decode) {
-  auto obj = val.toJsonValue().toObject();
-  if (decode) {
-    obj = decodeBase64Strings(obj).toObject();
-  }
-  return QJsonDocument(obj).toJson(QJsonDocument::Compact);
-}
-#endif
-
-RpcLua::RpcLua(const JsonRpc::RpcMethodMap &methodMap) : methods(methodMap) {
-  auto process = new QProcess();
-  socket = process;
-
-  auto env = QProcessEnvironment::systemEnvironment();
-
-  QJsonArray arr;
-  for (auto pkg : Pacman->getDisabledPacks()) {
-    arr << pkg;
-  }
-  env.insert("FK_DISABLED_PACKS", QJsonDocument(arr).toJson(QJsonDocument::Compact));
-  env.insert("FK_RPC_MODE", "cbor");
-  process->setProcessEnvironment(env);
-  if (QFile::exists("packages/freekill-core") &&
-    !Pacman->getDisabledPacks().contains("freekill-core")) {
-    process->setWorkingDirectory("packages/freekill-core");
-  }
-  process->start("lua5.4", { "lua/server/rpc/entry.lua" });
 
   // 默认等待30s 实际上加载一次差不多3000ms左右 很慢了 可能需要加大
-  // 把hello world的notification读了，或者可以加更严的判定
-  process->waitForReadyRead();
-  QCborStreamReader reader(process);
-  auto msg = QCborValue::fromCbor(reader); //process->readLine();
-  if (msg.isMap()) {
+  child_stdout.read_some(asio::buffer(buffer, max_length));
+  if (true) {
 #ifdef RPC_DEBUG
-    qDebug("Me <-- %s", qUtf8Printable(mapToJson(msg.toMap(), true)));
+     // spdlog::debug("Me <-- %s", qUtf8Printable(mapToJson(msg.toMap(), true)));
 #endif
   } else {
     // TODO: throw, then retry
-    qCritical("Lua5.4 closed too early.");
-    qCritical("  stderr: %s", qUtf8Printable(process->readAllStandardError()));
-    qCritical("  stdout: %s", qUtf8Printable(process->readAllStandardOutput()));
+    spdlog::critical("Lua5.4 closed too early.");
+    // spdlog::critical("  stderr: %s", qUtf8Printable(process->readAllStandardError()));
+    // spdlog::critical("  stdout: %s", qUtf8Printable(process->readAllStandardOutput()));
   }
 }
 
 RpcLua::~RpcLua() {
   call("bye");
 #ifdef RPC_DEBUG
-  qDebug("Me --> %ls", qUtf16Printable(Color("Say goodbye", fkShell::Blue)));
+  // spdlog::debug("Me --> %ls", qUtf16Printable(Color("Say goodbye", fkShell::Blue)));
 #endif
-  if (socket->waitForReadyRead(15000)) {
-    auto msg = socket->readLine();
+  // if (socket->waitForReadyRead(15000)) {
+  //   auto msg = socket->readLine();
 #ifdef RPC_DEBUG
-    qDebug("Me <-- %s", qUtf8Printable(msg));
+  //   spdlog::debug("Me <-- %s", qUtf8Printable(msg));
 #endif
 
-    auto process = dynamic_cast<QProcess *>(socket);
-    if (process) process->waitForFinished();
-  } else {
-    // 不管他了，杀了
-  }
+  //   auto process = dynamic_cast<QProcess *>(socket);
+  //   if (process) process->waitForFinished();
+  // } else {
+  //   // 不管他了，杀了
+  // }
 
   // SIGKILL!!
-  delete socket;
+  // delete socket;
 }
 
-bool RpcLua::dofile(const char *path) {
-  return call("dofile", { path }).toBool();
+void RpcLua::dofile(const char *path) {
+  call("dofile", path);
 }
 
-static QCborMap dummyObj;
+void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param2) {
+  // QMutexLocker locker(&io_lock);
 
-QVariant RpcLua::call(const QString &func_name, QVariantList params) {
-  QMutexLocker locker(&io_lock);
-
-  // 如同Lua中callRpc那样
-  QCborArray arr;
-  for (auto v : params) arr << QCborValue::fromVariant(v);
-  auto req = JsonRpc::request(func_name, arr);
-  auto id = req[JsonRpc::Id].toInteger();
-  socket->write(req.toCborValue().toCbor());
-  socket->waitForBytesWritten(15000);
+  auto req = JsonRpc::request(func_name, param1, param2);
+  auto id = req.id;
+  // socket->write(req.toCborValue().toCbor());
+  // socket->waitForBytesWritten(15000);
 #ifdef RPC_DEBUG
-  qDebug("Me --> %s", qUtf8Printable(mapToJson(req, false)));
+  // spdlog::debug("Me --> %s", qUtf8Printable(mapToJson(req, false)));
 #endif
 
-  while (socket->bytesAvailable() > 0 || socket->waitForReadyRead(15000)) {
-    if (!socket->isOpen()) break;
+  // while (socket->bytesAvailable() > 0 || socket->waitForReadyRead(15000)) {
+  //   if (!socket->isOpen()) break;
 
-    auto bytes = socket->readAll();
-    QCborValue doc;
-    do {
-      QCborStreamReader reader(bytes);
-      doc = QCborValue::fromCbor(reader);
-      auto err = reader.lastError();
-      // qDebug("  *DBG* Me <-- %ls {%s}", qUtf16Printable(err.toString()), qUtf8Printable(bytes.toHex()));
-      if (err == QCborError::EndOfFile) {
-        socket->waitForReadyRead(100);
-        bytes += socket->readAll();
-        reader.clear(); reader.addData(bytes);
-        continue;
-      } else if (err == QCborError::NoError) {
-        break;
-      } else {
+  //   auto bytes = socket->readAll();
+  //   QCborValue doc;
+  //   do {
+  //     QCborStreamReader reader(bytes);
+  //     doc = QCborValue::fromCbor(reader);
+  //     auto err = reader.lastError();
+  //     // spdlog::debug("  *DBG* Me <-- %ls {%s}", qUtf16Printable(err.toString()), qUtf8Printable(bytes.toHex()));
+  //     if (err == QCborError::EndOfFile) {
+  //       socket->waitForReadyRead(100);
+  //       bytes += socket->readAll();
+  //       reader.clear(); reader.addData(bytes);
+  //       continue;
+  //     } else if (err == QCborError::NoError) {
+  //       break;
+  //     } else {
 #ifdef RPC_DEBUG
-        qDebug("Me <-- Unrecoverable reader error: %ls", qUtf16Printable(err.toString()));
+  //       spdlog::debug("Me <-- Unrecoverable reader error: %ls", qUtf16Printable(err.toString()));
 #endif
-        return QVariant();
-      }
-    } while (true);
+  //       return QVariant();
+  //     }
+  //   } while (true);
 
-    auto packet = doc.toMap();
-    if (packet[JsonRpc::JsonRpc].toByteArray() == "2.0" && packet[JsonRpc::Id] == id && !packet[JsonRpc::Method].isByteArray()) {
+  //   auto packet = doc.toMap();
+  //   if (packet[JsonRpc::JsonRpc].toByteArray() == "2.0" && packet[JsonRpc::Id] == id && !packet[JsonRpc::Method].isByteArray()) {
 #ifdef RPC_DEBUG
-      qDebug("Me <-- %s", qUtf8Printable(mapToJson(packet, true)));
+  //     spdlog::debug("Me <-- %s", qUtf8Printable(mapToJson(packet, true)));
 #endif
-      return packet[JsonRpc::Result].toVariant();
-    } else {
+  //     return packet[JsonRpc::Result].toVariant();
+  //   } else {
 #ifdef RPC_DEBUG
-      qDebug("  Me <-- %s", qUtf8Printable(mapToJson(packet, true)));
+  //     spdlog::debug("  Me <-- %s", qUtf8Printable(mapToJson(packet, true)));
 #endif
-      auto res = JsonRpc::serverResponse(methods, packet);
-      if (res) {
-        socket->write(res->toCborValue().toCbor());
-        socket->waitForBytesWritten(15000);
+  //     auto res = JsonRpc::serverResponse(methods, packet);
+  //     if (res) {
+  //       socket->write(res->toCborValue().toCbor());
+  //       socket->waitForBytesWritten(15000);
 #ifdef RPC_DEBUG
-        qDebug("  Me --> %s", qUtf8Printable(mapToJson(*res, false)));
+  //       spdlog::debug("  Me --> %s", qUtf8Printable(mapToJson(*res, false)));
 #endif
-      }
-    }
-  }
+  //     }
+  //   }
+  // }
 
 #ifdef RPC_DEBUG
-  qDebug("Me <-- IO read timeout. Is Lua process died?");
-  qDebug() << dynamic_cast<QProcess *>(socket)->readAllStandardError();
+  // spdlog::debug("Me <-- IO read timeout. Is Lua process died?");
+  // spdlog::debug() << dynamic_cast<QProcess *>(socket)->readAllStandardError();
 #endif
-  return QVariant();
 }
 
-QVariant RpcLua::eval(const QString &lua) {
-  // TODO; 可能根本不会去做
-  return QVariant();
-}
-
+/*
 QString RpcLua::getConnectionInfo() const {
   auto process = dynamic_cast<QProcess *>(socket);
 
@@ -196,3 +175,4 @@ QString RpcLua::getConnectionInfo() const {
     return "unknown";
   }
 }
+*/

@@ -507,14 +507,9 @@ void Shell::statCommand(StringList &) {
     auto L = thr->getLua();
 
     QString stat_str = QStringLiteral("unknown");
-    if (server->isRpcEnabled()) {
-      auto rpcL = dynamic_cast<RpcLua *>(L);
-      if (rpcL) {
-        stat_str = rpcL->getConnectionInfo();
-      }
-    } else {
-      auto mem_mib = L->eval(getmem).toDouble();
-      stat_str = QString::asprintf("%.2f MiB", mem_mib);
+    auto rpcL = dynamic_cast<RpcLua *>(L);
+    if (rpcL) {
+      stat_str = rpcL->getConnectionInfo();
     }
     auto outdated = thr->isOutdated();
     if (rooms.count() == 0 && outdated) {

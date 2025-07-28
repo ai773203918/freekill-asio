@@ -1,115 +1,144 @@
 #include "server/gamelogic/rpc-dispatchers.h"
 #include "server/server.h"
-#include "server/user/serverplayer.h"
+#include "server/user/user_manager.h"
+#include "server/user/player.h"
+#include "server/room/room_manager.h"
+#include "server/room/room.h"
 
 // 这何尝不是一种手搓swig。。
 
-using _rpcRet = std::pair<bool, QCborValue>;
-using JsonRpc::checkParams;
+using namespace JsonRpc;
+using _rpcRet = std::pair<bool, JsonRpcParam>;
 
-static QCborValue nullVal;
+static JsonRpcParam nullVal;
 
 // part1: stdout相关
 
-static _rpcRet _rpc_qDebug(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::ByteArray)) {
+static _rpcRet _rpc_qDebug(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 && std::holds_alternative<std::string_view>(packet.param1) )) {
     return { false, nullVal };
   }
 
-  qDebug("%s", qUtf8Printable(params[0].toByteArray()));
+  spdlog::debug("{}", std::get<std::string_view>(packet.param1));
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_qInfo(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::ByteArray)) {
+static _rpcRet _rpc_qInfo(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 && std::holds_alternative<std::string_view>(packet.param1) )) {
     return { false, nullVal };
   }
 
-  qInfo("%s", qUtf8Printable(params[0].toByteArray()));
+  spdlog::info("{}", std::get<std::string_view>(packet.param1));
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_qWarning(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::ByteArray)) {
-    return { false, nullVal };
-  }
-  if (!params[0].isString()) {
+static _rpcRet _rpc_qWarning(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 && std::holds_alternative<std::string_view>(packet.param1) )) {
     return { false, nullVal };
   }
 
-  qWarning("%s", qUtf8Printable(params[0].toByteArray()));
+  spdlog::warn("{}", std::get<std::string_view>(packet.param1));
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_qCritical(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::ByteArray)) {
+static _rpcRet _rpc_qCritical(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 && std::holds_alternative<std::string_view>(packet.param1) )) {
     return { false, nullVal };
   }
 
-  qCritical("%s", qUtf8Printable(params[0].toByteArray()));
+  spdlog::critical("{}", std::get<std::string_view>(packet.param1));
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_print(const QCborArray &params) {
-  QTextStream out(stdout);
-  for (auto v : params) {
-    out << v.toByteArray() << '\t';
+static _rpcRet _rpc_print(const JsonRpcPacket &packet) {
+  for (int i = 0; i < packet.param_count; i++) {
+    switch (i) {
+      case 0:
+        std::cout << std::get<std::string_view>(packet.param1) << '\t';
+        break;
+      case 1:
+        std::cout << std::get<std::string_view>(packet.param2) << '\t';
+        break;
+      case 2:
+        std::cout << std::get<std::string_view>(packet.param3) << '\t';
+        break;
+      case 3:
+        std::cout << std::get<std::string_view>(packet.param4) << '\t';
+        break;
+      case 4:
+        std::cout << std::get<std::string_view>(packet.param5) << '\t';
+        break;
+    }
   }
-  out << Qt::endl;
+  std::cout << std::endl;
   return { true, nullVal };
 }
 
 // part2: Player相关
 
-static _rpcRet _rpc_Player_doRequest(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::ByteArray, QCborValue::ByteArray,
-                   QCborValue::ByteArray, QCborValue::Integer, QCborValue::Integer)) {
+static _rpcRet _rpc_Player_doRequest(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 5 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<std::string_view>(packet.param2) &&
+    std::holds_alternative<std::string_view>(packet.param3) &&
+    std::holds_alternative<int>(packet.param4) &&
+    std::holds_alternative<int64_t>(packet.param5)
+  )) {
     return { false, nullVal };
   }
 
-  auto connId = params[0].toByteArray();
-  auto command = params[1].toByteArray();
-  auto jsonData = params[2].toByteArray();
-  auto timeout = params[3].toInteger(0);
-  qint64 timestamp = params[4].toInteger();
+  auto connId = std::get<int>(packet.param1);
+  auto command = std::get<std::string_view>(packet.param2);
+  auto jsonData = std::get<std::string_view>(packet.param3);
+  auto timeout = std::get<int>(packet.param4);
+  int64_t timestamp = std::get<int64_t>(packet.param5);
 
-  auto player = ServerInstance->findPlayerByConnId(connId);
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId);
   if (!player) {
     return { false, "Player not found" };
   }
 
-  player->doRequest(command, jsonData, timeout, timestamp);
+  // TODO 别急
+  // player->doRequest(command, jsonData, timeout, timestamp);
 
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_Player_waitForReply(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::ByteArray, QCborValue::Integer)) {
+static _rpcRet _rpc_Player_waitForReply(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 2 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<int>(packet.param2)
+  )) {
     return { false, nullVal };
   }
 
-  auto connId = params[0].toByteArray();
-  int timeout = params[1].toInteger(0);
+  auto connId = std::get<int>(packet.param1);
+  auto timeout = std::get<int>(packet.param2);
 
-  auto player = ServerInstance->findPlayerByConnId(connId);
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId);
   if (!player) {
     return { false, "Player not found" };
   }
 
-  auto reply = player->waitForReply(timeout);
-  return { true, reply };
+  // TODO 别急
+  // auto reply = player->waitForReply(timeout);
+  return { true, "" }; // reply };
 }
 
-static _rpcRet _rpc_Player_doNotify(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::ByteArray, QCborValue::ByteArray, QCborValue::ByteArray)) {
+static _rpcRet _rpc_Player_doNotify(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 3 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<std::string_view>(packet.param2) &&
+    std::holds_alternative<std::string_view>(packet.param3)
+  )) {
     return { false, nullVal };
   }
 
-  auto connId = params[0].toByteArray();
-  auto command = params[1].toByteArray();
-  auto jsonData = params[2].toByteArray();
+  auto connId = std::get<int>(packet.param1);
+  auto command = std::get<std::string_view>(packet.param2);
+  auto jsonData = std::get<std::string_view>(packet.param3);
 
-  auto player = ServerInstance->findPlayerByConnId(connId);
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId);
   if (!player) {
     return { false, "Player not found" };
   }
@@ -119,13 +148,15 @@ static _rpcRet _rpc_Player_doNotify(const QCborArray &params) {
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_Player_thinking(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::ByteArray)) {
+static _rpcRet _rpc_Player_thinking(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
     return { false, nullVal };
   }
 
-  auto connId = params[0].toByteArray();
-  auto player = ServerInstance->findPlayerByConnId(connId);
+  auto connId = std::get<int>(packet.param1);
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId);
   if (!player) {
     return { false, "Player not found" };
   }
@@ -134,15 +165,18 @@ static _rpcRet _rpc_Player_thinking(const QCborArray &params) {
   return { true, isThinking };
 }
 
-static _rpcRet _rpc_Player_setThinking(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::ByteArray, QCborValue::SimpleType)) {
+static _rpcRet _rpc_Player_setThinking(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 2 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<bool>(packet.param2)
+  )) {
     return { false, nullVal };
   }
 
-  auto connId = params[0].toByteArray();
-  bool thinking = params[1].toBool();
+  auto connId = std::get<int>(packet.param1);
+  bool thinking = std::get<bool>(packet.param2);
 
-  auto player = ServerInstance->findPlayerByConnId(connId);
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId);
   if (!player) {
     return { false, "Player not found" };
   }
@@ -151,15 +185,18 @@ static _rpcRet _rpc_Player_setThinking(const QCborArray &params) {
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_Player_setDied(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::ByteArray, QCborValue::SimpleType)) {
+static _rpcRet _rpc_Player_setDied(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 2 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<bool>(packet.param2)
+  )) {
     return { false, nullVal };
   }
 
-  auto connId = params[0].toByteArray();
-  bool died = params[1].toBool();
+  auto connId = std::get<int>(packet.param1);
+  bool died = std::get<bool>(packet.param2);
 
-  auto player = ServerInstance->findPlayerByConnId(connId);
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId);
   if (!player) {
     return { false, "Player not found" };
   }
@@ -168,175 +205,205 @@ static _rpcRet _rpc_Player_setDied(const QCborArray &params) {
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_Player_emitKick(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::ByteArray)) {
+static _rpcRet _rpc_Player_emitKick(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
     return { false, nullVal };
   }
 
-  auto connId = params[0].toByteArray();
-  auto player = ServerInstance->findPlayerByConnId(connId);
+  auto connId = std::get<int>(packet.param1);
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId);
   if (!player) {
     return { false, "Player not found" };
   }
 
-  emit player->kicked();
+  // TODO 别急
+  // player->emitKicked();
   return { true, nullVal };
 }
 
 // part3: Room相关
 
-static _rpcRet _rpc_Room_delay(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::Integer, QCborValue::Integer)) {
+static _rpcRet _rpc_Room_delay(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 2 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<int>(packet.param2)
+  )) {
     return { false, nullVal };
   }
-  int id = params[0].toInteger(-1);
-  int ms = params[1].toInteger(0);
+  int id = std::get<int>(packet.param1);
+  int ms = std::get<int>(packet.param2);
   if (ms <= 0) {
     return { false, nullVal };
   }
-  auto room = ServerInstance->findRoom(id);
+  auto room = Server::instance().room_manager().findRoom(id);
   if (!room) {
     return { false, "Room not found" };
   }
 
-  room->delay(ms);
+  // TODO
+  // room->delay(ms);
 
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_Room_updatePlayerWinRate(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::Integer, QCborValue::Integer,
-                   QCborValue::ByteArray, QCborValue::ByteArray, QCborValue::Integer)) {
+static _rpcRet _rpc_Room_updatePlayerWinRate(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 5 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<int>(packet.param2) &&
+    std::holds_alternative<std::string_view>(packet.param3) &&
+    std::holds_alternative<std::string_view>(packet.param4) &&
+    std::holds_alternative<int>(packet.param5)
+  )) {
     return { false, nullVal };
   }
 
-  int roomId = params[0].toInteger(-1);
-  int playerId = params[1].toInteger(-1);
-  auto mode = params[2].toByteArray();
-  auto role = params[3].toByteArray();
-  int result = params[4].toInteger(0);
+  int roomId = std::get<int>(packet.param1);
+  int playerId = std::get<int>(packet.param2);
+  auto mode = std::get<std::string_view>(packet.param3);
+  auto role = std::get<std::string_view>(packet.param4);
+  int result = std::get<int>(packet.param5);
 
-  auto room = ServerInstance->findRoom(roomId);
+  auto room = Server::instance().room_manager().findRoom(roomId);
   if (!room) {
     return { false, "Room not found" };
   }
 
-  room->updatePlayerWinRate(playerId, mode, role, result);
+  // TODO
+  // room->updatePlayerWinRate(playerId, mode, role, result);
 
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_Room_updateGeneralWinRate(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::Integer, QCborValue::ByteArray,
-                   QCborValue::ByteArray, QCborValue::ByteArray, QCborValue::Integer)) {
+static _rpcRet _rpc_Room_updateGeneralWinRate(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 5 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<std::string_view>(packet.param2) &&
+    std::holds_alternative<std::string_view>(packet.param3) &&
+    std::holds_alternative<std::string_view>(packet.param4) &&
+    std::holds_alternative<int>(packet.param5)
+  )) {
     return { false, nullVal };
   }
 
-  int roomId = params[0].toInteger(-1);
-  auto general = params[1].toByteArray();
-  auto mode = params[2].toByteArray();
-  auto role = params[3].toByteArray();
-  int result = params[4].toInteger(0);
+  int roomId = std::get<int>(packet.param1);
+  auto general = std::get<int>(packet.param2);
+  auto mode = std::get<int>(packet.param3);
+  auto role = std::get<int>(packet.param4);
+  int result = std::get<int>(packet.param5);
 
-  auto room = ServerInstance->findRoom(roomId);
+  auto room = Server::instance().room_manager().findRoom(roomId);
   if (!room) {
     return { false, "Room not found" };
   }
 
-  room->updateGeneralWinRate(general, mode, role, result);
+  // room->updateGeneralWinRate(general, mode, role, result);
 
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_Room_gameOver(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::Integer)) {
+static _rpcRet _rpc_Room_gameOver(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
     return { false, nullVal };
   }
 
-  int roomId = params[0].toInteger(-1);
-  auto room = ServerInstance->findRoom(roomId);
+  int roomId = std::get<int>(packet.param1);
+  auto room = Server::instance().room_manager().findRoom(roomId);
   if (!room) {
     return { false, "Room not found" };
   }
 
-  room->gameOver();
+  // room->gameOver();
 
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_Room_setRequestTimer(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::Integer, QCborValue::Integer)) {
+static _rpcRet _rpc_Room_setRequestTimer(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 2 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<int>(packet.param2)
+  )) {
     return { false, nullVal };
   }
 
-  int roomId = params[0].toInteger(-1);
-  int ms = params[1].toInteger(0);
+  int id = std::get<int>(packet.param1);
+  int ms = std::get<int>(packet.param2);
   if (ms <= 0) {
     return { false, nullVal };
   }
 
-  auto room = ServerInstance->findRoom(roomId);
+  auto room = Server::instance().room_manager().findRoom(id);
   if (!room) {
     return { false, "Room not found" };
   }
 
-  room->setRequestTimer(ms);
+  // room->setRequestTimer(ms);
 
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_Room_destroyRequestTimer(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::Integer)) {
+static _rpcRet _rpc_Room_destroyRequestTimer(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
     return { false, nullVal };
   }
 
-  int roomId = params[0].toInteger(-1);
-  auto room = ServerInstance->findRoom(roomId);
+  int roomId = std::get<int>(packet.param1);
+  auto room = Server::instance().room_manager().findRoom(roomId);
   if (!room) {
     return { false, "Room not found" };
   }
 
-  room->destroyRequestTimer();
+  // room->destroyRequestTimer();
 
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_Room_increaseRefCount(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::Integer)) {
+static _rpcRet _rpc_Room_increaseRefCount(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
     return { false, nullVal };
   }
 
-  int roomId = params[0].toInteger(-1);
-  auto room = ServerInstance->findRoom(roomId);
+  int roomId = std::get<int>(packet.param1);
+  auto room = Server::instance().room_manager().findRoom(roomId);
   if (!room) {
     return { false, "Room not found" };
   }
 
-  room->increaseRefCount();
+  // room->increaseRefCount();
 
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_Room_decreaseRefCount(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::Integer)) {
+static _rpcRet _rpc_Room_decreaseRefCount(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
     return { false, nullVal };
   }
 
-  int roomId = params[0].toInteger(-1);
-  auto room = ServerInstance->findRoom(roomId);
+  int roomId = std::get<int>(packet.param1);
+  auto room = Server::instance().room_manager().findRoom(roomId);
   if (!room) {
     return { false, "Room not found" };
   }
 
-  room->decreaseRefCount();
+  // room->decreaseRefCount();
 
   return { true, nullVal };
 }
 
 // 收官：getRoom
 
+/*
 static QCborMap getPlayerObject(Player *p) {
-  QCborArray gameData;
+  JsonRpcPacket gameData;
   for (auto i : p->getGameData()) gameData << i;
 
   return {
@@ -351,35 +418,39 @@ static QCborMap getPlayerObject(Player *p) {
     { "gameData", gameData },
   };
 }
+*/
 
-static _rpcRet _rpc_RoomThread_getRoom(const QCborArray &params) {
-  if (!checkParams(params, QCborValue::Integer)) {
+static _rpcRet _rpc_RoomThread_getRoom(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
     return { false, nullVal };
   }
-  int id = params[0].toInteger(-1);
+  int id = std::get<int>(packet.param1);
   if (id <= 0) {
     return { false, nullVal };
   }
 
-  auto room = ServerInstance->findRoom(id);
+  auto room = Server::instance().room_manager().findRoom(id);
   if (!room) {
     return { false, "Room not found" };
   }
 
-  QCborArray players;
-  for (auto p : room->getPlayers()) {
-    players << getPlayerObject(p);
-  }
+  // JsonRpcPacket players;
+  // for (auto p : room->getPlayers()) {
+  //   players << getPlayerObject(p);
+  // }
 
-  QCborMap ret {
-    { "id", room->getId() },
-    { "players", players },
-    { "ownerId", room->getOwner()->getId() },
-    { "timeout", room->getTimeout() },
+  // QCborMap ret {
+  //   { "id", room->getId() },
+  //   { "players", players },
+  //   { "ownerId", room->getOwner()->getId() },
+  //   { "timeout", room->getTimeout() },
 
-    { "settings", room->getSettings().constData() },
-  };
-  return { true, ret };
+  //   { "settings", room->getSettings().constData() },
+  // };
+  // return { true, ret };
+  return { true, nullVal };
 }
 
 const JsonRpc::RpcMethodMap ServerRpcMethods {

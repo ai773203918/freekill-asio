@@ -13,21 +13,7 @@
 
 /*
 Scheduler::Scheduler(RoomThread *thread) {
-  if (!ServerInstance->isRpcEnabled()) {
-    L = new Lua;
-    if (QFile::exists("packages/freekill-core") &&
-      !GetDisabledPacks().contains("freekill-core")) {
-      // 危险的cd操作，记得在lua中切回游戏根目录
-      QDir::setCurrent("packages/freekill-core");
-    }
-
-    L->dofile("lua/freekill.lua");
-    L->dofile("lua/server/scheduler.lua");
-    L->call("InitScheduler", { QVariant::fromValue(thread) });
-
-  } else {
-    L = new RpcLua(ServerRpcMethods);
-  }
+  L = new RpcLua(ServerRpcMethods);
 }
 
 Scheduler::~Scheduler() {
@@ -43,9 +29,9 @@ void Scheduler::doDelay(int roomId, int ms) {
   QTimer::singleShot(ms, [=](){ resumeRoom(roomId, "delay_done"); });
 }
 
-bool Scheduler::resumeRoom(int roomId, const char *reason) {
+void Scheduler::resumeRoom(int roomId, const char *reason) {
   auto room = ServerInstance->findRoom(roomId);
-  return L->call("ResumeRoom", { roomId, reason }).toBool();
+  L->call("ResumeRoom", { roomId, reason });
 }
 
 void Scheduler::setPlayerState(const QString &connId, int roomId) {

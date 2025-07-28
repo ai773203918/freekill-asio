@@ -19,7 +19,7 @@ class Scheduler {
  public slots:
   void handleRequest(const QString &req);
   void doDelay(int roomId, int ms);
-  bool resumeRoom(int roomId, const char *reason);
+  void resumeRoom(int roomId, const char *reason);
 
   // 只在rpc模式下有效果
   void setPlayerState(const QString &, int roomId);

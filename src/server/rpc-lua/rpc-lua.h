@@ -1,21 +1,25 @@
 #pragma once
 
-#include "core/c-wrapper.h"
 #include "server/rpc-lua/jsonrpc.h"
 
-class RpcLua : public LuaInterface {
+using namespace JsonRpc;
+
+class RpcLua {
 public:
-  explicit RpcLua(const JsonRpc::RpcMethodMap &methodMap);
+  explicit RpcLua(asio::io_context &);
   ~RpcLua();
 
-  bool dofile(const char *path);
-  QVariant call(const QString &func_name, QVariantList params = QVariantList());
-  QVariant eval(const QString &lua);
+  void dofile(const char *path);
+  void call(const char *func_name, JsonRpcParam param1 = nullptr, JsonRpcParam param2 = nullptr);
 
-  QString getConnectionInfo() const;
+  // QString getConnectionInfo() const;
 
 private:
-  QIODevice *socket = nullptr;
-  QMutex io_lock;
-  const JsonRpc::RpcMethodMap &methods;
+  asio::io_context &io_ctx;
+  asio::posix::stream_descriptor child_stdin;   // 父进程写入子进程 stdin
+  asio::posix::stream_descriptor child_stdout;  // 父进程读取子进程 stdout
+  enum { max_length = 131072 };
+  char buffer[max_length];
+  // QIODevice *socket = nullptr;
+  // QMutex io_lock;
 };

@@ -3,14 +3,6 @@
 // 由于性能出现重大瓶颈，改为CBOR格式，反正这个也是Qt自带支持
 #pragma once
 
-#include <QCborArray>
-#include <QCborMap>
-#include <QString>
-#include <functional>
-#include <map>
-#include <optional>
-#include <string>
-
 namespace JsonRpc {
 
 enum JsonKeys {
@@ -28,71 +20,55 @@ enum JsonKeys {
   ErrorData,
 };
 
-using RpcMethod =
-    std::function<std::pair<bool, QCborValue>(const QCborArray &)>;
-using RpcMethodMap = std::map<QString, RpcMethod>;
-
-// 检查params参数列表
-template<typename... Types>
-bool checkParams(const QCborArray &params, Types... expectedTypes) {
-  const QCborValue::Type types[] = {static_cast<QCborValue::Type>(expectedTypes)...};
-  constexpr size_t typeCount = sizeof...(Types);
-
-  if (params.size() != static_cast<int>(typeCount)) {
-    return false;
-  }
-
-  for (size_t i = 0; i < typeCount; ++i) {
-    if (params[i].type() & types[i] != types[i]) {
-      return false;
-    }
-  }
-
-  return true;
-}
+typedef std::variant<int, int64_t, std::string_view, bool, std::nullptr_t> JsonRpcParam;
 
 struct JsonRpcError {
   int code;
   const char *message;
-  // std::optional<QCborValue> data;
+  JsonRpcParam data = nullptr;
 };
 
-// 错误对象集合
-extern std::map<std::string, JsonRpcError> errorObjects;
+struct JsonRpcPacket {
+  // const char *jsonrpc; // 必定是2.0 不加
+  int id = -1; // 负数表示没有id 是notification
+  int param_count = 0;
+
+  std::string_view method;
+  JsonRpcParam param1 = nullptr;
+  JsonRpcParam param2 = nullptr;
+  JsonRpcParam param3 = nullptr;
+  JsonRpcParam param4 = nullptr;
+  JsonRpcParam param5 = nullptr;
+
+  JsonRpcError error;
+  JsonRpcParam result = nullptr;
+};
+
+using RpcMethod =
+    std::function<std::pair<bool, JsonRpcParam>(const JsonRpcPacket &)>;
+using RpcMethodMap = std::map<std::string_view, RpcMethod>;
+
+extern std::map<std::string_view, JsonRpcError> errorObjects;
 
 // 判断是否是标准错误
-bool isStdError(const std::string &errorName);
+bool isStdError(const std::string_view &errorName);
 
 // 获取错误对象
 std::optional<JsonRpcError> getErrorObject(const std::string &errorName);
 
-// 添加错误对象（用户自定义）
-bool addErrorObject(const std::string &errorName, const JsonRpcError &error);
+JsonRpcPacket notification(const std::string_view &method,
+                           const JsonRpcParam &param1 = nullptr,
+                           const JsonRpcParam &param2 = nullptr);
+JsonRpcPacket request(const std::string_view &method,
+                      const JsonRpcParam &param1 = nullptr,
+                      const JsonRpcParam &param2 = nullptr,
+                      int id = -1);
+JsonRpcPacket response(const JsonRpcPacket &req, const JsonRpcParam &result);
+JsonRpcPacket responseError(const JsonRpcPacket &req, const std::string &errorName,
+                          const JsonRpcParam &data = nullptr);
 
-// 删除错误对象
-bool removeErrorObject(const std::string &errorName);
-
-// 构造通知包
-QCborMap notification(const QString &method, const QCborArray &params = {});
-
-// 构造请求包
-QCborMap request(const QString &method, const QCborArray &params = {},
-                    int id = -1);
-
-// 构造响应包
-QCborMap response(const QCborMap &req, const QCborValue &result);
-
-// 构造错误响应包
-QCborMap responseError(const QCborMap &req, const std::string &errorName,
-                          const QCborValue &data = {});
-
-// 处理单个请求
-std::optional<QCborMap>
-handleRequest(const RpcMethodMap &methods, const QCborMap &req);
-
-// 主处理入口：解析并处理请求
-std::optional<QCborMap>
-serverResponse(const RpcMethodMap &methods, const QCborValue &request);
+std::optional<JsonRpcPacket>
+handleRequest(const RpcMethodMap &methods, const JsonRpcPacket &req);
 
 // 获取下一个可用的请求ID
 int getNextFreeId();

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "network/client_socket.h"
+#include "core/util.h"
+
 #include <openssl/aes.h>
 
 ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
@@ -51,6 +53,7 @@ void ClientSocket::disconnectFromHost() {
 
 // 此函数必须只能在主线程调用！
 void ClientSocket::send(const asio::const_buffer &msg) {
+  spdlog::debug("TX: {}", toHex({ (char *)msg.data(), msg.size() }));
   asio::async_write(m_socket, msg, [](const asio::error_code &, std::size_t) {
     // no-op
   });
@@ -131,6 +134,7 @@ struct PacketBuilder {
   void nextField() {
     current_field++;
     if (current_field == pkt._len) {
+      spdlog::debug("RX: {} {}", pkt.command, toHex(pkt.cborData));
       message_got_callback(pkt);
       handled++;
       reset();
@@ -186,6 +190,7 @@ bool ClientSocket::handleBuffer(size_t length) {
   auto cbuf = (unsigned char *)cborBuffer.data();
   auto len = cborBuffer.size();
   size_t total_consumed = 0;
+  // spdlog::debug("client socket buffer: {}", std::string_view{ (char*)cborBuffer.data(), cborBuffer.size() });
 
   std::call_once(callbacks_flag, init_callbacks);
 
@@ -218,10 +223,12 @@ bool ClientSocket::handleBuffer(size_t length) {
   }
 
   // 对剩余的不全数据深拷贝 重新造bytes
-  std::vector<unsigned char> remaining_buffer;
   if (total_consumed < len) {
+    std::vector<unsigned char> remaining_buffer;
     remaining_buffer.assign(cborBuffer.begin() + total_consumed, cborBuffer.end());
     cborBuffer = remaining_buffer;
+  } else {
+    cborBuffer.clear();
   }
 
   return true;

@@ -23,7 +23,7 @@ enum JsonKeys {
 typedef std::variant<int, int64_t, std::string_view, bool, std::nullptr_t> JsonRpcParam;
 
 struct JsonRpcError {
-  int code;
+  int code = 0;
   const char *message;
   JsonRpcParam data = nullptr;
 };

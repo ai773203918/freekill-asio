@@ -33,7 +33,7 @@ public:
   // TODO 改成用得到的password和gameMode
   // const QJsonObject getSettingsObject() const;
   const std::string_view getSettings() const;
-  void setSettings(std::string_view &settings);
+  void setSettings(const std::string_view &settings);
   bool isAbandoned() const;
 
   Player *getOwner() const;
@@ -99,9 +99,8 @@ private:
   int m_owner_id = 0;
 
   std::string settings;
-  // 以下均依赖于settings变量
-  std::string_view gameMode;
-  std::string_view password;
+  std::string gameMode;
+  std::string password;
   bool m_abandoned;     // If room is empty, delete it
 
   std::vector<int> runned_players;

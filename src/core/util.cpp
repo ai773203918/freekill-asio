@@ -242,3 +242,11 @@ QVariant AskOllama(const QString &apiEndpoint, const QVariant &body) {
   return QJsonDocument::fromJson(responseData).toVariant();
 }
 */
+
+std::string toHex(std::string_view sv) {
+  std::ostringstream oss;
+  for (unsigned char c : sv) {
+    oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(c);
+  }
+  return oss.str();
+}

@@ -1,6 +1,8 @@
 #include "server/rpc-lua/rpc-lua.h"
 #include "server/rpc-lua/jsonrpc.h"
 
+#include "core/util.h"
+
 #include <unistd.h>
 
 RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
@@ -26,34 +28,38 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
     ::close(stdin_pipe[0]);
     ::close(stdout_pipe[1]);
 
+    sigset_t newmask, oldmask;
+    sigemptyset(&newmask);
+    sigaddset(&newmask, SIGINT); // 阻塞 SIGINT
+    sigprocmask(SIG_BLOCK, &newmask, &oldmask);
+
     if (int err = ::chdir("packages/freekill-core"); err != 0) {
       std::exit(err);
     }
 
     ::setenv("FK_RPC_MODE", "cbor", 1);
     ::execlp("lua5.4", "lua5.4", "lua/server/rpc/entry.lua", nullptr);
+
     std::exit(EXIT_FAILURE);
   } else if (pid > 0) { // 父进程
-    // 关闭子进程用的 pipe 端
-    close(stdin_pipe[0]);   // 关闭子进程的读取端（父进程只写 stdin）
-    close(stdout_pipe[1]);  // 关闭子进程的写入端（父进程只读 stdout）
-
-    // 使用 asio 包装 pipe
-    child_stdin.assign(stdin_pipe[1]);   // 父进程写入子进程 stdin
-    child_stdout.assign(stdout_pipe[0]);  // 父进程读取子进程 stdout
-
-    // 异步读取子进程的 stdout
-    // async_read_stdout();
-    // 并非异步读取 这部分都是同步读写
+    // 转下文
   } else {
     throw std::runtime_error("Failed to fork process");
   }
 
+  // 关闭子进程用的 pipe 端
+  close(stdin_pipe[0]);   // 关闭子进程的读取端（父进程只写 stdin）
+  close(stdout_pipe[1]);  // 关闭子进程的写入端（父进程只读 stdout）
+
+  // 使用 asio 包装 pipe
+  child_stdin = { io_ctx, stdin_pipe[1] };
+  child_stdout = { io_ctx, stdout_pipe[0] };
+
+  // asio::posix::stream_descriptor child_stdout;  // 父进程读取子进程 stdout
   size_t length = child_stdout.read_some(asio::buffer(buffer, max_length));
   if (true) {
-    spdlog::debug("READ SOME");
 #ifdef RPC_DEBUG
-    spdlog::debug("Me <-- {}", std::string_view { buffer, length } );
+    spdlog::debug("Me <-- {}", toHex({ buffer, length }));
 #endif
   } else {
     // TODO: throw, then retry
@@ -93,11 +99,7 @@ void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param
 
   auto req = JsonRpc::request(func_name, param1, param2);
   auto id = req.id;
-  // socket->write(req.toCborValue().toCbor());
-  // socket->waitForBytesWritten(15000);
-#ifdef RPC_DEBUG
-  // spdlog::debug("Me --> %s", qUtf8Printable(mapToJson(req, false)));
-#endif
+  sendPacket(req);
 
   // while (socket->bytesAvailable() > 0 || socket->waitForReadyRead(15000)) {
   //   if (!socket->isOpen()) break;
@@ -176,3 +178,13 @@ QString RpcLua::getConnectionInfo() const {
   }
 }
 */
+
+// TODO 用cbor_stream_encode或者徒手发送
+void RpcLua::sendPacket(const JsonRpcPacket &packet) {
+  // socket->write(req.toCborValue().toCbor());
+  // socket->waitForBytesWritten(15000);
+#ifdef RPC_DEBUG
+  // spdlog::debug("Me --> %s", qUtf8Printable(mapToJson(req, false)));
+#endif
+
+}

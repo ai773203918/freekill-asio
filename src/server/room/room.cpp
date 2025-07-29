@@ -68,10 +68,49 @@ bool Room::isFull() const { return players.size() == capacity; }
 
 const std::string_view Room::getSettings() const { return settings; }
 
-void Room::setSettings(std::string_view &settings) {
+void Room::setSettings(const std::string_view &settings) {
+  // settings要失效了 先清空两个view
+  gameMode = "";
+  password = "";
   this->settings = settings;
-  // settings_obj = QJsonDocument::fromJson(settings).object();
-  // TODO: 从settings解析出gameMode和password
+
+  struct cbor_decoder_result decode_result;
+  auto cbuf = (cbor_data)this->settings.data();
+  auto len = this->settings.size();
+
+  // 由于settings的内容实在无法预料到后面会变得多么复杂 这里直接分配内存了
+  // 不抠那几百字节了
+
+  struct cbor_load_result result;
+  auto settings_map = cbor_load(cbuf, len, &result);
+  if (result.error.code != CBOR_ERR_NONE || !cbor_isa_map(settings_map)) {
+    cbor_decref(&settings_map);
+    return;
+  }
+
+  auto sz = cbor_map_size(settings_map);
+  auto pairs = cbor_map_handle(settings_map);
+  int iter = 0;
+  for (size_t i = 0; i < sz; i++) {
+    auto pair = pairs[i];
+    auto k = pair.key, v = pair.value;
+
+    if (cbor_isa_string(k) && strcmp((const char *)cbor_string_handle(k), "gameMode") == 0) {
+      if (!cbor_isa_string(v)) continue;
+      gameMode = std::string { (const char *)cbor_string_handle(v) };
+      iter++;
+    }
+
+    if (cbor_isa_string(k) && strcmp((const char *)cbor_string_handle(k), "password") == 0) {
+      if (!cbor_isa_string(v)) continue;
+      gameMode = std::string { (const char *)cbor_string_handle(v) };
+      iter++;
+    }
+
+    if (iter >= 2) break;
+  }
+
+  cbor_decref(&settings_map);
 }
 
 bool Room::isAbandoned() const {
@@ -128,11 +167,9 @@ void Room::addPlayer(Player &player) {
   //   emit playerAdded(player);
 
   // Second, let the player enter room and add other players
-  player.doNotify("EnterRoom", Cbor::encodeArray({
-    capacity,
-    timeout,
-    settings,
-  }));
+  auto buf = Cbor::encodeArray({ capacity, timeout });
+  buf.data()[0] += 1; // array header 2 -> 3
+  player.doNotify("EnterRoom", buf + settings);
 
   auto &um = Server::instance().user_manager();
   for (auto id : players) {

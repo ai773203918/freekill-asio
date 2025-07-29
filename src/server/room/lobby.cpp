@@ -1,7 +1,12 @@
 #include "server/room/lobby.h"
 #include "server/server.h"
 #include "server/user/player.h"
+#include "server/user/user_manager.h"
+#include "server/room/room_manager.h"
+#include "server/room/room.h"
 #include "network/client_socket.h"
+
+#include "core/c-wrapper.h"
 
 Lobby::Lobby() {
   id = 0;
@@ -72,17 +77,47 @@ void Lobby::updatePassword(Player *sender, const QString &jsonData) {
 }
 */
 
-/*
 void Lobby::createRoom(Player &sender, const Packet &packet) {
-  auto arr = String2Json(jsonData).array();
-  auto name = arr[0].toString();
-  auto capacity = arr[1].toInt();
-  auto timeout = arr[2].toInt();
-  auto settings =
-    QJsonDocument(arr[3].toObject()).toJson(QJsonDocument::Compact);
-  Server::instance().room_manager().createRoom(sender, name, capacity, timeout, settings);
+  auto cbuf = (cbor_data)packet.cborData.data();
+  auto len = packet.cborData.size();
+
+  std::string_view name;
+  int capacity = -1;
+  int timeout = -1;
+  std::string_view settings;
+  size_t sz = 0;
+
+  struct cbor_decoder_result decode_result;
+
+  decode_result = cbor_stream_decode(cbuf, len, &Cbor::arrayCallbacks, &sz); // arr
+  if (decode_result.read == 0) return;
+  cbuf += decode_result.read; len -= decode_result.read;
+  if (sz != 4) return;
+
+  decode_result = cbor_stream_decode(cbuf, len, &Cbor::stringCallbacks, &name);
+  if (decode_result.read == 0) return;
+  cbuf += decode_result.read; len -= decode_result.read;
+  if (name == "") return;
+
+  decode_result = cbor_stream_decode(cbuf, len, &Cbor::intCallbacks, &capacity);
+  if (decode_result.read == 0) return;
+  cbuf += decode_result.read; len -= decode_result.read;
+  if (capacity == -1) return;
+
+  decode_result = cbor_stream_decode(cbuf, len, &Cbor::intCallbacks, &timeout);
+  if (decode_result.read == 0) return;
+  cbuf += decode_result.read; len -= decode_result.read;
+  if (timeout == -1) return;
+
+  settings = { (char *)cbuf, len };
+
+  auto &rm = Server::instance().room_manager();
+  auto room_ptr = rm.createRoom(sender, std::string(name), capacity, timeout, std::string(settings));
+  if (room_ptr) {
+    removePlayer(sender);
+    room_ptr->addPlayer(sender);
+  }
 }
-*/
 
 /*
 void Lobby::getRoomConfig(Player *sender, const QString &jsonData) {
@@ -151,7 +186,7 @@ void Lobby::handlePacket(Player &sender, const Packet &packet) {
   static const std::unordered_map<std::string_view, room_cb> lobby_actions = {
     // {"UpdateAvatar", &Lobby::updateAvatar},
     // {"UpdatePassword", &Lobby::updatePassword},
-    // {"CreateRoom", &Lobby::createRoom},
+    {"CreateRoom", &Lobby::createRoom},
     // {"GetRoomConfig", &Lobby::getRoomConfig},
     // {"EnterRoom", &Lobby::enterRoom},
     // {"ObserveRoom", &Lobby::observeRoom},

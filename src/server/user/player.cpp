@@ -209,6 +209,7 @@ void Player::onNotificationGot(const Packet &packet) {
 
   auto &room_manager = Server::instance().room_manager();
   auto room = room_manager.findRoom(roomId);
+  if (!room) return;
   room->handlePacket(*this, packet);
 }
 

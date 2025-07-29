@@ -73,6 +73,12 @@ std::uint64_t Sqlite3::getMemUsage() {
 
 // -----------------
 
+static std::unique_ptr<Cbor> __cbor = nullptr;
+bool Cbor::_instance() {
+  if (!__cbor) __cbor = std::unique_ptr<Cbor>(new Cbor);
+  return true;
+}
+
 template <typename T>
 cbor_item_t* build_cbor_int(T value) {
   static_assert(std::is_integral_v<T>, "Integer type required");
@@ -163,3 +169,58 @@ std::string Cbor::encodeArray(std::initializer_list<std::variant<
 
   return result;
 }
+
+cbor_callbacks Cbor::intCallbacks = cbor_empty_callbacks;
+cbor_callbacks Cbor::bytesCallbacks = cbor_empty_callbacks;
+cbor_callbacks Cbor::stringCallbacks = cbor_empty_callbacks;
+cbor_callbacks Cbor::arrayCallbacks = cbor_empty_callbacks;
+cbor_callbacks Cbor::mapCallbacks = cbor_empty_callbacks;
+
+Cbor::Cbor() {
+  // 所有类型必须是int 直接操作void *的要求比较严格
+  intCallbacks.uint8 = [](void* self, uint8_t value) { 
+    auto p = static_cast<int *>(self);
+    if (p) *p = value;
+  };
+  intCallbacks.uint16 = [](void* self, uint16_t value) { 
+    auto p = static_cast<int *>(self);
+    if (p) *p = value;
+  };
+  intCallbacks.uint32 = [](void* self, uint32_t value) { 
+    if (value > 0x7FFFFFFF) return;
+    auto p = static_cast<int *>(self);
+    if (p) *p = value;
+  };
+  intCallbacks.negint8 = [](void* self, uint8_t value) { 
+    auto p = static_cast<int *>(self);
+    if (p) *p = -1 - value;
+  };
+  intCallbacks.negint16 = [](void* self, uint16_t value) { 
+    auto p = static_cast<int *>(self);
+    if (p) *p = -1 - value;
+  };
+  intCallbacks.negint32 = [](void* self, uint32_t value) { 
+    auto p = static_cast<int *>(self);
+    if (p) *p = -1 - value;
+  };
+
+  stringCallbacks.string = [](void* self, const cbor_data data, size_t len) { 
+    auto sv = static_cast<std::string_view *>(self);
+    if (sv) *sv = { (char *)data, len };
+  };
+  bytesCallbacks.byte_string = [](void* self, const cbor_data data, size_t len) { 
+    auto sv = static_cast<std::string_view *>(self);
+    if (sv) *sv = { (char *)data, len };
+  };
+
+  arrayCallbacks.array_start = [](void* self, size_t size) { 
+    auto p = static_cast<size_t *>(self);
+    if (p) *p = size;
+  };
+  mapCallbacks.map_start = [](void* self, size_t size) { 
+    auto p = static_cast<size_t *>(self);
+    if (p) *p = size;
+  };
+}
+
+bool __cbor_unused = Cbor::_instance();

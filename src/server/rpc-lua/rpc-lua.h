@@ -20,6 +20,6 @@ private:
   asio::posix::stream_descriptor child_stdout;  // 父进程读取子进程 stdout
   enum { max_length = 131072 };
   char buffer[max_length];
-  // QIODevice *socket = nullptr;
-  // QMutex io_lock;
+
+  void sendPacket(const JsonRpcPacket &packet);
 };

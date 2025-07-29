@@ -6,6 +6,8 @@
 #include "server/gamelogic/roomthread.h"
 
 int main(int argc, char *argv[]) {
+  spdlog::set_level(spdlog::level::trace);
+
   Pacman = new PackMan; // TODO 别用new 改成Server::instance那样
 
   asio::io_context io_ctx;

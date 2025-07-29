@@ -47,5 +47,6 @@ std::string Color(const std::string &raw, fkShell::TextColor color,
 // QByteArray FetchFileFromHttp(const QString &addr);
 
 // QVariant AskOllama(const QString &apiEndpoint, const QVariant &body);
+std::string toHex(std::string_view sv);
 
 #endif // _GLOBAL_H

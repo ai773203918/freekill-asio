@@ -26,7 +26,18 @@ private:
 
 class Cbor {
 public:
+  static bool _instance();
   static std::string encodeArray(std::initializer_list<std::variant<
     int, unsigned int, int64_t, uint64_t,
     std::string_view, const char*, bool>> items);
+
+  // stream decode常用
+  static cbor_callbacks intCallbacks;
+  static cbor_callbacks bytesCallbacks;
+  static cbor_callbacks stringCallbacks;
+  static cbor_callbacks arrayCallbacks;
+  static cbor_callbacks mapCallbacks;
+
+private:
+  Cbor();
 };

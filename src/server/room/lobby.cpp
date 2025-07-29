@@ -8,28 +8,44 @@
 
 #include "core/c-wrapper.h"
 
+// TODO: instance
 Lobby::Lobby() {
   id = 0;
+}
+
+const std::unordered_map<int, bool> &Lobby::getPlayers() const {
+  return players;
 }
 
 void Lobby::addPlayer(Player &player) {
   auto &um = Server::instance().user_manager();
   if (player.getState() == Player::Robot) {
-    um.removePlayer(player.getId());
-    um.removePlayerByConnId(player.getConnId());
+    um.deletePlayer(player);
   } else {
     players[player.getConnId()] = true;
     player.setRoom(*this);
     player.doNotify("EnterLobby", "");
   }
 
-  // server->updateOnlineInfo();
+  updateOnlineInfo();
 }
 
 void Lobby::removePlayer(Player &player) {
   auto connId = player.getConnId();
   players.erase(connId);
-//   server->updateOnlineInfo();
+  updateOnlineInfo();
+}
+
+void Lobby::updateOnlineInfo() {
+  auto &um = Server::instance().user_manager();
+  auto arr = Cbor::encodeArray({
+    players.size(),
+    um.getPlayers().size(),
+  });
+  for (auto &[pid, _] : players) {
+    auto p = um.findPlayerByConnId(pid);
+    if (p) p->doNotify("UpdatePlayerNum", arr);
+  }
 }
 
 /*
@@ -114,8 +130,10 @@ void Lobby::createRoom(Player &sender, const Packet &packet) {
   auto &rm = Server::instance().room_manager();
   auto room_ptr = rm.createRoom(sender, std::string(name), capacity, timeout, std::string(settings));
   if (room_ptr) {
-    removePlayer(sender);
     room_ptr->addPlayer(sender);
+    if (sender.getRoom().getId() == room_ptr->getId()) {
+      removePlayer(sender);
+    }
   }
 }
 
@@ -169,6 +187,9 @@ void Lobby::enterRoom(Player &sender, const Packet &pkt) {
         sender.doNotify("ErrorMsg", "room is outdated");
       } else {
         room.addPlayer(sender);
+        if (sender.getRoom().getId() == room.getId()) {
+          removePlayer(sender);
+        }
       }
     } else {
       sender.doNotify("ErrorMsg", "room password error");
@@ -255,7 +276,7 @@ void Lobby::handlePacket(Player &sender, const Packet &packet) {
     {"EnterRoom", &Lobby::enterRoom},
     // {"ObserveRoom", &Lobby::observeRoom},
     {"RefreshRoomList", &Lobby::refreshRoomList},
-    // {"Chat", &Lobby::chat},
+    {"Chat", &Lobby::chat},
   };
 
   auto iter = lobby_actions.find(packet.command);

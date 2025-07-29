@@ -35,6 +35,8 @@ class Scheduler {
 class RoomThread {
 public:
   explicit RoomThread(asio::io_context &main_ctx);
+  RoomThread(RoomThread &) = delete;
+  RoomThread(RoomThread &&) = delete;
 
   int id() const;
   asio::io_context &context();

@@ -8,10 +8,16 @@ class Player;
 class Lobby : public RoomBase {
 public:
   Lobby();
+  Lobby(Lobby &) = delete;
+  Lobby(Lobby &&) = delete;
+
+  const std::unordered_map<int, bool> &getPlayers() const;
 
   void addPlayer(Player &player);
   void removePlayer(Player &player);
   void handlePacket(Player &sender, const Packet &packet);
+
+  void updateOnlineInfo();
 
 private:
   // for handle packet

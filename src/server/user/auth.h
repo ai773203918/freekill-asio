@@ -11,6 +11,9 @@ struct Packet;
 class AuthManager {
 public:
   AuthManager();
+  AuthManager(AuthManager &) = delete;
+  AuthManager(AuthManager &&) = delete;
+
   ~AuthManager() noexcept;
   std::string_view getPublicKeyCbor() const;
 

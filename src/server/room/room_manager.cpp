@@ -51,6 +51,6 @@ Lobby &RoomManager::lobby() const {
   return *m_lobby;
 }
 
-std::map<int, std::unique_ptr<Room>> &RoomManager::getRooms() {
+const std::map<int, std::unique_ptr<Room>> &RoomManager::getRooms() const {
   return rooms;
 }

@@ -7,6 +7,8 @@
 #include "server/user/player.h"
 #include "server/user/user_manager.h"
 #include "server/room/room_manager.h"
+#include "server/room/room.h"
+#include "server/room/lobby.h"
 #include "server/gamelogic/roomthread.h"
 #include "core/util.h"
 #include "core/c-wrapper.h"
@@ -84,53 +86,62 @@ void Shell::start() {
 
 void Shell::lspCommand(StringList &) {
   auto &user_manager = Server::instance().user_manager();
-  // if (players.size() == 0) {
-  //   spdlog::info("No online player.");
-  //   return;
-  // }
-  // spdlog::info("Current %lld online player(s) are:", ServerInstance->players.size());
-  // for (auto player : ServerInstance->players) {
-  //   spdlog::info() << player->getId() << "," << player->getScreenName();
-  // }
+  auto &players = user_manager.getPlayers();
+  if (players.size() == 0) {
+    spdlog::info("No online player.");
+    return;
+  }
+  spdlog::info("Current {} online player(s) are:", players.size());
+  for (auto &[_, player] : players) {
+    spdlog::info("{}, {}", player->getId(), player->getScreenName());
+  }
 }
 
 void Shell::lsrCommand(StringList &list) {
-  /*
+  auto &user_manager = Server::instance().user_manager();
+  auto &room_manager = Server::instance().room_manager();
   if (!list.empty() && !list[0].empty()) {
     auto pid = list[0];
-    bool ok;
-    int id = pid.toInt(&ok);
-    if (!ok) return;
+    int id = std::atoi(pid.c_str());
 
-    auto room = ServerInstance->findRoom(id);
-    if (!room) {
+    auto room_ = room_manager.findRoom(id);
+    if (!room_) {
       spdlog::info("No such room.");
+    } else if (room_->isLobby()) {
+      spdlog::info("You are viewing lobby, players in lobby are:");
+
+      auto lobby = dynamic_cast<Lobby *>(room_);
+      for (auto &[pid, _] : lobby->getPlayers()) {
+        auto p = user_manager.findPlayerByConnId(pid);
+        if (p) spdlog::info("{}, {}", p->getId(), p->getScreenName());
+      }
     } else {
-      auto config = QJsonDocument::fromJson(room->getSettings());
-      auto pw = config["password"].toString();
-      spdlog::info() << room->getId() << "," << (pw.empty() ? QString("%1").arg(room->getName()) :
-          QString("%1 [pw=%2]").arg(room->getName()).arg(pw));
+      auto room = dynamic_cast<Room *>(room_);
+      auto pw = room->getPassword();
+      spdlog::info("{}, {} [pw={}]", room->getId(), room->getName(),
+        pw == "" ? "<nil>" : pw);
       spdlog::info("Players in this room:");
 
-      for (auto p : room->getPlayers()) {
-        spdlog::info() << p->getId() << "," << p->getScreenName();
+      for (auto pid : room->getPlayers()) {
+        auto p = user_manager.findPlayerByConnId(pid);
+        if (p) spdlog::info("{}, {}", p->getId(), p->getScreenName());
       }
     }
 
     return;
   }
-  if (ServerInstance->rooms.size() == 0) {
+
+  const auto &rooms = room_manager.getRooms();
+  if (rooms.size() == 0) {
     spdlog::info("No running room.");
     return;
   }
-  spdlog::info("Current %lld running rooms are:", ServerInstance->rooms.size());
-  for (auto room : ServerInstance->rooms) {
-    auto config = QJsonDocument::fromJson(room->getSettings());
-    auto pw = config["password"].toString();
-    spdlog::info() << room->getId() << "," << (pw.empty() ? QString("%1").arg(room->getName()) :
-        QString("%1 [pw=%2]").arg(room->getName()).arg(pw));
+  spdlog::info("Current {} running rooms are:", rooms.size());
+  for (auto &[_, room] : rooms) {
+    auto pw = room->getPassword();
+    spdlog::info("{}, {} [pw={}]", room->getId(), room->getName(),
+                 pw == "" ? "<nil>" : pw);
   }
-  */
 }
 
 void Shell::installCommand(StringList &list) {

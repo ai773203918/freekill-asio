@@ -8,6 +8,10 @@ struct Packet;
 
 class RoomBase {
 public:
+  RoomBase() = default;
+  RoomBase(RoomBase &) = delete;
+  RoomBase(RoomBase &&) = delete;
+
   bool isLobby() const;
 
   int getId() const;
@@ -21,10 +25,7 @@ public:
   void doBroadcastNotify(const std::vector<int> targets,
                          const std::string_view &command, const std::string_view &cborData);
 
-  /*
-  void chat(Player *sender, const QString &cborData);
-
-  */
+  void chat(Player &sender, const Packet &);
 
   virtual void addPlayer(Player &player) = 0;
   virtual void removePlayer(Player &player) = 0;

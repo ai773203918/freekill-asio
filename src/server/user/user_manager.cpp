@@ -74,6 +74,11 @@ void UserManager::removePlayerByConnId(int connId) {
   }
 }
 
+
+const std::unordered_map<int, std::shared_ptr<Player>> &UserManager::getPlayers() const {
+  return online_players_map;
+}
+
 void UserManager::processNewConnection(std::shared_ptr<ClientSocket> client) {
   spdlog::info("client {} connected", client->peerAddress());
 
@@ -133,7 +138,7 @@ void UserManager::createNewPlayer(std::shared_ptr<ClientSocket> client, std::str
   // player->addTotalGameTime(time);
   // player->doNotify("AddTotalGameTime", QCborArray{ id, time }.toCborValue().toCbor());
 
-  auto lobby = Server::instance().room_manager().lobby();
+  auto &lobby = Server::instance().room_manager().lobby();
   lobby.addPlayer(*player);
 }
 

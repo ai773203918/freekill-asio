@@ -18,7 +18,7 @@ public:
 
   RoomBase *findRoom(int id) const;
   Lobby &lobby() const;
-  std::map<int, std::unique_ptr<Room>> &getRooms();
+  const std::map<int, std::unique_ptr<Room>> &getRooms() const;
 
 private:
   std::unique_ptr<Lobby> m_lobby;

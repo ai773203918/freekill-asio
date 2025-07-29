@@ -31,9 +31,6 @@ public:
   RoomThread &getAvailableThread();
 
   /*
-  void updateRoomList(Player *teller);
-  void updateOnlineInfo();
-
   Sqlite3 *getDatabase();
 
   void broadcast(const QByteArray &command, const QByteArray &jsonData);

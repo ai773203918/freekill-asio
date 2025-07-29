@@ -149,22 +149,6 @@ RoomThread &Server::getAvailableThread() {
 
 /*
 
-void Server::removeRoom(int id) {
-  rooms.remove(id);
-}
-
-Room *Server::findRoom(int id) const { return rooms.value(id); }
-
-Lobby *Server::lobby() const { return m_lobby; }
-
-void Server::updateOnlineInfo() {
-  lobby()->doBroadcastNotify(lobby()->getPlayers(), "UpdatePlayerNum",
-                             QCborArray{
-                                 lobby()->getPlayers().length(),
-                                 this->players.count(),
-                             }.toCborValue().toCbor());
-}
-
 Sqlite3 *Server::getDatabase() { return db; }
 
 void Server::broadcast(const QByteArray &command, const QByteArray &jsonData) {

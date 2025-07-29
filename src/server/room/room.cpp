@@ -68,7 +68,8 @@ void Room::setCapacity(int capacity) { this->capacity = capacity; }
 
 bool Room::isFull() const { return players.size() == capacity; }
 
-std::vector<int> &Room::getPlayers() { return players; }
+const std::vector<int> &Room::getPlayers() const { return players; }
+const std::vector<int> &Room::getObservers() const { return observers; }
 
 const std::string_view Room::getSettings() const { return settings; }
 const std::string_view Room::getGameMode() const { return gameMode; }
@@ -101,15 +102,15 @@ void Room::setSettings(const std::string_view &settings) {
     auto pair = pairs[i];
     auto k = pair.key, v = pair.value;
 
-    if (cbor_isa_string(k) && strcmp((const char *)cbor_string_handle(k), "gameMode") == 0) {
+    if (cbor_isa_string(k) && strncmp((const char *)cbor_string_handle(k), "gameMode", 8) == 0) {
       if (!cbor_isa_string(v)) continue;
-      gameMode = std::string { (const char *)cbor_string_handle(v) };
+      gameMode = std::string { (const char *)cbor_string_handle(v), cbor_string_length(v) };
       iter++;
     }
 
-    if (cbor_isa_string(k) && strcmp((const char *)cbor_string_handle(k), "password") == 0) {
+    if (cbor_isa_string(k) && strncmp((const char *)cbor_string_handle(k), "password", 8) == 0) {
       if (!cbor_isa_string(v)) continue;
-      gameMode = std::string { (const char *)cbor_string_handle(v) };
+      password = std::string { (const char *)cbor_string_handle(v), cbor_string_length(v) };
       iter++;
     }
 
@@ -744,7 +745,7 @@ void Room::handlePacket(Player &sender, const Packet &packet) {
     {"KickPlayer", &Room::kickPlayer},
     {"Ready", &Room::ready},
     // {"StartGame", &Room::startGame},
-    // {"Chat", &Room::chat},
+    {"Chat", &Room::chat},
   };
 
   // TODO

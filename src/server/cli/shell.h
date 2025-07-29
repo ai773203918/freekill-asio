@@ -7,6 +7,8 @@ class Shell {
 public:
   typedef std::vector<std::string> StringList;
   Shell();
+  Shell(Shell &) = delete;
+  Shell(Shell &&) = delete;
   ~Shell();
 
   void start();

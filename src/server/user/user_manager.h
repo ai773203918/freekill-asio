@@ -7,6 +7,8 @@ class AuthManager;
 class UserManager {
 public:
   explicit UserManager();
+  UserManager(UserManager &) = delete;
+  UserManager(UserManager &&) = delete;
 
   Player *findPlayer(int id) const;
   Player *findPlayerByConnId(int connId) const;
@@ -14,6 +16,8 @@ public:
   void deletePlayer(Player &p);
   void removePlayer(int id);
   void removePlayerByConnId(int connid);
+
+  const std::unordered_map<int, std::shared_ptr<Player>> &getPlayers() const;
 
   void processNewConnection(std::shared_ptr<ClientSocket> client);
 

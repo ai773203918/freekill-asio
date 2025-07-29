@@ -16,6 +16,8 @@ class RoomThread;
 class Room : public RoomBase {
 public:
   explicit Room();
+  Room(Room &) = delete;
+  Room(Room &&) = delete;
   ~Room();
 
   void addPlayer(Player &player);
@@ -30,7 +32,7 @@ public:
   void setCapacity(int capacity);
   bool isFull() const;
 
-  std::vector<int> &getPlayers();
+  const std::vector<int> &getPlayers() const;
 
   // TODO 改成用得到的password和gameMode
   // const QJsonObject getSettingsObject() const;
@@ -48,6 +50,7 @@ public:
   void addObserver(Player &player);
   void removeObserver(Player &player);
   bool hasObserver(Player &player) const;
+  const std::vector<int> &getObservers() const;
 
   int getTimeout() const;
   void setTimeout(int timeout);
@@ -99,7 +102,7 @@ private:
   std::vector<int> observers;
 
   std::string name;         // “阴间大乱斗”
-  int capacity;         // by default is 5, max is 8
+  int capacity = 0;         // by default is 5, max is 8
   int m_owner_conn_id = 0;
 
   std::string settings;
@@ -109,11 +112,10 @@ private:
 
   std::vector<int> runned_players;
   std::vector<int> rejected_players;
-  int robot_id;
-  bool gameStarted;
-  bool m_ready;
+  bool gameStarted = false;
+  bool m_ready = false;
 
-  int timeout;
+  int timeout = 0;
   // QString md5;
 
   int lua_ref_count = 0; // Lua引用计数，当Room被abandon时，若lua有计数就不可删除

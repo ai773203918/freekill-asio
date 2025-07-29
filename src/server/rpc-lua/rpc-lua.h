@@ -7,6 +7,8 @@ using namespace JsonRpc;
 class RpcLua {
 public:
   explicit RpcLua(asio::io_context &);
+  RpcLua(RpcLua &) = delete;
+  RpcLua(RpcLua &&) = delete;
   ~RpcLua();
 
   void dofile(const char *path);

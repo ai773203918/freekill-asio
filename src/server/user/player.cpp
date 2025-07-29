@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "server/user/player.h"
+#include "server/user/user_manager.h"
 #include "server/server.h"
 #include "server/room/room_manager.h"
 #include "server/room/roombase.h"
+#include "server/room/room.h"
 #include "network/client_socket.h"
 #include "network/router.h"
 
@@ -223,35 +225,37 @@ void Player::onDisconnected() {
   //     server->broadcast("ServerMessage", tr("%1 logged out").arg(getScreenName()).toUtf8());;
   // }
 
-  /* TODO 这段逻辑转交给Room处理
-  auto _room = getRoom();
-  if (_room->isLobby()) {
-    setState(Player::Robot); // 大厅！然而又不能设Offline
-    deleteLater();
+  auto &_room = getRoom();
+  auto &um = Server::instance().user_manager();
+  if (_room.isLobby()) {
+    _room.removePlayer(*this);
+    um.deletePlayer(*this);
   } else {
-    auto room = qobject_cast<Room *>(_room);
+    auto room = dynamic_cast<Room *>(&_room);
     if (room->isStarted()) {
-      if (room->getObservers().contains(this)) {
-        room->removeObserver(this);
-        deleteLater();
-        return;
-      }
-      if (thinking()) {
-        auto thread = qobject_cast<RoomThread *>(room->parent());
-        thread->wakeUp(room->getId(), "player_disconnect");
-      }
-      setState(Player::Offline);
-      setSocket(nullptr);
+      // if (room->hasObserver(*this)) {
+      //   room->removeObserver(*this);
+      //   deleteLater();
+      //   return;
+      // }
+      // if (thinking()) {
+      //   auto thread = qobject_cast<RoomThread *>(room->parent());
+      //   thread->wakeUp(room->getId(), "player_disconnect");
+      // }
+      // setState(Player::Offline);
+      // setSocket(nullptr);
       // TODO: add a robot
     } else {
-      setState(Player::Robot); // 大厅！然而又不能设Offline
-      // 这里有一个多线程问题，可能与Room::gameOver同时deleteLater导致出事
-      // FIXME: 这种解法肯定不安全
-      if (!room->insideGameOver)
-        deleteLater();
+      // 下面注释说的不错但我现在还没到开始游戏那一步
+      room->removePlayer(*this);
+      um.deletePlayer(*this);
+      // setState(Player::Robot); // 大厅！然而又不能设Offline
+      // // 这里有一个多线程问题，可能与Room::gameOver同时deleteLater导致出事
+      // // FIXME: 这种解法肯定不安全
+      // if (!room->insideGameOver)
+      //   deleteLater();
     }
   }
-  */
 }
 
 /*

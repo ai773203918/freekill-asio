@@ -7,6 +7,7 @@ class Room;
 class Server;
 class ServerPlayer;
 class RoomThread;
+class RpcLua;
 
 class Scheduler {
  public:
@@ -80,6 +81,8 @@ private:
   asio::io_context &main_io_ctx;
 
   std::vector<int> m_rooms;
+
+  std::unique_ptr<RpcLua> L;
 
   void start();
   /*

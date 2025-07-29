@@ -676,6 +676,7 @@ void Shell::handleLine(char *bytes) {
   for (std::string token; iss >> token;) {
     command_list.push_back(token);
   }
+  if (command_list.size() == 0) return;
 
   auto it = handler_map.find(command_list[0]);
   if (it == handler_map.end()) {

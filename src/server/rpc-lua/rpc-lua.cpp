@@ -49,11 +49,11 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
     throw std::runtime_error("Failed to fork process");
   }
 
-  // 默认等待30s 实际上加载一次差不多3000ms左右 很慢了 可能需要加大
-  child_stdout.read_some(asio::buffer(buffer, max_length));
+  size_t length = child_stdout.read_some(asio::buffer(buffer, max_length));
   if (true) {
+    spdlog::debug("READ SOME");
 #ifdef RPC_DEBUG
-     // spdlog::debug("Me <-- %s", qUtf8Printable(mapToJson(msg.toMap(), true)));
+    spdlog::debug("Me <-- {}", std::string_view { buffer, length } );
 #endif
   } else {
     // TODO: throw, then retry

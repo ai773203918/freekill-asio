@@ -7,6 +7,7 @@
 // #include "server/rpc-lua/rpc-lua.h"
 // #include "server/gamelogic/rpc-dispatchers.h"
 #include "server/user/player.h"
+#include "server/rpc-lua/rpc-lua.h"
 
 #include <sys/eventfd.h>
 #include <unistd.h>
@@ -81,6 +82,19 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {}, main_io_ctx { ma
   // m_server = server;
   // m_capacity = server->getConfig("roomCountPerThread").toInt(200);
   // md5 = server->getMd5();
+  // 在run中创建，这样就能在接下来的exec中处理事件了
+  // 这集可以直接在构造函数创了 Qt故事里面是为了绑定到新线程对应的eventLoop
+  // m_scheduler = new Scheduler(this);
+  L = std::make_unique<RpcLua>(io_ctx);
+  // connect(this, &RoomThread::pushRequest, m_scheduler, &Scheduler::handleRequest);
+  // connect(this, &RoomThread::delay, m_scheduler, &Scheduler::doDelay);
+  // connect(this, &RoomThread::wakeUp, m_scheduler, &Scheduler::resumeRoom);
+
+  // connect(this, &RoomThread::setPlayerState, m_scheduler, &Scheduler::setPlayerState);
+  // connect(this, &RoomThread::addObserver, m_scheduler, &Scheduler::addObserver);
+  // connect(this, &RoomThread::removeObserver, m_scheduler, &Scheduler::removeObserver);
+
+  // emit scheduler_ready();
 
   // 这段改为手动调start()
   // 需要等待scheduler创建完毕 不然极端情况下可能导致玩家发的信号接收不到
@@ -99,18 +113,6 @@ asio::io_context &RoomThread::context() {
 }
 
 void RoomThread::start() {
-  // 在run中创建，这样就能在接下来的exec中处理事件了
-  // m_scheduler = new Scheduler(this);
-  // connect(this, &RoomThread::pushRequest, m_scheduler, &Scheduler::handleRequest);
-  // connect(this, &RoomThread::delay, m_scheduler, &Scheduler::doDelay);
-  // connect(this, &RoomThread::wakeUp, m_scheduler, &Scheduler::resumeRoom);
-
-  // connect(this, &RoomThread::setPlayerState, m_scheduler, &Scheduler::setPlayerState);
-  // connect(this, &RoomThread::addObserver, m_scheduler, &Scheduler::addObserver);
-  // connect(this, &RoomThread::removeObserver, m_scheduler, &Scheduler::removeObserver);
-
-  // emit scheduler_ready();
-
   evt_fd = ::eventfd(0, 0);
   m_thread = std::thread([&](){
     // 直到调用quit()写evt_fd之前都让他一直等下去

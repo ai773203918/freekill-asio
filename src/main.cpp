@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
 
   auto thr = server.getThread(0);
   if (thr) {
-    thr->quit();
+    // thr->quit();
   }
 
   Shell shell;

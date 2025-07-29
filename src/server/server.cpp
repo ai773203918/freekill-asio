@@ -10,6 +10,7 @@
 #include "network/client_socket.h"
 #include "network/router.h"
 #include "server/gamelogic/roomthread.h"
+#include "server/rpc-lua/rpc-lua.h"
 
 #include "core/c-wrapper.h"
 
@@ -116,8 +117,9 @@ void Server::sendEarlyPacket(ClientSocket &client, const std::string_view &type,
 
 RoomThread &Server::createThread() {
   auto thr = std::make_unique<RoomThread>(*main_io_ctx);
-  m_threads[thr->id()] = std::move(thr);
-  return *m_threads[thr->id()];
+  auto id = thr->id();
+  m_threads[id] = std::move(thr);
+  return *m_threads[id];
 }
 
 void Server::removeThread(int threadId) {

@@ -114,9 +114,10 @@ void Server::sendEarlyPacket(ClientSocket &client, const std::string_view &type,
   client.send({ buf.c_str(), buf.size() });
 }
 
-void Server::createThread() {
+RoomThread &Server::createThread() {
   auto thr = std::make_unique<RoomThread>(*main_io_ctx);
   m_threads[thr->id()] = std::move(thr);
+  return *m_threads[thr->id()];
 }
 
 void Server::removeThread(int threadId) {
@@ -134,39 +135,17 @@ RoomThread *Server::getThread(int threadId) {
   return nullptr;
 }
 
-/*
-void Server::createRoom(Player *owner, const QString &name, int capacity,
-                        int timeout, const QByteArray &settings) {
-  if (!checkBanWord(name)) {
-    if (owner) {
-      owner->doNotify("ErrorMsg", "unk error");
-    }
-    return;
-  }
-  Room *room;
-  RoomThread *thread = nullptr;
-
-  for (auto t : findChildren<RoomThread *>()) {
-    if (!t->isFull() && !t->isOutdated()) {
-      thread = t;
-      break;
-    }
+RoomThread &Server::getAvailableThread() {
+  for (auto &it : m_threads) {
+    // TODO 判满
+    auto &thr = it.second;
+    return *thr;
   }
 
-  if (!thread) {
-    thread = new RoomThread(this);
-  }
-
-  room = new Room(thread);
-
-  rooms.insert(room->getId(), room);
-  room->setName(name);
-  room->setCapacity(capacity);
-  room->setTimeout(timeout);
-  room->setSettings(settings);
-  room->addPlayer(owner);
-  room->setOwner(owner);
+  return createThread();
 }
+
+/*
 
 void Server::removeRoom(int id) {
   rooms.remove(id);
@@ -253,21 +232,23 @@ void Server::readConfig() {
 }
 
 QJsonValue Server::getConfig(const QString &key) { return config.value(key); }
+*/
 
-bool Server::checkBanWord(const QString &str) {
-  auto arr = getConfig("banwords").toArray();
-  if (arr.isEmpty()) {
-    return true;
-  }
-  for (auto v : arr) {
-    auto s = v.toString().toUpper();
-    if (str.toUpper().indexOf(s) != -1) {
-      return false;
-    }
-  }
+bool Server::checkBanWord(const std::string_view &str) {
+  // auto arr = getConfig("banwords").toArray();
+  // if (arr.isEmpty()) {
+  //   return true;
+  // }
+  // for (auto v : arr) {
+  //   auto s = v.toString().toUpper();
+  //   if (str.toUpper().indexOf(s) != -1) {
+  //     return false;
+  //   }
+  // }
   return true;
 }
 
+/*
 void Server::temporarilyBan(int playerId) {
   auto player = findPlayer(playerId);
   if (!player) return;

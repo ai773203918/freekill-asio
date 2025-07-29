@@ -70,17 +70,21 @@ void Lobby::updatePassword(Player *sender, const QString &jsonData) {
 
   sender->doNotify("UpdatePassword", passed ? "1" : "0");
 }
+*/
 
-void Lobby::createRoom(Player *sender, const QString &jsonData) {
+/*
+void Lobby::createRoom(Player &sender, const Packet &packet) {
   auto arr = String2Json(jsonData).array();
   auto name = arr[0].toString();
   auto capacity = arr[1].toInt();
   auto timeout = arr[2].toInt();
   auto settings =
     QJsonDocument(arr[3].toObject()).toJson(QJsonDocument::Compact);
-  ServerInstance->createRoom(sender, name, capacity, timeout, settings);
+  Server::instance().room_manager().createRoom(sender, name, capacity, timeout, settings);
 }
+*/
 
+/*
 void Lobby::getRoomConfig(Player *sender, const QString &jsonData) {
   auto arr = String2Json(jsonData).array();
   auto roomId = arr[0].toInt();

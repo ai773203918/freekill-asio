@@ -1,5 +1,8 @@
 #include "server/room/roombase.h"
 #include "server/room/lobby.h"
+#include "server/server.h"
+#include "server/room/room_manager.h"
+#include "server/user/user_manager.h"
 #include "server/user/player.h"
 
 bool RoomBase::isLobby() const {
@@ -24,16 +27,20 @@ ServerPlayer *RoomBase::findPlayer(int id) const {
   }
   return nullptr;
 }
+*/
 
-void RoomBase::doBroadcastNotify(const QList<ServerPlayer *> targets,
-                             const QByteArray &command, const QByteArray &jsonData) {
-  for (auto p : targets) {
-    p->doNotify(command, jsonData);
+void RoomBase::doBroadcastNotify(const std::vector<int> targets,
+                                 const std::string_view &command, const std::string_view &cborData) {
+  auto &um = Server::instance().user_manager();
+  for (auto pid : targets) {
+    auto p = um.findPlayer(pid);
+    if (p) p->doNotify(command, cborData);
   }
 }
 
-void RoomBase::chat(ServerPlayer *sender, const QString &jsonData) {
-  auto doc = String2Json(jsonData).object();
+/*
+void RoomBase::chat(ServerPlayer *sender, const QString &cborData) {
+  auto doc = String2Json(cborData).object();
   auto type = doc["type"].toInt();
   doc["sender"] = sender->getId();
 

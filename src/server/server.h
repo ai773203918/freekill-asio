@@ -25,9 +25,10 @@ public:
 
   void sendEarlyPacket(ClientSocket &client, const std::string_view &type, const std::string_view &msg);
 
-  void createThread();
+  RoomThread &createThread();
   void removeThread(int threadId);
   RoomThread *getThread(int threadId);
+  RoomThread &getAvailableThread();
 
   /*
   void updateRoomList(Player *teller);
@@ -39,7 +40,9 @@ public:
   bool isListening;
 
   QJsonValue getConfig(const QString &command);
-  bool checkBanWord(const QString &str);
+  */
+  bool checkBanWord(const std::string_view &str);
+  /*
   void temporarilyBan(int playerId);
 
   void beginTransaction();

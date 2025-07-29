@@ -5,6 +5,8 @@
 #include "network/client_socket.h"
 #include "server/server.h"
 #include "server/user/player.h"
+#include "server/user/user_manager.h"
+#include "core/c-wrapper.h"
 
 // 此类从游戏开始时创建，游戏结束时释放或者释放时释放
 // 负责管理清掉人机和跑路的人
@@ -64,120 +66,120 @@ void Room::setCapacity(int capacity) { this->capacity = capacity; }
 
 bool Room::isFull() const { return players.size() == capacity; }
 
-/*
-const QByteArray Room::getSettings() const { return settings; }
+const std::string_view Room::getSettings() const { return settings; }
 
-const QJsonObject Room::getSettingsObject() const { return settings_obj; }
-
-void Room::setSettings(QByteArray settings) {
+void Room::setSettings(std::string_view &settings) {
   this->settings = settings;
-  settings_obj = QJsonDocument::fromJson(settings).object();
+  // settings_obj = QJsonDocument::fromJson(settings).object();
+  // TODO: 从settings解析出gameMode和password
 }
 
 bool Room::isAbandoned() const {
-  if (players.isEmpty())
+  if (players.empty())
     return true;
 
-  for (ServerPlayer *p : players) {
-    if (p->getState() == Player::Online)
+  auto &um = Server::instance().user_manager();
+  for (auto pid : players) {
+    auto p = um.findPlayer(pid);
+    if (p && p->getState() == Player::Online)
       return false;
   }
   return true;
 }
 
-ServerPlayer *Room::getOwner() const { return owner; }
+Player *Room::getOwner() const { return Server::instance().user_manager().findPlayer(m_owner_id); }
 
-void Room::setOwner(ServerPlayer *owner) {
-  this->owner = owner;
-  if (!owner) return;
-  QCborArray arr { owner->getId() };
-  doBroadcastNotify(players, "RoomOwner", arr.toCborValue().toCbor());
+void Room::setOwner(Player &owner) {
+  m_owner_id = owner.getId();
+  doBroadcastNotify(players, "RoomOwner", Cbor::encodeArray( { m_owner_id } ));
 }
 
-void Room::addPlayer(ServerPlayer *player) {
-  if (!player)
-    return;
+void Room::addPlayer(Player &player) {
+  auto pid = player.getId();
+  if (std::find(rejected_players.begin(), rejected_players.end(), pid)
+    != rejected_players.end()) {
 
-  if (rejected_players.contains(player->getId())) {
-    player->doNotify("ErrorMsg", "rejected your demand of joining room");
+    player.doNotify("ErrorMsg", "rejected your demand of joining room");
     return;
   }
 
   // 如果要加入的房间满员了，或者已经开战了，就不能再加入
   if (isFull() || gameStarted) {
-    player->doNotify("ErrorMsg", "Room is full or already started!");
-    if (runned_players.contains(player->getId())) {
-      player->doNotify("ErrorMsg", "Running away is shameful.");
-    }
-    // 此时phttps://github.com/fmanlou/qt6printerslayer仍在lobby中，别管就行了
-    // emit playerRemoved(player);
+    player.doNotify("ErrorMsg", "Room is full or already started!");
     return;
   }
 
-  auto mode = settings_obj["gameMode"].toString();
+  auto mode = gameMode;
 
   // 告诉房里所有玩家有新人进来了
-  QCborArray arr {
-    player->getId(),
-    player->getScreenName(),
-    player->getAvatar(),
-    player->isReady(),
-    player->getTotalGameTime(),
-  };
-  doBroadcastNotify(getPlayers(), "AddPlayer", arr.toCborValue().toCbor());
+  doBroadcastNotify(players, "AddPlayer", Cbor::encodeArray({
+    pid,
+    player.getScreenName().data(),
+    player.getAvatar().data(),
+    player.isReady(),
+    player.getTotalGameTime(),
+  }));
 
-  players.append(player);
-  player->setRoom(this);
-  if (player->getId() > 0)
-    emit playerAdded(player);
+  players.push_back(pid);
+  player.setRoom(*this);
+
+  // 这集不用信号；这个信号是把玩家从大厅删除的
+  // if (pid > 0)
+  //   emit playerAdded(player);
 
   // Second, let the player enter room and add other players
-  arr = {
-    this->capacity,
-    this->timeout,
-    QCborValue::fromJsonValue(settings_obj),
-  };
-  player->doNotify("EnterRoom", arr.toCborValue().toCbor());
+  player.doNotify("EnterRoom", Cbor::encodeArray({
+    capacity,
+    timeout,
+    settings,
+  }));
 
-  for (ServerPlayer *p : getOtherPlayers(player)) {
-    arr = {
+  auto &um = Server::instance().user_manager();
+  for (auto id : players) {
+    if (id == pid) continue;
+    auto p = um.findPlayer(id);
+    if (!p) continue; // FIXME: 应当是出大问题了
+    player.doNotify("AddPlayer", Cbor::encodeArray({
       p->getId(),
       p->getScreenName(),
       p->getAvatar(),
       p->isReady(),
       p->getTotalGameTime(),
-    };
-    player->doNotify("AddPlayer", arr.toCborValue().toCbor());
+    }));
 
-    arr = { p->getId() };
-    for (int i : p->getGameData()) {
-      arr << i;
-    }
-    player->doNotify("UpdateGameData", arr.toCborValue().toCbor());
+    player.doNotify("UpdateGameData", Cbor::encodeArray({
+      p->getId(),
+      // TODO 把傻逼gameData数组拿下
+      p->getGameData()[0],
+      p->getGameData()[1],
+      p->getGameData()[2],
+    }));
   }
 
-  if (this->owner != nullptr) {
-    arr = { this->owner->getId() };
-    player->doNotify("RoomOwner", arr.toCborValue().toCbor());
+  if (this->m_owner_id != 0) {
+    player.doNotify("RoomOwner", Cbor::encodeArray({ m_owner_id }));
   }
 
-  if (player->getLastGameMode() != mode) {
-    player->setLastGameMode(mode);
-    updatePlayerGameData(player->getId(), mode);
+  if (player.getLastGameMode() != mode) {
+    player.setLastGameMode(std::string(mode));
+    // updatePlayerGameData(pid, mode);
   } else {
-    arr = { player->getId() };
-    for (int i : player->getGameData()) {
-      arr << i;
-    }
-    doBroadcastNotify(getPlayers(), "UpdateGameData", arr.toCborValue().toCbor());
+    doBroadcastNotify(players, "UpdateGameData", Cbor::encodeArray({
+      pid,
+      // TODO 把傻逼gameData数组拿下
+      player.getGameData()[0],
+      player.getGameData()[1],
+      player.getGameData()[2],
+    }));
   }
 }
 
-void Room::addRobot(ServerPlayer *player) {
+/*
+void Room::addRobot(Player *player) {
   if (player != owner || isFull())
     return;
 
-  ServerPlayer *robot = new ServerPlayer(this);
+  Player *robot = new Player(this);
   robot->setState(Player::Robot);
   robot->setId(robot_id);
   robot->setAvatar("guanyu");
@@ -192,85 +194,90 @@ void Room::addRobot(ServerPlayer *player) {
   // FIXME: 会触发Lobby:removePlayer
   addPlayer(robot);
 }
+*/
 
-void Room::removePlayer(ServerPlayer *player) {
+void Room::removePlayer(Player &player) {
+  auto pid = player.getId();
   // 如果是旁观者的话，就清旁观者
-  if (observers.contains(player)) {
-    removeObserver(player);
+  if (hasObserver(player)) {
+    // removeObserver(player);
     return;
   }
 
+  auto &um = Server::instance().user_manager();
   if (!gameStarted) {
     // 游戏还没开始的话，直接删除这名玩家
-    if (players.contains(player) && !players.isEmpty()) {
-      player->setReady(false);
-      players.removeOne(player);
+    if (auto it = std::find(players.begin(), players.end(), pid); it != players.end()) {
+      player.setReady(false);
+      players.erase(it);
     }
-    emit playerRemoved(player);
+    // TODO 加入到大厅
+    // emit playerRemoved(player);
 
-    doBroadcastNotify(getPlayers(), "RemovePlayer", QCborArray({ player->getId() }).toCborValue().toCbor());
+    doBroadcastNotify(players, "RemovePlayer", Cbor::encodeArray({ player.getId() }));
   } else {
     // 否则给跑路玩家召唤个AI代打
     // TODO: if the player is died..
 
-
     // 首先拿到跑路玩家的socket，然后把玩家的状态设为逃跑，这样自动被机器人接管
-    ClientSocket *socket = player->getSocket();
-    player->setState(Player::Run);
-    player->setParent(this);
-    player->removeSocket();
+    // ClientSocket *socket = player->getSocket();
+    // player->setState(Player::Run);
+    // player->setParent(this);
+    // player->removeSocket();
 
     // 设完state后把房间叫起来
-    if (player->thinking()) {
-      auto thread = qobject_cast<RoomThread *>(parent());
-      thread->wakeUp(getId(), "player_disconnect");
-    }
+    // if (player->thinking()) {
+    //   auto thread = qobject_cast<RoomThread *>(parent());
+    //   thread->wakeUp(getId(), "player_disconnect");
+    // }
 
-    if (!player->isDied()) {
-      runned_players << player->getId();
-    }
+    // if (!player->isDied()) {
+    //   runned_players << player->getId();
+    // }
 
-    // 然后基于跑路玩家的socket，创建一个新ServerPlayer对象用来通信
-    ServerPlayer *runner = new ServerPlayer(this);
-    runner->setSocket(socket);
-    runner->setScreenName(player->getScreenName());
-    runner->setAvatar(player->getAvatar());
-    runner->setId(player->getId());
-    auto gamedata = player->getGameData();
-    runner->setGameData(gamedata[0], gamedata[1], gamedata[2]);
-    runner->addTotalGameTime(player->getTotalGameTime());
+    // // 然后基于跑路玩家的socket，创建一个新Player对象用来通信
+    // Player *runner = new Player(this);
+    // runner->setSocket(socket);
+    // runner->setScreenName(player->getScreenName());
+    // runner->setAvatar(player->getAvatar());
+    // runner->setId(player->getId());
+    // auto gamedata = player->getGameData();
+    // runner->setGameData(gamedata[0], gamedata[1], gamedata[2]);
+    // runner->addTotalGameTime(player->getTotalGameTime());
 
-    // 最后向服务器玩家列表中增加这个人
-    // 原先的跑路机器人会在游戏结束后自动销毁掉
-    server->addPlayer(runner);
+    // // 最后向服务器玩家列表中增加这个人
+    // // 原先的跑路机器人会在游戏结束后自动销毁掉
+    // server->addPlayer(runner);
 
-    // FIX 控制bug
-    runner->doNotify("ChangeSelf", QCborValue(runner->getId()).toCbor());
+    // // FIX 控制bug
+    // runner->doNotify("ChangeSelf", QCborValue(runner->getId()).toCbor());
 
-    // 发出信号，让大厅添加这个人
-    emit playerRemoved(runner);
+    // // 发出信号，让大厅添加这个人
+    // emit playerRemoved(runner);
 
-    // 如果走小道的人不是单机启动玩家 且房没过期 那么直接ban
-    if (!ClientInstance && !isOutdated() && !player->isDied()) {
-      server->temporarilyBan(runner->getId());
-    }
+    // // 如果走小道的人不是单机启动玩家 且房没过期 那么直接ban
+    // if (!ClientInstance && !isOutdated() && !player->isDied()) {
+    //   server->temporarilyBan(runner->getId());
+    // }
   }
 
   // 如果房间空了，就把房间标为废弃，RoomThread有信号处理函数的
   if (isAbandoned()) {
     bool tmp = m_abandoned;
     m_abandoned = true;
-    setOwner(nullptr);
+    m_owner_id = 0;
     // 只释放一次信号就行了，他销毁机器人的时候会多次调用removePlayer
-    if (!tmp) {
-      emit abandoned();
-    }
-  } else if (player == owner) {
-    setOwner(players.first());
+    // if (!tmp) {
+    //   emit abandoned();
+    // }
+  } else if (pid == m_owner_id) {
+    auto new_owner = um.findPlayer(players[0]);
+    if (new_owner) setOwner(*new_owner);
   }
 }
 
-void Room::addObserver(ServerPlayer *player) {
+/*
+void Room::addObserver(Player *player) {
   // 首先只能旁观在运行的房间，因为旁观是由Lua处理的
   if (!gameStarted) {
     player->doNotify("ErrorMsg", "Can only observe running room.");
@@ -291,7 +298,7 @@ void Room::addObserver(ServerPlayer *player) {
   pushRequest(QString("%1,observe").arg(player->getId()));
 }
 
-void Room::removeObserver(ServerPlayer *player) {
+void Room::removeObserver(Player *player) {
   if (observers.contains(player)) {
     observers.removeOne(player);
   }
@@ -309,15 +316,17 @@ void Room::removeObserver(ServerPlayer *player) {
   emit thread->removeObserver(player->getConnId(), id);
   pushRequest(QString("%1,leave").arg(player->getId()));
 }
+*/
 
-QList<ServerPlayer *> Room::getObservers() const { return observers; }
-
-bool Room::hasObserver(ServerPlayer *player) const { return observers.contains(player); }
+bool Room::hasObserver(Player &player) const {
+  return std::find(observers.begin(), observers.end(), player.getId()) != observers.end();
+}
 
 int Room::getTimeout() const { return timeout; }
 
 void Room::setTimeout(int timeout) { this->timeout = timeout; }
 
+/*
 void Room::delay(int ms) {
   auto thread = qobject_cast<RoomThread *>(parent());
   thread->delay(id, ms);
@@ -328,9 +337,11 @@ bool Room::isOutdated() {
   if (ret) md5 = QStringLiteral("");
   return ret;
 }
+*/
 
 bool Room::isStarted() const { return gameStarted; }
 
+/*
 static const QString findPWinRate =
     QString("SELECT win, lose, draw "
             "FROM pWinRate WHERE id = %1 and mode = '%2' and role = '%3';");
@@ -510,7 +521,7 @@ void Room::gameOver() {
   runned_players.clear();
   // 清理所有状态不是“在线”的玩家，增加逃率、游戏时长
   auto mode = settings_obj["gameMode"].toString();
-  QList<ServerPlayer *> to_delete;
+  QList<Player *> to_delete;
 
   // 首先只写数据库，这个过程不能向主线程提交申请(doNotify) 否则会死锁
   server->beginTransaction();
@@ -625,7 +636,7 @@ void Room::removeRejectId(int id) {
 }
 
 // ------------------------------------------------
-void Room::quitRoom(ServerPlayer *player, const QString &) {
+void Room::quitRoom(Player *player, const QString &) {
   removePlayer(player);
   if (isOutdated()) {
     auto p = server->findPlayer(player->getId());
@@ -633,12 +644,12 @@ void Room::quitRoom(ServerPlayer *player, const QString &) {
   }
 }
 
-void Room::addRobotRequest(ServerPlayer *player, const QString &) {
+void Room::addRobotRequest(Player *player, const QString &) {
   if (ServerInstance->getConfig("enableBots").toBool())
     addRobot(player);
 }
 
-void Room::kickPlayer(ServerPlayer *player, const QString &jsonData) {
+void Room::kickPlayer(Player *player, const QString &jsonData) {
   int i = jsonData.toInt();
   auto p = findPlayer(i);
   if (p && !isStarted()) {
@@ -650,11 +661,11 @@ void Room::kickPlayer(ServerPlayer *player, const QString &jsonData) {
   }
 }
 
-void Room::ready(ServerPlayer *player, const QString &) {
+void Room::ready(Player *player, const QString &) {
   player->setReady(!player->isReady());
 }
 
-void Room::startGame(ServerPlayer *player, const QString &) {
+void Room::startGame(Player *player, const QString &) {
   if (isOutdated()) {
     for (auto p : getPlayers()) {
       p->doNotify("ErrorMsg", "room is outdated");
@@ -664,28 +675,33 @@ void Room::startGame(ServerPlayer *player, const QString &) {
     manuallyStart();
   }
 }
+*/
 
-typedef void (Room::*room_cb)(ServerPlayer *, const QString &);
+typedef void (Room::*room_cb)(Player &, const Packet &);
 
-void Room::handlePacket(ServerPlayer *sender, const QString &command,
-                        const QString &jsonData) {
-  static const QMap<QString, room_cb> room_actions = {
-    {"QuitRoom", &Room::quitRoom},
-    {"AddRobot", &Room::addRobotRequest},
-    {"KickPlayer", &Room::kickPlayer},
-    {"Ready", &Room::ready},
-    {"StartGame", &Room::startGame},
-    {"Chat", &Room::chat},
+void Room::handlePacket(Player &sender, const Packet &packet) {
+  static const std::unordered_map<std::string_view, room_cb> room_actions = {
+    // {"QuitRoom", &Room::quitRoom},
+    // {"AddRobot", &Room::addRobotRequest},
+    // {"KickPlayer", &Room::kickPlayer},
+    // {"Ready", &Room::ready},
+    // {"StartGame", &Room::startGame},
+    // {"Chat", &Room::chat},
   };
 
-  if (command == "PushRequest") {
-    pushRequest(QString("%1,").arg(sender->getId()) + jsonData);
-    return;
-  }
+  // TODO
+  // if (packet.command == "PushRequest") {
+  //   pushRequest(QString("%1,").arg(sender->getId()) + jsonData);
+  //   return;
+  // }
 
-  auto func = room_actions[command];
-  if (func) (this->*func)(sender, jsonData);
+  auto iter = room_actions.find(packet.command);
+  if (iter != room_actions.end()) {
+    auto func = iter->second;
+    (this->*func)(sender, packet);
+  }
 }
+/*
 
 // Lua用：request之前设置计时器防止等到死。
 void Room::setRequestTimer(int ms) {
@@ -706,21 +722,22 @@ void Room::destroyRequestTimer() {
   delete request_timer;
   request_timer = nullptr;
 }
+*/
 
 int Room::getRefCount() {
-  QMutexLocker locker(&lua_ref_mutex);
+  std::lock_guard<std::mutex> locker(lua_ref_mutex);
   return lua_ref_count;
 }
 
 void Room::increaseRefCount() {
-  QMutexLocker locker(&lua_ref_mutex);
+  std::lock_guard<std::mutex> locker(lua_ref_mutex);
   lua_ref_count++;
 }
 
 void Room::decreaseRefCount() {
-  QMutexLocker locker(&lua_ref_mutex);
+  std::lock_guard<std::mutex> locker(lua_ref_mutex);
   lua_ref_count--;
-  if (lua_ref_count == 0 && m_abandoned)
-    deleteLater();
+  // TODO
+  // if (lua_ref_count == 0 && m_abandoned)
+  //   deleteLater();
 }
-*/

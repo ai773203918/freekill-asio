@@ -16,11 +16,13 @@ public:
   QList<Player *> getPlayers() const;
   QList<Player *> getOtherPlayers(Player *expect) const;
   Player *findPlayer(int id) const;
+  */
 
-  void doBroadcastNotify(const QList<Player *> targets,
-                         const QByteArray &command, const QByteArray &jsonData);
+  void doBroadcastNotify(const std::vector<int> targets,
+                         const std::string_view &command, const std::string_view &cborData);
 
-  void chat(Player *sender, const QString &jsonData);
+  /*
+  void chat(Player *sender, const QString &cborData);
 
   */
 

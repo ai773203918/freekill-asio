@@ -30,9 +30,13 @@ public:
   void setCapacity(int capacity);
   bool isFull() const;
 
+  std::vector<int> &getPlayers();
+
   // TODO 改成用得到的password和gameMode
   // const QJsonObject getSettingsObject() const;
   const std::string_view getSettings() const;
+  const std::string_view getGameMode() const;
+  const std::string_view getPassword() const;
   void setSettings(const std::string_view &settings);
   bool isAbandoned() const;
 

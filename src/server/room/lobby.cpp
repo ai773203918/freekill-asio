@@ -132,28 +132,53 @@ void Lobby::getRoomConfig(Player *sender, const QString &jsonData) {
     sender->doNotify("ErrorMsg", "no such room");
   }
 }
+*/
 
-void Lobby::enterRoom(Player *sender, const QString &jsonData) {
-  auto arr = String2Json(jsonData).array();
-  auto roomId = arr[0].toInt();
-  auto room = ServerInstance->findRoom(roomId);
-  if (room) {
-    auto settings = QJsonDocument::fromJson(room->getSettings());
-    auto password = settings["password"].toString();
-    if (password.isEmpty() || arr[1].toString() == password) {
-      if (room->isOutdated()) {
-        sender->doNotify("ErrorMsg", "room is outdated");
+void Lobby::enterRoom(Player &sender, const Packet &pkt) {
+  auto &um = Server::instance().user_manager();
+  auto &rm = Server::instance().room_manager();
+
+  auto data = pkt.cborData;
+  auto cbuf = (cbor_data)data.data();
+  auto len = data.size();
+  size_t sz;
+  int roomId = 0;
+  std::string_view pw;
+
+  cbor_decoder_result result;
+  result = cbor_stream_decode(cbuf, len, &Cbor::arrayCallbacks, &sz);
+  if (result.read == 0) return;
+  cbuf += result.read; len -= result.read;
+  if (sz != 2) return;
+
+  result = cbor_stream_decode(cbuf, len, &Cbor::intCallbacks, &roomId);
+  if (result.read == 0) return;
+  cbuf += result.read; len -= result.read;
+  if (roomId == 0) return;
+
+  result = cbor_stream_decode(cbuf, len, &Cbor::stringCallbacks, &pw);
+  if (result.read == 0) return;
+  cbuf += result.read; len -= result.read;
+
+  auto room_ = rm.findRoom(roomId);
+  if (room_) {
+    auto &room = *dynamic_cast<Room *>(room_);
+    auto password = room.getPassword();
+    if (password.empty() || pw == password) {
+      if (room.isOutdated()) {
+        sender.doNotify("ErrorMsg", "room is outdated");
       } else {
-        room->addPlayer(sender);
+        room.addPlayer(sender);
       }
     } else {
-      sender->doNotify("ErrorMsg", "room password error");
+      sender.doNotify("ErrorMsg", "room password error");
     }
   } else {
-    sender->doNotify("ErrorMsg", "no such room");
+    sender.doNotify("ErrorMsg", "no such room");
   }
 }
 
+/*
 void Lobby::observeRoom(Player *sender, const QString &jsonData) {
   auto arr = String2Json(jsonData).array();
   auto roomId = arr[0].toInt();
@@ -174,11 +199,50 @@ void Lobby::observeRoom(Player *sender, const QString &jsonData) {
     sender->doNotify("ErrorMsg", "no such room");
   }
 }
-
-void Lobby::refreshRoomList(Player *sender, const QString &) {
-  ServerInstance->updateRoomList(sender);
-};
 */
+
+void Lobby::refreshRoomList(Player &sender, const Packet &) {
+  auto &um = Server::instance().user_manager();
+  auto &rm = Server::instance().room_manager();
+
+  auto &rooms = rm.getRooms();
+
+  // 拼好cbor 首先拼一个头
+  std::ostringstream oss;
+
+  size_t sz = rooms.size();
+  char buf[10];
+  size_t len = cbor_encode_uint(sz, (cbor_mutable_data)buf, 10);
+  buf[0] += 0x80; // uint -> array header
+
+  oss << std::string_view { buf, len };
+
+  for (auto &[_, room] : rooms) {
+    if (room->isFull()) continue;
+    oss << Cbor::encodeArray({
+      room->getId(),
+      room->getName().data(),
+      room->getGameMode().data(),
+      room->getPlayers().size(),
+      room->getCapacity(),
+      !room->getPassword().empty(),
+      room->isOutdated(),
+    });
+  }
+  for (auto &[_, room] : rooms) {
+    if (!room->isFull()) continue;
+    oss << Cbor::encodeArray({
+      room->getId(),
+      room->getName().data(),
+      room->getGameMode().data(),
+      room->getPlayers().size(),
+      room->getCapacity(),
+      !room->getPassword().empty(),
+      room->isOutdated(),
+    });
+  }
+  sender.doNotify("UpdateRoomList", oss.str());
+}
 
 typedef void (Lobby::*room_cb)(Player &, const Packet &);
 
@@ -188,9 +252,9 @@ void Lobby::handlePacket(Player &sender, const Packet &packet) {
     // {"UpdatePassword", &Lobby::updatePassword},
     {"CreateRoom", &Lobby::createRoom},
     // {"GetRoomConfig", &Lobby::getRoomConfig},
-    // {"EnterRoom", &Lobby::enterRoom},
+    {"EnterRoom", &Lobby::enterRoom},
     // {"ObserveRoom", &Lobby::observeRoom},
-    // {"RefreshRoomList", &Lobby::refreshRoomList},
+    {"RefreshRoomList", &Lobby::refreshRoomList},
     // {"Chat", &Lobby::chat},
   };
 

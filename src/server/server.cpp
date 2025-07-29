@@ -157,35 +157,6 @@ Room *Server::findRoom(int id) const { return rooms.value(id); }
 
 Lobby *Server::lobby() const { return m_lobby; }
 
-void Server::updateRoomList(Player *teller) {
-  QCborArray arr;
-  QCborArray avail_arr;
-  for (Room *room : rooms) {
-    QCborArray obj;
-    auto settings = room->getSettingsObject();
-    auto password = settings["password"].toString();
-    auto count = room->getPlayers().count(); // playerNum
-    auto cap = room->getCapacity();          // capacity
-
-    obj << room->getId();        // roomId
-    obj << room->getName();      // roomName
-    obj << settings["gameMode"].toString(); // gameMode
-    obj << count;
-    obj << cap;
-    obj << !password.isEmpty();
-    obj << room->isOutdated();
-
-    if (count == cap)
-      arr << obj;
-    else
-      avail_arr << obj;
-  }
-  for (auto v : avail_arr) {
-    arr.prepend(v);
-  }
-  teller->doNotify("UpdateRoomList", arr.toCborValue().toCbor());
-}
-
 void Server::updateOnlineInfo() {
   lobby()->doBroadcastNotify(lobby()->getPlayers(), "UpdatePlayerNum",
                              QCborArray{

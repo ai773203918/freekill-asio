@@ -18,8 +18,10 @@ public:
 
   RoomBase *findRoom(int id) const;
   Lobby &lobby() const;
+  std::map<int, std::unique_ptr<Room>> &getRooms();
 
 private:
   std::unique_ptr<Lobby> m_lobby;
-  std::unordered_map<int, std::unique_ptr<Room>> rooms;
+  // 用有序map吧，有个按id自动排序的小功能
+  std::map<int, std::unique_ptr<Room>> rooms;
 };

@@ -68,7 +68,11 @@ void Room::setCapacity(int capacity) { this->capacity = capacity; }
 
 bool Room::isFull() const { return players.size() == capacity; }
 
+std::vector<int> &Room::getPlayers() { return players; }
+
 const std::string_view Room::getSettings() const { return settings; }
+const std::string_view Room::getGameMode() const { return gameMode; }
+const std::string_view Room::getPassword() const { return password; }
 
 void Room::setSettings(const std::string_view &settings) {
   // settings要失效了 先清空两个view
@@ -133,6 +137,8 @@ Player *Room::getOwner() const {
 }
 
 void Room::setOwner(Player &owner) {
+  // BOT不能当房主！
+  if (owner.getId() < 0) return;
   m_owner_conn_id = owner.getConnId();
   doBroadcastNotify(players, "RoomOwner", Cbor::encodeArray( { owner.getId() } ));
 }
@@ -198,7 +204,7 @@ void Room::addPlayer(Player &player) {
   }
 
   if (m_owner_conn_id == 0) {
-    m_owner_conn_id = player.getConnId();
+    setOwner(player);
   }
   auto owner = um.findPlayerByConnId(m_owner_conn_id);
   if (owner)
@@ -364,13 +370,14 @@ void Room::delay(int ms) {
   auto thread = qobject_cast<RoomThread *>(parent());
   thread->delay(id, ms);
 }
+*/
 
 bool Room::isOutdated() {
-  bool ret = md5 != server->getMd5();
-  if (ret) md5 = QStringLiteral("");
-  return ret;
+  // bool ret = md5 != server->getMd5();
+  // if (ret) md5 = QStringLiteral("");
+  // return ret;
+  return false;
 }
-*/
 
 bool Room::isStarted() const { return gameStarted; }
 

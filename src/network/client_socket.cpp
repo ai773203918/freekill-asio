@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "network/client_socket.h"
-#include "core/util.h"
 
 #include <openssl/aes.h>
 
@@ -53,7 +52,6 @@ void ClientSocket::disconnectFromHost() {
 
 // 此函数必须只能在主线程调用！
 void ClientSocket::send(const asio::const_buffer &msg) {
-  spdlog::debug("TX: {}", toHex({ (char *)msg.data(), msg.size() }));
   asio::async_write(m_socket, msg, [](const asio::error_code &, std::size_t) {
     // no-op
   });
@@ -134,7 +132,6 @@ struct PacketBuilder {
   void nextField() {
     current_field++;
     if (current_field == pkt._len) {
-      spdlog::debug("RX: {} {}", pkt.command, toHex(pkt.cborData));
       message_got_callback(pkt);
       handled++;
       reset();

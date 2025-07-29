@@ -11,7 +11,7 @@ public:
   RoomManager(RoomManager &) = delete;
   RoomManager(RoomManager &&) = delete;
 
-  Room *createRoom(Player &owner, const std::string &name, int capacity,
+  Room *createRoom(Player &, const std::string &name, int capacity,
                   int timeout = 15, const std::string &settings = "\xA0");
 
   void removeRoom(int id);

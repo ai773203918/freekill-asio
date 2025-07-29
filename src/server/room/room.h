@@ -16,7 +16,7 @@ class RoomThread;
 class Room : public RoomBase {
 public:
   explicit Room();
-  // ~Room();
+  ~Room();
 
   void addPlayer(Player &player);
   void removePlayer(Player &player);
@@ -96,7 +96,7 @@ private:
 
   std::string name;         // “阴间大乱斗”
   int capacity;         // by default is 5, max is 8
-  int m_owner_id = 0;
+  int m_owner_conn_id = 0;
 
   std::string settings;
   std::string gameMode;
@@ -112,13 +112,15 @@ private:
   int timeout;
   // QString md5;
 
-  int lua_ref_count = 0; ///< Lua引用计数，当Room为abandon时，只要lua中还有计数，就不可删除
+  int lua_ref_count = 0; // Lua引用计数，当Room被abandon时，若lua有计数就不可删除
   std::mutex lua_ref_mutex;
 
   // QTimer *request_timer = nullptr;
 
   void addRunRate(int id, const std::string_view &mode);
   void updatePlayerGameData(int id, const std::string_view &mode);
+
+  void setPlayerReady(Player &, bool ready);
 
   // handle packet
   void quitRoom(Player &, const Packet &);

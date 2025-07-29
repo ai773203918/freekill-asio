@@ -13,8 +13,17 @@ UserManager::UserManager() {
 }
 
 Player *UserManager::findPlayer(int id) const {
+  if (id < 0) return findRobot(id);
   auto it = online_players_map.find(id);
   if (it != online_players_map.end()) {
+    return it->second.get();
+  }
+  return nullptr;
+}
+
+Player *UserManager::findRobot(int id) const {
+  auto it = robots_map.find(id);
+  if (it != robots_map.end()) {
     return it->second.get();
   }
   return nullptr;
@@ -35,14 +44,27 @@ void UserManager::addPlayer(std::shared_ptr<Player> player) {
       online_players_map.erase(id);
 
     online_players_map[id] = player;
+  } else {
+    if (robots_map[id]) [[unlikely]]
+      robots_map.erase(id);
+
+    robots_map[id] = player;
   }
 
   players_map[player->getConnId()] = player;
 }
 
+void UserManager::deletePlayer(Player &p) {
+  removePlayer(p.getId());
+  removePlayerByConnId(p.getConnId());
+}
+
 void UserManager::removePlayer(int id) {
   if (online_players_map.find(id) != online_players_map.end()) {
     online_players_map.erase(id);
+  }
+  if (robots_map.find(id) != robots_map.end()) {
+    robots_map.erase(id);
   }
 }
 
@@ -113,6 +135,21 @@ void UserManager::createNewPlayer(std::shared_ptr<ClientSocket> client, std::str
 
   auto lobby = Server::instance().room_manager().lobby();
   lobby.addPlayer(*player);
+}
+
+Player &UserManager::createRobot() {
+  static int nextRobotId = -2;
+
+  auto robot = std::make_shared<Player>();
+  robot->setState(Player::Robot);
+  robot->setId(nextRobotId--);
+  if (nextRobotId < 0xFFFFFF00) nextRobotId = -2;
+  robot->setAvatar("guanyu");
+  robot->setScreenName(fmt::format("COMP-{}", robot->getId()));
+  robot->setReady(true);
+
+  addPlayer(robot);
+  return *robot;
 }
 
 void UserManager::setupPlayer(Player &player, bool all_info) {

@@ -2,6 +2,7 @@
 
 #include "server/room/room.h"
 #include "server/room/lobby.h"
+#include "server/room/room_manager.h"
 #include "network/client_socket.h"
 #include "server/server.h"
 #include "server/user/player.h"
@@ -14,7 +15,7 @@ class GameSession {
 };
 
 Room::Room() {
-  static int nextRoomId = 0;
+  static int nextRoomId = 1;
   id = nextRoomId++;
 
   // setParent(thread);
@@ -35,9 +36,10 @@ Room::Room() {
   // connect(this, &Room::playerRemoved, server->lobby(), &Lobby::addPlayer);
 }
 
-/*
 Room::~Room() {
+  spdlog::debug("Room {} destructed", id);
   // 标记为过期 避免封人
+/*
   md5 = "";
 
   if (gameStarted) {
@@ -53,8 +55,8 @@ Room::~Room() {
   auto server = ServerInstance;
   server->removeRoom(getId());
   server->updateOnlineInfo();
-}
 */
+}
 
 std::string &Room::getName() { return name; }
 
@@ -118,19 +120,21 @@ bool Room::isAbandoned() const {
     return true;
 
   auto &um = Server::instance().user_manager();
-  for (auto pid : players) {
-    auto p = um.findPlayer(pid);
+  for (auto connId : players) {
+    auto p = um.findPlayerByConnId(connId);
     if (p && p->getState() == Player::Online)
       return false;
   }
   return true;
 }
 
-Player *Room::getOwner() const { return Server::instance().user_manager().findPlayer(m_owner_id); }
+Player *Room::getOwner() const {
+  return Server::instance().user_manager().findPlayerByConnId(m_owner_conn_id);
+}
 
 void Room::setOwner(Player &owner) {
-  m_owner_id = owner.getId();
-  doBroadcastNotify(players, "RoomOwner", Cbor::encodeArray( { m_owner_id } ));
+  m_owner_conn_id = owner.getConnId();
+  doBroadcastNotify(players, "RoomOwner", Cbor::encodeArray( { owner.getId() } ));
 }
 
 void Room::addPlayer(Player &player) {
@@ -159,7 +163,7 @@ void Room::addPlayer(Player &player) {
     player.getTotalGameTime(),
   }));
 
-  players.push_back(pid);
+  players.push_back(player.getConnId());
   player.setRoom(*this);
 
   // 这集不用信号；这个信号是把玩家从大厅删除的
@@ -172,9 +176,9 @@ void Room::addPlayer(Player &player) {
   player.doNotify("EnterRoom", buf + settings);
 
   auto &um = Server::instance().user_manager();
-  for (auto id : players) {
-    if (id == pid) continue;
-    auto p = um.findPlayer(id);
+  for (auto connId : players) {
+    if (connId == player.getConnId()) continue;
+    auto p = um.findPlayerByConnId(connId);
     if (!p) continue; // FIXME: 应当是出大问题了
     player.doNotify("AddPlayer", Cbor::encodeArray({
       p->getId(),
@@ -193,9 +197,12 @@ void Room::addPlayer(Player &player) {
     }));
   }
 
-  if (this->m_owner_id != 0) {
-    player.doNotify("RoomOwner", Cbor::encodeArray({ m_owner_id }));
+  if (m_owner_conn_id == 0) {
+    m_owner_conn_id = player.getConnId();
   }
+  auto owner = um.findPlayerByConnId(m_owner_conn_id);
+  if (owner)
+    player.doNotify("RoomOwner", Cbor::encodeArray({ owner->getId() }));
 
   if (player.getLastGameMode() != mode) {
     player.setLastGameMode(std::string(mode));
@@ -211,27 +218,15 @@ void Room::addPlayer(Player &player) {
   }
 }
 
-/*
-void Room::addRobot(Player *player) {
-  if (player != owner || isFull())
+void Room::addRobot(Player &player) {
+  if (player.getConnId() != m_owner_conn_id || isFull())
     return;
 
-  Player *robot = new Player(this);
-  robot->setState(Player::Robot);
-  robot->setId(robot_id);
-  robot->setAvatar("guanyu");
-  robot->setScreenName(QString("COMP-%1").arg(robot_id));
-  robot->setReady(true);
-  robot->setParent(this);
-  connect(robot, &QObject::destroyed, this, [&](){ players.removeOne(robot); });
-  robot_id--;
+  auto &um = Server::instance().user_manager();
+  auto &robot = um.createRobot();
 
-  server->addPlayer(robot);
-
-  // FIXME: 会触发Lobby:removePlayer
   addPlayer(robot);
 }
-*/
 
 void Room::removePlayer(Player &player) {
   auto pid = player.getId();
@@ -244,7 +239,7 @@ void Room::removePlayer(Player &player) {
   auto &um = Server::instance().user_manager();
   if (!gameStarted) {
     // 游戏还没开始的话，直接删除这名玩家
-    if (auto it = std::find(players.begin(), players.end(), pid); it != players.end()) {
+    if (auto it = std::find(players.begin(), players.end(), player.getConnId()); it != players.end()) {
       player.setReady(false);
       players.erase(it);
     }
@@ -302,13 +297,14 @@ void Room::removePlayer(Player &player) {
   if (isAbandoned()) {
     bool tmp = m_abandoned;
     m_abandoned = true;
-    m_owner_id = 0;
+    m_owner_conn_id = 0;
     // 只释放一次信号就行了，他销毁机器人的时候会多次调用removePlayer
+    // 但是房间释放这方面需要再想一下，先不释放
     // if (!tmp) {
     //   emit abandoned();
     // }
-  } else if (pid == m_owner_id) {
-    auto new_owner = um.findPlayer(players[0]);
+  } else if (player.getConnId() == m_owner_conn_id) {
+    auto new_owner = um.findPlayerByConnId(players[0]);
     if (new_owner) setOwner(*new_owner);
   }
 }
@@ -672,36 +668,54 @@ void Room::removeRejectId(int id) {
   rejected_players.removeOne(id);
 }
 
-// ------------------------------------------------
-void Room::quitRoom(Player *player, const QString &) {
-  removePlayer(player);
-  if (isOutdated()) {
-    auto p = server->findPlayer(player->getId());
-    if (p) emit p->kicked();
-  }
+*/
+void Room::setPlayerReady(Player &p, bool ready) {
+  p.setReady(ready);
+  doBroadcastNotify(players, "ReadyChanged", Cbor::encodeArray({ p.getId(), ready }));
 }
 
-void Room::addRobotRequest(Player *player, const QString &) {
-  if (ServerInstance->getConfig("enableBots").toBool())
+// ------------------------------------------------
+void Room::quitRoom(Player &player, const Packet &) {
+  removePlayer(player);
+  auto &rm = Server::instance().room_manager();
+  rm.lobby().addPlayer(player);
+  // if (isOutdated()) {
+  //   auto p = server->findPlayer(player->getId());
+  //   if (p) emit p->kicked();
+  // }
+}
+
+void Room::addRobotRequest(Player &player, const Packet &) {
+  // if (ServerInstance->getConfig("enableBots").toBool())
     addRobot(player);
 }
 
-void Room::kickPlayer(Player *player, const QString &jsonData) {
-  int i = jsonData.toInt();
-  auto p = findPlayer(i);
+void Room::kickPlayer(Player &player, const Packet &pkt) {
+  auto data = pkt.cborData;
+  int i = 0;
+  auto result = cbor_stream_decode((cbor_data)data.data(), data.size(), &Cbor::intCallbacks, &i);
+  if (result.read == 0 || i == 0) return;
+
+  auto &um = Server::instance().user_manager();
+  auto &rm = Server::instance().room_manager();
+  auto p = um.findPlayer(i);
   if (p && !isStarted()) {
-    removePlayer(p);
-    addRejectId(i);
-    QTimer::singleShot(30000, this, [=]() {
-        removeRejectId(i);
-        });
+    removePlayer(*p);
+    // 这集必须手动控制玩家移除后的去向，不过还是交给lobby吧
+    rm.lobby().addPlayer(*p);
+    // TODO 主线程timer
+    // addRejectId(i);
+    // QTimer::singleShot(30000, this, [=]() {
+    //     removeRejectId(i);
+    //     });
   }
 }
 
-void Room::ready(Player *player, const QString &) {
-  player->setReady(!player->isReady());
+void Room::ready(Player &player, const Packet &) {
+  setPlayerReady(player, !player.isReady());
 }
 
+/*
 void Room::startGame(Player *player, const QString &) {
   if (isOutdated()) {
     for (auto p : getPlayers()) {
@@ -718,10 +732,10 @@ typedef void (Room::*room_cb)(Player &, const Packet &);
 
 void Room::handlePacket(Player &sender, const Packet &packet) {
   static const std::unordered_map<std::string_view, room_cb> room_actions = {
-    // {"QuitRoom", &Room::quitRoom},
-    // {"AddRobot", &Room::addRobotRequest},
-    // {"KickPlayer", &Room::kickPlayer},
-    // {"Ready", &Room::ready},
+    {"QuitRoom", &Room::quitRoom},
+    {"AddRobot", &Room::addRobotRequest},
+    {"KickPlayer", &Room::kickPlayer},
+    {"Ready", &Room::ready},
     // {"StartGame", &Room::startGame},
     // {"Chat", &Room::chat},
   };

@@ -10,12 +10,12 @@ RoomManager::RoomManager() {
   m_lobby = std::make_unique<Lobby>();
 }
 
-Room *RoomManager::createRoom(Player &owner, const std::string &name, int capacity,
+Room *RoomManager::createRoom(Player &creator, const std::string &name, int capacity,
                 int timeout, const std::string &settings)
 {
   auto &server = Server::instance();
   if (!server.checkBanWord(name)) {
-    owner.doNotify("ErrorMsg", "unk error");
+    creator.doNotify("ErrorMsg", "unk error");
     return nullptr;
   }
 
@@ -31,7 +31,6 @@ Room *RoomManager::createRoom(Player &owner, const std::string &name, int capaci
   // r->setThread(thread);
   r->setTimeout(timeout);
   r->setSettings(settings);
-  r->setOwner(owner);
   return r.get();
 }
 

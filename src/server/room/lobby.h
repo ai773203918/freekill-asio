@@ -23,5 +23,6 @@ private:
   void observeRoom(Player &, const Packet &);
   void refreshRoomList(Player &, const Packet &);
 
+  // connId -> true
   std::unordered_map<int, bool> players;
 };

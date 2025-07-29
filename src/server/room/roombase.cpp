@@ -32,8 +32,8 @@ ServerPlayer *RoomBase::findPlayer(int id) const {
 void RoomBase::doBroadcastNotify(const std::vector<int> targets,
                                  const std::string_view &command, const std::string_view &cborData) {
   auto &um = Server::instance().user_manager();
-  for (auto pid : targets) {
-    auto p = um.findPlayer(pid);
+  for (auto connId : targets) {
+    auto p = um.findPlayerByConnId(connId);
     if (p) p->doNotify(command, cborData);
   }
 }

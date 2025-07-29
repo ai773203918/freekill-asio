@@ -13,15 +13,15 @@ Lobby::Lobby() {
 }
 
 void Lobby::addPlayer(Player &player) {
-  players[player.getConnId()] = true;
-  player.setRoom(*this);
-
-  // if (player->getState() == Player::Robot) {
-  //   removePlayer(player);
-  //   player->deleteLater();
-  // } else {
-  player.doNotify("EnterLobby", "");
-  // }
+  auto &um = Server::instance().user_manager();
+  if (player.getState() == Player::Robot) {
+    um.removePlayer(player.getId());
+    um.removePlayerByConnId(player.getConnId());
+  } else {
+    players[player.getConnId()] = true;
+    player.setRoom(*this);
+    player.doNotify("EnterLobby", "");
+  }
 
   // server->updateOnlineInfo();
 }

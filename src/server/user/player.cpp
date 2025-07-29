@@ -7,9 +7,9 @@
 #include "network/client_socket.h"
 #include "network/router.h"
 
-#include <uuid/uuid.h>
+#include "core/util.h"
 
-static int nextConnId = 0;
+static int nextConnId = 1000;
 
 Player::Player() {
   m_router = std::make_unique<Router>(this, nullptr, Router::TYPE_SERVER);
@@ -25,13 +25,15 @@ Player::Player() {
   // connect(this, &Player::readyChanged, this, &Player::onReadyChanged);
 
   connId = nextConnId++;
-  if (nextConnId >= 0x7FFFFF00) nextConnId = 0;
+  if (nextConnId >= 0x7FFFFF00) nextConnId = 1000;
 
   alive = true;
   m_thinking = false;
 }
 
-Player::~Player() {}
+Player::~Player() {
+  spdlog::debug("Player {} destructed", id);
+}
 
 int Player::getId() const { return id; }
 
@@ -172,6 +174,7 @@ void Player::doNotify(const std::string_view &command, const std::string_view &d
   if (getState() != Player::Online)
     return;
 
+  spdlog::debug("TX(Room={}): {} {}", roomId, command, toHex(data));
   int type =
       Router::TYPE_NOTIFICATION | Router::SRC_SERVER | Router::DEST_CLIENT;
 
@@ -202,6 +205,7 @@ void Player::set_kicked_callback(std::function<void()> callback) {
 }
 
 void Player::onNotificationGot(const Packet &packet) {
+  spdlog::debug("RX(Room={}): {} {}", roomId, packet.command, toHex(packet.cborData));
   if (packet.command == "Heartbeat") {
     alive = true;
     return;

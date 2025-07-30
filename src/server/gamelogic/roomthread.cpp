@@ -7,6 +7,7 @@
 // #include "server/rpc-lua/rpc-lua.h"
 // #include "server/gamelogic/rpc-dispatchers.h"
 #include "server/user/player.h"
+#include "server/user/user_manager.h"
 #include "server/rpc-lua/rpc-lua.h"
 
 #include <sys/eventfd.h>
@@ -75,40 +76,55 @@ void Scheduler::removeObserver(const QString &connId, int roomId) {
 RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {}, main_io_ctx { main_ctx },
   m_thread {} // 调用start后才有效
 {
-  static int nextThreadId = 0;
+  static int nextThreadId = 1000;
   m_id = nextThreadId++;
-  // setObjectName("Room");
-  // setParent(server);
-  // m_server = server;
   // m_capacity = server->getConfig("roomCountPerThread").toInt(200);
   // md5 = server->getMd5();
+
   // 在run中创建，这样就能在接下来的exec中处理事件了
   // 这集可以直接在构造函数创了 Qt故事里面是为了绑定到新线程对应的eventLoop
-  // m_scheduler = new Scheduler(this);
   L = std::make_unique<RpcLua>(io_ctx);
-  // connect(this, &RoomThread::pushRequest, m_scheduler, &Scheduler::handleRequest);
-  // connect(this, &RoomThread::delay, m_scheduler, &Scheduler::doDelay);
-  // connect(this, &RoomThread::wakeUp, m_scheduler, &Scheduler::resumeRoom);
 
-  // connect(this, &RoomThread::setPlayerState, m_scheduler, &Scheduler::setPlayerState);
-  // connect(this, &RoomThread::addObserver, m_scheduler, &Scheduler::addObserver);
-  // connect(this, &RoomThread::removeObserver, m_scheduler, &Scheduler::removeObserver);
+  push_request_callback = [&](const std::string &msg) {
+    L->call("HandleRequest", msg);
+  };
+  delay_callback = [&](int roomId, int ms) {
+    asio::steady_timer timer(io_ctx, std::chrono::milliseconds(ms));
+    timer.async_wait([&](const asio::error_code& ec){
+      if (!ec) {
+        L->call("ResumeRoom", roomId, "delay_done");
+      }
+    });
+  };
+  wake_up_callback = [&](int roomId, const char *reason) {
+    L->call("ResumeRoom", roomId, reason);
+  };
 
-  // emit scheduler_ready();
+  set_player_state_callback = [&](int connId, int roomId) {
+    auto &um = Server::instance().user_manager();
+    auto p = um.findPlayerByConnId(connId);
+    if (!p) return;
 
-  // 这段改为手动调start()
-  // 需要等待scheduler创建完毕 不然极端情况下可能导致玩家发的信号接收不到
-  // QEventLoop loop;
-  // connect(this, &RoomThread::scheduler_ready, &loop, &QEventLoop::quit);
+    L->call("SetPlayerState", roomId, p->getId(), p->getState());
+  };
+  add_observer_callback = [&](int connId, int roomId) {
+    auto &um = Server::instance().user_manager();
+    auto p = um.findPlayerByConnId(connId);
+    if (!p) return;
+    // TODO
+  };
+  remove_observer_callback = [&](int connId, int roomId) {
+    auto &um = Server::instance().user_manager();
+    auto p = um.findPlayerByConnId(connId);
+    if (!p) return;
+
+    L->call("RemoveObserver", roomId, p->getId());
+  };
+
   start();
-  // loop.exec();
 }
 
 RoomThread::~RoomThread() {
-  // if (isRunning()) {
-  //   quit(); wait();
-  // }
-  // delete m_scheduler;
   io_ctx.stop();
   m_thread.join();
 }
@@ -145,11 +161,40 @@ void RoomThread::quit() {
   ::write(evt_fd, &value, sizeof(value));
 }
 
-/*
-Server *RoomThread::getServer() const {
-  return m_server;
+void RoomThread::emit_signal(std::function<void()> f) {
+  if (std::this_thread::get_id() == m_thread.get_id()) {
+    f();
+  } else {
+    asio::post(io_ctx, f);
+  }
 }
 
+void RoomThread::pushRequest(const std::string &req) {
+  emit_signal(std::bind(push_request_callback, req));
+}
+
+void RoomThread::delay(int roomId, int ms) {
+  emit_signal(std::bind(delay_callback, roomId, ms));
+}
+
+void RoomThread::wakeUp(int roomId, const char *reason) {
+  emit_signal(std::bind(wake_up_callback, roomId, reason));
+}
+
+void RoomThread::setPlayerState(int connId, int roomId) {
+  emit_signal(std::bind(set_player_state_callback, connId, roomId));
+}
+
+void RoomThread::addObserver(int connId, int roomId) {
+  emit_signal(std::bind(add_observer_callback, connId, roomId));
+}
+
+void RoomThread::removeObserver(int connId, int roomId) {
+  emit_signal(std::bind(remove_observer_callback, connId, roomId));
+}
+
+
+/*
 bool RoomThread::isFull() const {
   return m_capacity <= findChildren<Room *>().length();
 }
@@ -158,15 +203,6 @@ QString RoomThread::getMd5() const { return md5; }
 
 Room *RoomThread::getRoom(int id) const {
   return m_server->findRoom(id);
-}
-
-bool RoomThread::isConsoleStart() const {
-#ifndef FK_SERVER_ONLY
-  if (!ClientInstance) return false;
-  return ClientInstance->isConsoleStart();
-#else
-  return false;
-#endif
 }
 
 bool RoomThread::isOutdated() {

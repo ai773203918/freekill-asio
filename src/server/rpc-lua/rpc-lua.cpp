@@ -96,7 +96,7 @@ void RpcLua::dofile(const char *path) {
   call("dofile", path);
 }
 
-void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param2) {
+void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param2, JsonRpcParam param3) {
   // QMutexLocker locker(&io_lock);
 
   auto req = JsonRpc::request(func_name, param1, param2);

@@ -44,31 +44,25 @@ public:
 
   void quit();
 
-  /*
+  // signal emitters
+  void pushRequest(const std::string &req);
+  void delay(int roomId, int ms);
+  void wakeUp(int roomId, const char *reason);
 
-  Server *getServer() const;
+  void setPlayerState(int connId, int roomId);
+  void addObserver(int connId, int roomId);
+  void removeObserver(int connId, int roomId);
+
+  /*
   bool isFull() const;
 
   int getCapacity() const { return m_capacity; }
   QString getMd5() const;
   Room *getRoom(int id) const;
 
-  bool isConsoleStart() const;
-
   bool isOutdated();
 
   LuaInterface *getLua() const;
-
- signals:
-  void scheduler_ready();
-  void pushRequest(const QString &req);
-  void delay(int roomId, int ms);
-  void wakeUp(int roomId, const char *);
-
-  // 只在rpc模式下有效果
-  void setPlayerState(const QString &, int roomId);
-  void addObserver(const QString &, int roomId);
-  void removeObserver(const QString &, int roomId);
 
  public slots:
   void onRoomAbandoned();
@@ -87,6 +81,17 @@ private:
   std::unique_ptr<RpcLua> L;
 
   void start();
+
+  // signals
+  std::function<void(const std::string& req)> push_request_callback = nullptr;
+  std::function<void(int roomId, int ms)> delay_callback = nullptr;
+  std::function<void(int roomId, const char* reason)> wake_up_callback = nullptr;
+  std::function<void(int connId, int roomId)> set_player_state_callback = nullptr;
+  std::function<void(int connId, int roomId)> add_observer_callback = nullptr;
+  std::function<void(int connId, int roomId)> remove_observer_callback = nullptr;
+
+  void emit_signal(std::function<void()> f);
+
   /*
   int m_capacity;
   QString md5;

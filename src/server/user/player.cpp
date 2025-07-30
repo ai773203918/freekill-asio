@@ -3,6 +3,7 @@
 #include "server/user/player.h"
 #include "server/user/user_manager.h"
 #include "server/server.h"
+#include "server/gamelogic/roomthread.h"
 #include "server/room/room_manager.h"
 #include "server/room/roombase.h"
 #include "server/room/room.h"
@@ -16,10 +17,10 @@ static int nextConnId = 1000;
 Player::Player() {
   m_router = std::make_unique<Router>(this, nullptr, Router::TYPE_SERVER);
 
-  // connect(router, &Router::notification_got, this, &Player::onNotificationGot);
   m_router->set_notification_got_callback(
     std::bind(&Player::onNotificationGot, this, std::placeholders::_1));
-  // connect(router, &Router::replyReady, this, &Player::onReplyReady);
+  m_router->set_reply_ready_callback(
+    std::bind(&Player::onReplyReady, this));
 
   roomId = 0;
   // connect(this, &Player::kicked, this, &Player::kick);
@@ -146,31 +147,26 @@ void Player::setUuid(const std::string &uuid) {
   uuid_str = uuid;
 }
 
-/*
-void Player::doRequest(const QByteArray &command, const QByteArray &jsonData,
-                             int timeout, qint64 timestamp) {
+void Player::doRequest(const std::string_view &command,
+                       const std::string_view &jsonData, int timeout, int64_t timestamp) {
   if (getState() != Player::Online)
     return;
 
   int type = Router::TYPE_REQUEST | Router::SRC_SERVER | Router::DEST_CLIENT;
-  router->request(type, command, jsonData, timeout, timestamp);
+  m_router->request(type, command, jsonData, timeout, timestamp);
 }
 
-void Player::abortRequest() { router->abortRequest(); }
+// void Player::abortRequest() { router->abortRequest(); }
 
 std::string Player::waitForReply(int timeout) {
   std::string ret;
   if (getState() != Player::Online) {
-#ifndef QT_DEBUG
-    QThread::sleep(1);
-#endif
-    ret = std::stringLiteral("__cancel");
+    ret = "__cancel";
   } else {
-    ret = router->waitForReply(timeout);
+    ret = m_router->waitForReply(timeout);
   }
   return ret;
 }
-*/
 
 void Player::doNotify(const std::string_view &command, const std::string_view &data) {
   if (getState() != Player::Online)
@@ -339,16 +335,21 @@ void Player::resumeGameTimer() {
 int Player::getGameTime() {
   return gameTime + (getState() == Player::Online ? gameTimer.elapsed() / 1000 : 0);
 }
+*/
 
 void Player::onReplyReady() {
   setThinking(false);
-  if (!room->isLobby()) {
-    auto _room = qobject_cast<Room *>(room);
-    auto thread = qobject_cast<RoomThread *>(_room->parent());
-    thread->wakeUp(_room->getId(), "reply");
+  auto &room_ = getRoom();
+  if (!room_.isLobby()) {
+    // TODO 完善thread逻辑
+    // auto room = qobject_cast<Room *>(room);
+    // auto thread = qobject_cast<RoomThread *>(_room->parent());
+    auto &thread = Server::instance().getAvailableThread();
+    thread.wakeUp(room_.getId(), "reply");
   }
 }
 
+/*
 void Player::onStateChanged() {
   auto _room = getRoom();
   if (!_room || _room->isLobby()) return;

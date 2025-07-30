@@ -81,7 +81,7 @@ static void sendParam(asio::posix::stream_descriptor &file, JsonRpcParam &param)
   std::visit([&](auto&& arg) {
     using T = std::decay_t<decltype(arg)>;
     if constexpr (std::is_same_v<T, int>) {
-      if (arg < 0) {
+      if (arg >= 0) {
         buflen = cbor_encode_uint(arg, buf, 10);
       } else {
         buflen = cbor_encode_negint(arg, buf, 10);

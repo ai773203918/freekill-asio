@@ -101,8 +101,7 @@ static _rpcRet _rpc_Player_doRequest(const JsonRpcPacket &packet) {
     return { false, "Player not found"sv };
   }
 
-  // TODO 别急
-  // player->doRequest(command, jsonData, timeout, timestamp);
+  player->doRequest(command, jsonData, timeout, timestamp);
 
   return { true, nullVal };
 }
@@ -123,9 +122,8 @@ static _rpcRet _rpc_Player_waitForReply(const JsonRpcPacket &packet) {
     return { false, "Player not found"sv };
   }
 
-  // TODO 别急
-  // auto reply = player->waitForReply(timeout);
-  return { true, ""sv }; // reply };
+  auto reply = player->waitForReply(timeout);
+  return { true, reply };
 }
 
 static _rpcRet _rpc_Player_doNotify(const JsonRpcPacket &packet) {
@@ -246,8 +244,7 @@ static _rpcRet _rpc_Room_delay(const JsonRpcPacket &packet) {
   }
   auto room = dynamic_cast<Room *>(room_);
 
-  // TODO
-  // room->delay(ms);
+  room->delay(ms);
 
   return { true, nullVal };
 }
@@ -348,6 +345,7 @@ static _rpcRet _rpc_Room_setRequestTimer(const JsonRpcPacket &packet) {
   }
   auto room = dynamic_cast<Room *>(room_);
 
+  // TODO
   // room->setRequestTimer(ms);
 
   return { true, nullVal };
@@ -367,6 +365,7 @@ static _rpcRet _rpc_Room_destroyRequestTimer(const JsonRpcPacket &packet) {
   }
   auto room = dynamic_cast<Room *>(room_);
 
+  // TODO
   // room->destroyRequestTimer();
 
   return { true, nullVal };
@@ -386,6 +385,7 @@ static _rpcRet _rpc_Room_increaseRefCount(const JsonRpcPacket &packet) {
   }
   auto room = dynamic_cast<Room *>(room_);
 
+  // TODO
   // room->increaseRefCount();
 
   return { true, nullVal };
@@ -405,6 +405,7 @@ static _rpcRet _rpc_Room_decreaseRefCount(const JsonRpcPacket &packet) {
   }
   auto room = dynamic_cast<Room *>(room_);
 
+  // TODO
   // room->decreaseRefCount();
 
   return { true, nullVal };

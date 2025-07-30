@@ -65,10 +65,10 @@ public:
 
   Router &router() const;
 
-  // void doRequest(const QByteArray &command,
-  //                const QByteArray &jsonData, int timeout = -1, qint64 timestamp = -1);
+  void doRequest(const std::string_view &command,
+                 const std::string_view &jsonData, int timeout = -1, int64_t timestamp = -1);
   // void abortRequest();
-  // std::string &waitForReply(int timeout);
+  std::string waitForReply(int timeout);
   void doNotify(const std::string_view &command, const std::string_view &data);
 
   volatile bool alive; // For heartbeat

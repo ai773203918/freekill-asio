@@ -366,12 +366,11 @@ int Room::getTimeout() const { return timeout; }
 
 void Room::setTimeout(int timeout) { this->timeout = timeout; }
 
-/*
 void Room::delay(int ms) {
-  auto thread = qobject_cast<RoomThread *>(parent());
-  thread->delay(id, ms);
+  // TODO 完善thread逻辑
+  auto &thread = Server::instance().getAvailableThread();
+  thread.delay(id, ms);
 }
-*/
 
 bool Room::isOutdated() {
   // bool ret = md5 != server->getMd5();
@@ -668,8 +667,9 @@ void Room::manuallyStart() {
 }
 
 void Room::pushRequest(const std::string &req) {
-  auto thread = Server::instance().getThread(0); // qobject_cast<RoomThread *>(parent());
-  thread->pushRequest(std::format("{},{}", id, req));
+  // TODO 完善thread逻辑
+  auto &thread = Server::instance().getAvailableThread();
+  thread.pushRequest(std::format("{},{}", id, req));
 }
 
 /*

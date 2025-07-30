@@ -48,10 +48,6 @@ void Router::removeSocket() {
   socket = nullptr;
 }
 
-void Router::set_message_ready_callback(std::function<void(const std::vector<uint8_t>&)> callback) {
-  message_ready_callback = std::move(callback);
-}
-
 void Router::set_reply_ready_callback(std::function<void()> callback) {
   reply_ready_callback = std::move(callback);
 }
@@ -64,47 +60,33 @@ void Router::set_notification_got_callback(std::function<void(const Packet &)> c
 void Router::setReplyReadySemaphore(QSemaphore *semaphore) {
   extraReplyReadySemaphore = semaphore;
 }
+*/
 
-void Router::request(int type, const QByteArray &command, const QByteArray &cborData,
-                     int timeout, qint64 timestamp) {
-  // In case a request is called without a following waitForReply call
-  if (replyReadySemaphore.available() > 0)
-    replyReadySemaphore.acquire(replyReadySemaphore.available());
-
+void Router::request(int type, const std::string_view &command,
+                     const std::string_view &cborData, int timeout, int64_t timestamp) {
   static int requestId = 0;
   requestId++;
   if (requestId > 10000000) requestId = 1;
 
-  replyMutex.lock();
+  std::lock_guard<std::mutex> lock(replyMutex);
   expectedReplyId = requestId;
   replyTimeout = timeout;
-  requestStartTime = QDateTime::currentDateTime();
-  m_reply = QStringLiteral("__notready");
-  replyMutex.unlock();
 
-  QCborArray body {
+  using namespace std::chrono;
+  requestStartTime = 
+    duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+
+  m_reply = "__notready";
+
+  sendMessage(Cbor::encodeArray({
     requestId,
     type,
     command,
     cborData,
     timeout,
-    (timestamp <= 0 ? requestStartTime.toMSecsSinceEpoch() : timestamp)
-  };
-
-  sendMessage(body.toCborValue().toCbor());
+    (timestamp <= 0 ? requestStartTime : timestamp)
+  }));
 }
-
-void Router::reply(int type, const QByteArray &command, const QByteArray &cborData) {
-  QCborArray body {
-    this->requestId,
-    type,
-    command,
-    cborData,
-  };
-
-  sendMessage(body.toCborValue().toCbor());
-}
-*/
 
 void Router::notify(int type, const std::string_view &command, const std::string_view &data) {
   if (!socket) return;
@@ -131,16 +113,15 @@ void Router::cancelRequest() {
   if (replyReadySemaphore.available() > 0)
     replyReadySemaphore.acquire(replyReadySemaphore.available());
 }
+*/
 
-QString Router::waitForReply(int timeout) {
-  QString ret;
-  replyReadySemaphore.tryAcquire(1, timeout * 1000);
-  replyMutex.lock();
-  ret = m_reply;
-  replyMutex.unlock();
-  return ret;
+// timeout永远是0
+std::string Router::waitForReply(int timeout) {
+  std::lock_guard<std::mutex> lock(replyMutex);
+  return m_reply;
 }
 
+/*
 void Router::abortRequest() {
   replyMutex.lock();
   if (expectedReplyId != -1) {
@@ -163,29 +144,24 @@ void Router::handlePacket(const Packet &packet) {
   if (type & TYPE_NOTIFICATION) {
     notification_got_callback(packet);
   } else if (type & TYPE_REPLY) {
-    /*
-    QMutexLocker locker(&replyMutex);
+    using namespace std::chrono;
+    std::lock_guard<std::mutex> lock(replyMutex);
 
     if (requestId != this->expectedReplyId)
       return;
 
     this->expectedReplyId = -1;
 
+    auto now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
     if (replyTimeout >= 0 &&
-      replyTimeout < requestStartTime.secsTo(QDateTime::currentDateTime()))
+      replyTimeout * 1000 < now - requestStartTime)
+
       return;
 
     m_reply = cborData;
     // TODO: callback?
-    replyReadySemaphore.release();
-    if (extraReplyReadySemaphore) {
-      extraReplyReadySemaphore->release();
-      extraReplyReadySemaphore = nullptr;
-    }
 
-    locker.unlock();
-    emit replyReady();
-    */
+    reply_ready_callback();
   }
 }
 

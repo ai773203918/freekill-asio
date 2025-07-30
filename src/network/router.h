@@ -34,18 +34,17 @@ public:
   void removeSocket();
 
   // signal connectors
-  void set_message_ready_callback(std::function<void(const std::vector<uint8_t>&)> callback);
   void set_reply_ready_callback(std::function<void()> callback);
   void set_notification_got_callback(std::function<void(const Packet &)> callback);
 
   /*
   void setReplyReadySemaphore(QSemaphore *semaphore);
-
-  void request(int type, const QByteArray &command,
-              const QByteArray &cborData, int timeout, qint64 timestamp = -1);
-  void reply(int type, const QByteArray &command, const QByteArray &cborData);
   */
+
+  void request(int type, const std::string_view &command,
+              const std::string_view &cborData, int timeout, int64_t timestamp = -1);
   void notify(int type, const std::string_view &command, const std::string_view &cborData);
+  std::string waitForReply(int timeout);
 
   /*
   int getTimeout() const;
@@ -53,7 +52,6 @@ public:
   void cancelRequest();
   void abortRequest();
 
-  QString waitForReply(int timeout);
 
   int getRequestId() const { return requestId; }
   qint64 getRequestTimestamp() { return requestTimestamp; }
@@ -70,6 +68,12 @@ private:
 
   std::thread::id m_thread_id;
 
+  std::mutex replyMutex;
+
+  int64_t requestStartTime;
+  std::string m_reply;    // should be json string
+  int expectedReplyId;
+  int replyTimeout;
 /*
 
   // For client side
@@ -78,11 +82,6 @@ private:
   qint64 requestTimestamp;
 
   // For server side
-  QDateTime requestStartTime;
-  QMutex replyMutex;
-  int expectedReplyId;
-  int replyTimeout;
-  QString m_reply;    // should be json string
   QSemaphore replyReadySemaphore;
   QSemaphore *extraReplyReadySemaphore;
   */
@@ -90,7 +89,6 @@ private:
   void sendMessage(const std::string_view &msg);
 
   // signals
-  std::function<void(const std::vector<uint8_t>&)> message_ready_callback;
   std::function<void()> reply_ready_callback;
   std::function<void(const Packet &)> notification_got_callback;
 };

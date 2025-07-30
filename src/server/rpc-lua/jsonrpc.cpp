@@ -26,6 +26,7 @@ void JsonRpcPacket::reset() {
   param_count = 0;
   error.code = 0;
   result = nullptr;
+  method = "";
 }
 
 std::optional<JsonRpcError> getErrorObject(const std::string &errorName) {
@@ -41,10 +42,9 @@ JsonRpcPacket notification(const std::string_view &method,
                            const JsonRpcParam &param2,
                            const JsonRpcParam &param3)
 {
-  JsonRpcPacket obj {
-    .param_count = 0,
-    .method = method,
-  };
+  JsonRpcPacket obj;
+  obj.param_count = 0;
+  obj.method = method;
 
   if (std::holds_alternative<std::nullptr_t>(param1)) {
     return obj;
@@ -140,7 +140,7 @@ handleRequest(const RpcMethodMap &methods, const JsonRpcPacket &req) {
     }
     return response(req, result);
   } catch (const std::exception &e) {
-    return responseError(req, "internal_error", e.what());
+    return responseError(req, "internal_error", std::string_view { e.what() });
   }
 }
 

@@ -662,8 +662,8 @@ void Room::manuallyStart() {
 
     gameStarted = true;
     // TODO 完善thread分配逻辑
-    auto thread = Server::instance().getThread(0); // qobject_cast<RoomThread *>(parent());
-    thread->pushRequest(fmt::format("-1,{},newroom", id));
+    auto &thread = Server::instance().getAvailableThread();
+    thread.pushRequest(fmt::format("-1,{},newroom", id));
   }
 }
 

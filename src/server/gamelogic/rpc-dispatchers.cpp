@@ -10,6 +10,7 @@
 // 这何尝不是一种手搓swig。。
 
 using namespace JsonRpc;
+using namespace std::literals;
 using _rpcRet = std::pair<bool, JsonRpcParam>;
 
 static JsonRpcParam nullVal;
@@ -97,7 +98,7 @@ static _rpcRet _rpc_Player_doRequest(const JsonRpcPacket &packet) {
 
   auto player = Server::instance().user_manager().findPlayerByConnId(connId);
   if (!player) {
-    return { false, "Player not found" };
+    return { false, "Player not found"sv };
   }
 
   // TODO 别急
@@ -119,12 +120,12 @@ static _rpcRet _rpc_Player_waitForReply(const JsonRpcPacket &packet) {
 
   auto player = Server::instance().user_manager().findPlayerByConnId(connId);
   if (!player) {
-    return { false, "Player not found" };
+    return { false, "Player not found"sv };
   }
 
   // TODO 别急
   // auto reply = player->waitForReply(timeout);
-  return { true, "" }; // reply };
+  return { true, ""sv }; // reply };
 }
 
 static _rpcRet _rpc_Player_doNotify(const JsonRpcPacket &packet) {
@@ -142,7 +143,7 @@ static _rpcRet _rpc_Player_doNotify(const JsonRpcPacket &packet) {
 
   auto player = Server::instance().user_manager().findPlayerByConnId(connId);
   if (!player) {
-    return { false, "Player not found" };
+    return { false, "Player not found"sv };
   }
 
   player->doNotify(command, jsonData);
@@ -160,7 +161,7 @@ static _rpcRet _rpc_Player_thinking(const JsonRpcPacket &packet) {
   auto connId = std::get<int>(packet.param1);
   auto player = Server::instance().user_manager().findPlayerByConnId(connId);
   if (!player) {
-    return { false, "Player not found" };
+    return { false, "Player not found"sv };
   }
 
   bool isThinking = player->thinking();
@@ -180,7 +181,7 @@ static _rpcRet _rpc_Player_setThinking(const JsonRpcPacket &packet) {
 
   auto player = Server::instance().user_manager().findPlayerByConnId(connId);
   if (!player) {
-    return { false, "Player not found" };
+    return { false, "Player not found"sv };
   }
 
   player->setThinking(thinking);
@@ -200,7 +201,7 @@ static _rpcRet _rpc_Player_setDied(const JsonRpcPacket &packet) {
 
   auto player = Server::instance().user_manager().findPlayerByConnId(connId);
   if (!player) {
-    return { false, "Player not found" };
+    return { false, "Player not found"sv };
   }
 
   player->setDied(died);
@@ -217,7 +218,7 @@ static _rpcRet _rpc_Player_emitKick(const JsonRpcPacket &packet) {
   auto connId = std::get<int>(packet.param1);
   auto player = Server::instance().user_manager().findPlayerByConnId(connId);
   if (!player) {
-    return { false, "Player not found" };
+    return { false, "Player not found"sv };
   }
 
   // TODO 别急
@@ -239,10 +240,11 @@ static _rpcRet _rpc_Room_delay(const JsonRpcPacket &packet) {
   if (ms <= 0) {
     return { false, nullVal };
   }
-  auto room = Server::instance().room_manager().findRoom(id);
-  if (!room) {
-    return { false, "Room not found" };
+  auto room_ = Server::instance().room_manager().findRoom(id);
+  if (!room_ || room_->isLobby()) {
+    return { false, "Room not found"sv };
   }
+  auto room = dynamic_cast<Room *>(room_);
 
   // TODO
   // room->delay(ms);
@@ -267,10 +269,11 @@ static _rpcRet _rpc_Room_updatePlayerWinRate(const JsonRpcPacket &packet) {
   auto role = std::get<std::string_view>(packet.param4);
   int result = std::get<int>(packet.param5);
 
-  auto room = Server::instance().room_manager().findRoom(roomId);
-  if (!room) {
-    return { false, "Room not found" };
+  auto room_ = Server::instance().room_manager().findRoom(roomId);
+  if (!room_ || room_->isLobby()) {
+    return { false, "Room not found"sv };
   }
+  auto room = dynamic_cast<Room *>(room_);
 
   // TODO
   // room->updatePlayerWinRate(playerId, mode, role, result);
@@ -295,10 +298,11 @@ static _rpcRet _rpc_Room_updateGeneralWinRate(const JsonRpcPacket &packet) {
   auto role = std::get<int>(packet.param4);
   int result = std::get<int>(packet.param5);
 
-  auto room = Server::instance().room_manager().findRoom(roomId);
-  if (!room) {
-    return { false, "Room not found" };
+  auto room_ = Server::instance().room_manager().findRoom(roomId);
+  if (!room_ || room_->isLobby()) {
+    return { false, "Room not found"sv };
   }
+  auto room = dynamic_cast<Room *>(room_);
 
   // room->updateGeneralWinRate(general, mode, role, result);
 
@@ -313,10 +317,11 @@ static _rpcRet _rpc_Room_gameOver(const JsonRpcPacket &packet) {
   }
 
   int roomId = std::get<int>(packet.param1);
-  auto room = Server::instance().room_manager().findRoom(roomId);
-  if (!room) {
-    return { false, "Room not found" };
+  auto room_ = Server::instance().room_manager().findRoom(roomId);
+  if (!room_ || room_->isLobby()) {
+    return { false, "Room not found"sv };
   }
+  auto room = dynamic_cast<Room *>(room_);
 
   // room->gameOver();
 
@@ -337,10 +342,11 @@ static _rpcRet _rpc_Room_setRequestTimer(const JsonRpcPacket &packet) {
     return { false, nullVal };
   }
 
-  auto room = Server::instance().room_manager().findRoom(id);
-  if (!room) {
-    return { false, "Room not found" };
+  auto room_ = Server::instance().room_manager().findRoom(id);
+  if (!room_ || room_->isLobby()) {
+    return { false, "Room not found"sv };
   }
+  auto room = dynamic_cast<Room *>(room_);
 
   // room->setRequestTimer(ms);
 
@@ -355,10 +361,11 @@ static _rpcRet _rpc_Room_destroyRequestTimer(const JsonRpcPacket &packet) {
   }
 
   int roomId = std::get<int>(packet.param1);
-  auto room = Server::instance().room_manager().findRoom(roomId);
-  if (!room) {
-    return { false, "Room not found" };
+  auto room_ = Server::instance().room_manager().findRoom(roomId);
+  if (!room_ || room_->isLobby()) {
+    return { false, "Room not found"sv };
   }
+  auto room = dynamic_cast<Room *>(room_);
 
   // room->destroyRequestTimer();
 
@@ -373,10 +380,11 @@ static _rpcRet _rpc_Room_increaseRefCount(const JsonRpcPacket &packet) {
   }
 
   int roomId = std::get<int>(packet.param1);
-  auto room = Server::instance().room_manager().findRoom(roomId);
-  if (!room) {
-    return { false, "Room not found" };
+  auto room_ = Server::instance().room_manager().findRoom(roomId);
+  if (!room_ || room_->isLobby()) {
+    return { false, "Room not found"sv };
   }
+  auto room = dynamic_cast<Room *>(room_);
 
   // room->increaseRefCount();
 
@@ -391,10 +399,11 @@ static _rpcRet _rpc_Room_decreaseRefCount(const JsonRpcPacket &packet) {
   }
 
   int roomId = std::get<int>(packet.param1);
-  auto room = Server::instance().room_manager().findRoom(roomId);
-  if (!room) {
-    return { false, "Room not found" };
+  auto room_ = Server::instance().room_manager().findRoom(roomId);
+  if (!room_ || room_->isLobby()) {
+    return { false, "Room not found"sv };
   }
+  auto room = dynamic_cast<Room *>(room_);
 
   // room->decreaseRefCount();
 
@@ -403,24 +412,54 @@ static _rpcRet _rpc_Room_decreaseRefCount(const JsonRpcPacket &packet) {
 
 // 收官：getRoom
 
-/* TODO 改成返回编码过的字符串
-static QCborMap getPlayerObject(Player *p) {
-  JsonRpcPacket gameData;
-  for (auto i : p->getGameData()) gameData << i;
+static std::string getPlayerObject(Player &p) {
+  std::string ret;
+  ret.reserve(256);
 
-  return {
-    { "connId", p->getConnId() },
-    { "id", p->getId() },
-    { "screenName", p->getScreenName() },
-    { "avatar", p->getAvatar() },
-    { "totalGameTime", p->getTotalGameTime() },
+  u_char buf[10]; size_t buflen;
 
-    { "state", p->getState() },
+  ret.push_back('\xA7');
+  ret += "\x46" "connId";
+  buflen = cbor_encode_uint(p.getConnId(), buf, 10);
+  ret += std::string_view { (char *)buf, buflen };
 
-    { "gameData", gameData },
-  };
+  ret += "\x42id";
+  buflen = cbor_encode_uint(p.getId(), buf, 10);
+  ret += std::string_view { (char *)buf, buflen };
+
+  ret += "\x4AscreenName";
+  auto screenName = p.getScreenName();
+  buflen = cbor_encode_uint(screenName.size(), buf, 10);
+  buf[0] += 0x40;
+  ret += std::string_view { (char *)buf, buflen };
+  ret += screenName;
+
+  ret += "\x46" "avatar";
+  auto avatar = p.getAvatar();
+  buflen = cbor_encode_uint(avatar.size(), buf, 10);
+  buf[0] += 0x40;
+  ret += std::string_view { (char *)buf, buflen };
+  ret += avatar;
+
+  ret += "\x4DtotalGameTime";
+  buflen = cbor_encode_uint(p.getTotalGameTime(), buf, 10);
+  ret += std::string_view { (char *)buf, buflen };
+
+  ret += "\x45state";
+  buflen = cbor_encode_uint(p.getState(), buf, 10);
+  ret += std::string_view { (char *)buf, buflen };
+
+  ret += "\x48gameData";
+  ret += "\x83";
+  buflen = cbor_encode_uint(p.getGameData()[0], buf, 10);
+  ret += std::string_view { (char *)buf, buflen };
+  buflen = cbor_encode_uint(p.getGameData()[1], buf, 10);
+  ret += std::string_view { (char *)buf, buflen };
+  buflen = cbor_encode_uint(p.getGameData()[2], buf, 10);
+  ret += std::string_view { (char *)buf, buflen };
+
+  return ret;
 }
-*/
 
 static _rpcRet _rpc_RoomThread_getRoom(const JsonRpcPacket &packet) {
   if (!( packet.param_count == 1 &&
@@ -433,26 +472,49 @@ static _rpcRet _rpc_RoomThread_getRoom(const JsonRpcPacket &packet) {
     return { false, nullVal };
   }
 
-  auto room = Server::instance().room_manager().findRoom(id);
-  if (!room) {
-    return { false, "Room not found" };
+  auto room_ = Server::instance().room_manager().findRoom(id);
+  if (!room_ || room_->isLobby()) {
+    return { false, "Room not found"sv };
+  }
+  auto room = dynamic_cast<Room *>(room_);
+
+  const auto &pids = room->getPlayers();
+  auto settings = room->getSettings();
+  u_char buf[10]; size_t buflen;
+  std::string ret;
+  ret.reserve(256 * pids.size() + settings.size() + 64);
+
+  ret += "\xA5";
+  ret += "\x42id";
+  buflen = cbor_encode_uint(room->getId(), buf, 10);
+  ret += std::string_view { (char *)buf, buflen };
+
+  ret += "\x47players";
+  buflen = cbor_encode_uint(pids.size(), buf, 10);
+  buf[0] += 0x80;
+  ret += std::string_view { (char *)buf, buflen };
+  auto &um = Server::instance().user_manager();
+  for (auto pid : pids) {
+    auto p = um.findPlayerByConnId(pid);
+    if (p) ret += getPlayerObject(*p);
   }
 
-  // JsonRpcPacket players;
-  // for (auto p : room->getPlayers()) {
-  //   players << getPlayerObject(p);
-  // }
+  ret += "\x47ownerId";
+  auto owner = room->getOwner();
+  buflen = cbor_encode_uint(owner ? owner->getId() : 0, buf, 10);
+  ret += std::string_view { (char *)buf, buflen };
 
-  // QCborMap ret {
-  //   { "id", room->getId() },
-  //   { "players", players },
-  //   { "ownerId", room->getOwner()->getId() },
-  //   { "timeout", room->getTimeout() },
+  ret += "\x47timeout";
+  buflen = cbor_encode_uint(room->getTimeout(), buf, 10);
+  ret += std::string_view { (char *)buf, buflen };
 
-  //   { "settings", room->getSettings().constData() },
-  // };
-  // return { true, ret };
-  return { true, nullVal };
+  ret += "\x48settings";
+  buflen = cbor_encode_uint(settings.size(), buf, 10);
+  buf[0] += 0x40;
+  ret += std::string_view { (char *)buf, buflen };
+  ret += settings;
+
+  return { true, ret };
 }
 
 const JsonRpc::RpcMethodMap ServerRpcMethods {

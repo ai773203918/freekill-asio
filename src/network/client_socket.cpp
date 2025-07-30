@@ -152,35 +152,35 @@ static struct cbor_callbacks callbacks = cbor_empty_callbacks;
 static std::once_flag callbacks_flag;
 
 static void init_callbacks() {
-  callbacks.uint8 = [](void* self, uint8_t value) { 
-    static_cast<PacketBuilder*>(self)->handleInteger(value); 
+  callbacks.uint8 = [](void* self, uint8_t value) {
+    static_cast<PacketBuilder*>(self)->handleInteger(value);
   };
-  callbacks.uint16 = [](void* self, uint16_t value) { 
-    static_cast<PacketBuilder*>(self)->handleInteger(value); 
+  callbacks.uint16 = [](void* self, uint16_t value) {
+    static_cast<PacketBuilder*>(self)->handleInteger(value);
   };
-  callbacks.uint32 = [](void* self, uint32_t value) { 
-    static_cast<PacketBuilder*>(self)->handleInteger(value); 
+  callbacks.uint32 = [](void* self, uint32_t value) {
+    static_cast<PacketBuilder*>(self)->handleInteger(value);
   };
-  callbacks.uint64 = [](void* self, uint64_t value) { 
-    static_cast<PacketBuilder*>(self)->handleInteger(value); 
+  callbacks.uint64 = [](void* self, uint64_t value) {
+    static_cast<PacketBuilder*>(self)->handleInteger(value);
   };
-  callbacks.negint8 = [](void* self, uint8_t value) { 
-    static_cast<PacketBuilder*>(self)->handleInteger(-1 - value); 
+  callbacks.negint8 = [](void* self, uint8_t value) {
+    static_cast<PacketBuilder*>(self)->handleInteger(-1 - value);
   };
-  callbacks.negint16 = [](void* self, uint16_t value) { 
-    static_cast<PacketBuilder*>(self)->handleInteger(-1 - value); 
+  callbacks.negint16 = [](void* self, uint16_t value) {
+    static_cast<PacketBuilder*>(self)->handleInteger(-1 - value);
   };
-  callbacks.negint32 = [](void* self, uint32_t value) { 
-    static_cast<PacketBuilder*>(self)->handleInteger(-1 - value); 
+  callbacks.negint32 = [](void* self, uint32_t value) {
+    static_cast<PacketBuilder*>(self)->handleInteger(-1 - value);
   };
-  callbacks.negint64 = [](void* self, uint64_t value) { 
-    static_cast<PacketBuilder*>(self)->handleInteger(-1 - static_cast<int64_t>(value)); 
+  callbacks.negint64 = [](void* self, uint64_t value) {
+    static_cast<PacketBuilder*>(self)->handleInteger(-1 - static_cast<int64_t>(value));
   };
-  callbacks.byte_string = [](void* self, const cbor_data data, size_t len) { 
-    static_cast<PacketBuilder*>(self)->handleBytes(data, len); 
+  callbacks.byte_string = [](void* self, const cbor_data data, size_t len) {
+    static_cast<PacketBuilder*>(self)->handleBytes(data, len);
   };
-  callbacks.array_start = [](void* self, size_t size) { 
-    static_cast<PacketBuilder*>(self)->startArray(size); 
+  callbacks.array_start = [](void* self, size_t size) {
+    static_cast<PacketBuilder*>(self)->startArray(size);
   };
 }
 

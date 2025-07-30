@@ -13,6 +13,8 @@
 #include <sys/eventfd.h>
 #include <unistd.h>
 
+using namespace std::literals;
+
 /*
 void Scheduler::addObserver(const QString &connId, int roomId) {
   auto p = ServerInstance->findPlayerByConnId(connId);
@@ -57,12 +59,12 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {}, main_io_ctx { ma
     asio::steady_timer timer(io_ctx, std::chrono::milliseconds(ms));
     timer.async_wait([&](const asio::error_code& ec){
       if (!ec) {
-        L->call("ResumeRoom", roomId, "delay_done");
+        L->call("ResumeRoom", roomId, "delay_done"sv);
       }
     });
   };
   wake_up_callback = [&](int roomId, const char *reason) {
-    L->call("ResumeRoom", roomId, reason);
+    L->call("ResumeRoom", roomId, std::string_view { reason });
   };
 
   set_player_state_callback = [&](int connId, int roomId) {

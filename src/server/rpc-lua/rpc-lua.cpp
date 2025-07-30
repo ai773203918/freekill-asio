@@ -6,9 +6,7 @@
 #include "server/gamelogic/rpc-dispatchers.h"
 
 #include "core/util.h"
-#include "core/c-wrapper.h"
 
-#include <spdlog/spdlog.h>
 #include <unistd.h>
 
 RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
@@ -74,28 +72,7 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
 }
 
 RpcLua::~RpcLua() {
-  // call("bye");
-#ifdef RPC_DEBUG
-  // spdlog::debug("Me --> %ls", qUtf16Printable(Color("Say goodbye", fkShell::Blue)));
-#endif
-  // if (socket->waitForReadyRead(15000)) {
-  //   auto msg = socket->readLine();
-#ifdef RPC_DEBUG
-  //   spdlog::debug("Me <-- %s", qUtf8Printable(msg));
-#endif
-
-  //   auto process = dynamic_cast<QProcess *>(socket);
-  //   if (process) process->waitForFinished();
-  // } else {
-  //   // 不管他了，杀了
-  // }
-
-  // SIGKILL!!
-  // delete socket;
-}
-
-void RpcLua::dofile(const char *path) {
-  call("dofile", path);
+  call("bye");
 }
 
 // 传过去的算上call和返回值只有int bytes和null... 毁灭吧
@@ -110,11 +87,13 @@ static void sendParam(asio::posix::stream_descriptor &file, JsonRpcParam &param)
         buflen = cbor_encode_negint(arg, buf, 10);
       }
       file.write_some(asio::const_buffer(buf, buflen));
-    } else if constexpr (std::is_same_v<T, std::string_view>) {
+    } else if constexpr (std::is_same_v<T, std::string_view> || std::is_same_v<T, std::string>) {
       buflen = cbor_encode_uint(arg.size(), buf, 10);
       buf[0] += 0x40;
       file.write_some(asio::const_buffer(buf, buflen));
       file.write_some(asio::const_buffer(arg.data(), arg.size()));
+    } else if constexpr (std::is_same_v<T, bool>) {
+      file.write_some(asio::const_buffer(arg ? "\xF5" : "\xF4", 1));
     } else if constexpr (std::is_same_v<T, std::nullptr_t>) {
       file.write_some(asio::const_buffer("\xF6", 1));
     }
@@ -199,52 +178,337 @@ static void sendError(asio::posix::stream_descriptor &file, JsonRpcPacket &pkt) 
   buflen = cbor_encode_uint(strlen(pkt.error.message), buf, 10);
   buf[0] += 0x40;
   file.write_some(asio::const_buffer(buf, buflen));
-  file.write_some(pkt.error.message);
+  file.write_some(asio::const_buffer(pkt.error.message, strlen(pkt.error.message)));
 
   // data:
   file.write_some(asio::const_buffer("\x18\xCA", 2));
   sendParam(file, pkt.error.data);
 }
 
-// TODO RpcPacketBuilder
+struct RpcPacketBuilder {
+  enum State {
+    NOT_START,
+    WAIT_KEY,
+    WAIT_VALUE,
+    READING_PARAMS,
+    READING_ERROR_K,
+    READING_ERROR_V,
+    FIN,
+    ERROR,
+  };
+
+  explicit RpcPacketBuilder(JsonRpcPacket &p) : pkt { p } {
+    reset();
+  }
+
+  void handleInteger(int64_t value) {
+    if (state == WAIT_KEY) {
+      current_key = (int)value;
+      state = WAIT_VALUE;
+    } else if (state == READING_ERROR_K) {
+      current_err_key = (int)value;
+      state = READING_ERROR_V;
+    } else if (state == WAIT_VALUE) {
+      switch ((JsonKeys)current_key) {
+        case Id:
+          pkt.id = (int)value;
+          nextKey();
+          break;
+        case Result:
+          nextKey();
+          break;
+        default:
+          checkState(ERROR);
+          break;
+      }
+    } else if (state == READING_ERROR_V) {
+      if (current_err_key == ErrorCode) {
+        pkt.error.code = (int)value;
+      } else if (current_err_key == ErrorData) {
+        ; // no-op
+      } else {
+        checkState(ERROR);
+        return;
+      }
+
+      error_value_readed++;
+      if (error_value_readed == error_key_count) {
+        nextKey();
+      } else {
+        state = READING_ERROR_K;
+      }
+    } else if (state == READING_PARAMS) {
+      if (value < 0 || (uint64_t)value < 0xFFFFFFFF) {
+        readParam((int)value);
+      } else {
+        readParam(value);
+      }
+    } else {
+      checkState(ERROR);
+    }
+  }
+
+  void handleBool(bool value) {
+    if (state == WAIT_VALUE) {
+      if (current_key == Result) {
+        nextKey();
+      } else {
+        checkState(ERROR);
+      }
+    } else if (state == READING_PARAMS) {
+      readParam(value);
+    } else {
+      checkState(ERROR);
+    }
+  }
+
+  void handleBytes(const cbor_data data, size_t len) {
+    if (state == WAIT_VALUE) {
+      std::string_view sv { (char *)data, len };
+      switch ((JsonKeys)current_key) {
+        case JsonRpc::JsonRpc:
+          if (sv != "2.0") {
+            checkState(ERROR);
+            return;
+          }
+          nextKey();
+          break;
+        case Method:
+          pkt.method = sv;
+          nextKey();
+          break;
+        case Result:
+          nextKey();
+          break;
+        default:
+          checkState(ERROR);
+          break;
+      }
+    } else if (state == READING_PARAMS) {
+      readParam(std::string_view { (char *)data, len });
+    } else if (state == READING_ERROR_V) {
+      if (current_err_key == ErrorMessage) {
+        ; // no-op
+      } else {
+        checkState(ERROR);
+        return;
+      }
+
+      error_value_readed++;
+      if (error_value_readed == error_key_count) {
+        nextKey();
+      } else {
+        state = READING_ERROR_K;
+      }
+    } else {
+      checkState(ERROR);
+    }
+  }
+
+  void startArray(size_t size) {
+    if (!checkState(WAIT_VALUE)) return;
+    if (current_key != Params) {
+      checkState(ERROR);
+      return;
+    }
+
+    param_count = size;
+    pkt.param_count = size;
+    if (size > 0) {
+      state = READING_PARAMS;
+    } else {
+      nextKey();
+    }
+  }
+
+  void startMap(size_t size) {
+    if (state == NOT_START) {
+      key_count = size;
+      valid = true;
+      state = WAIT_KEY;
+    } else if (state == WAIT_VALUE && current_key == Error) {
+      error_key_count = size;
+      state = READING_ERROR_K;
+    } else {
+      checkState(ERROR);
+    }
+  }
+
+  void reset() {
+    pkt.reset();
+    state = NOT_START;
+    key_count = 0;
+    param_count = 0;
+    current_param_idx = 0;
+    value_readed = 0;
+    error_value_readed = 0;
+  }
+
+  void nextKey() {
+    value_readed++;
+    if (value_readed == key_count) {
+      state = FIN;
+    } else {
+      state = WAIT_KEY;
+    }
+  }
+
+  void readParam(JsonRpcParam v) {
+    switch (current_param_idx) {
+      case 0:
+        pkt.param1 = v;
+        break;
+      case 1:
+        pkt.param2 = v;
+        break;
+      case 2:
+        pkt.param3 = v;
+        break;
+      case 3:
+        pkt.param4 = v;
+        break;
+      case 4:
+        pkt.param5 = v;
+        break;
+      default:
+        checkState(ERROR);
+        return;
+    }
+    current_param_idx++;
+    if (current_param_idx == param_count) {
+      nextKey();
+    }
+  }
+
+  bool checkState(State st) {
+    if (state != st) {
+      state = ERROR;
+      valid = false;
+      return false;
+    }
+    return true;
+  }
+
+  State state = NOT_START;
+  size_t key_count = 0;
+  size_t param_count = 0;
+  bool valid = false;
+  int current_key;
+  int value_readed = 0;
+  int current_param_idx = 0;
+  size_t error_key_count = 0;
+  int current_err_key;
+  int error_value_readed = 0;
+  JsonRpcPacket &pkt;
+};
+
+static struct cbor_callbacks callbacks = cbor_empty_callbacks;
+static std::once_flag callbacks_flag;
+
+static void init_callbacks() {
+  callbacks.uint8 = [](void* self, uint8_t value) {
+    static_cast<RpcPacketBuilder*>(self)->handleInteger(value);
+  };
+  callbacks.uint16 = [](void* self, uint16_t value) {
+    static_cast<RpcPacketBuilder*>(self)->handleInteger(value);
+  };
+  callbacks.uint32 = [](void* self, uint32_t value) {
+    static_cast<RpcPacketBuilder*>(self)->handleInteger(value);
+  };
+  callbacks.uint64 = [](void* self, uint64_t value) {
+    static_cast<RpcPacketBuilder*>(self)->handleInteger(value);
+  };
+  callbacks.negint8 = [](void* self, uint8_t value) {
+    static_cast<RpcPacketBuilder*>(self)->handleInteger(-1 - value);
+  };
+  callbacks.negint16 = [](void* self, uint16_t value) {
+    static_cast<RpcPacketBuilder*>(self)->handleInteger(-1 - value);
+  };
+  callbacks.negint32 = [](void* self, uint32_t value) {
+    static_cast<RpcPacketBuilder*>(self)->handleInteger(-1 - value);
+  };
+  callbacks.negint64 = [](void* self, uint64_t value) {
+    static_cast<RpcPacketBuilder*>(self)->handleInteger(-1 - static_cast<int64_t>(value));
+  };
+  callbacks.byte_string = [](void* self, const cbor_data data, size_t len) {
+    static_cast<RpcPacketBuilder*>(self)->handleBytes(data, len);
+  };
+  callbacks.array_start = [](void* self, size_t size) {
+    static_cast<RpcPacketBuilder*>(self)->startArray(size);
+  };
+  callbacks.map_start = [](void* self, size_t size) {
+    static_cast<RpcPacketBuilder*>(self)->startMap(size);
+  };
+  callbacks.boolean = [](void* self, bool value) {
+    static_cast<RpcPacketBuilder*>(self)->handleBool(value);
+  };
+}
+
+static void readJsonRpcPacket(cbor_data &cbuf, size_t &len, JsonRpcPacket &packet) {
+  std::call_once(callbacks_flag, init_callbacks);
+  RpcPacketBuilder builder { packet };
+
+  while (true) {
+    // 基于callbacks，边读缓冲区边构造packet并进一步调用回调处理packet
+    // 下面这个函数一次只读一个item
+    auto decode_result = cbor_stream_decode(cbuf, len, &callbacks, &builder);
+
+    if (decode_result.read != 0) {
+      cbuf += decode_result.read;
+      len -= decode_result.read;
+    } else {
+      // NEDATA or ERROR
+      break;
+    }
+
+    if (builder.state == RpcPacketBuilder::FIN) return;
+  }
+}
 
 void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param2, JsonRpcParam param3) {
   spdlog::debug("L->call({})", func_name);
 
   auto req = JsonRpc::request(func_name, param1, param2, param3);
   auto id = req.id;
-  sendRequest(child_stdout, req);
+  sendRequest(child_stdin, req);
 
   JsonRpcPacket received_pkt;
 
   while (child_stdout.is_open()) {
+    received_pkt.reset();
     auto read_sz = child_stdout.read_some(asio::buffer(buffer, max_length));
+    cbor_data cbuf = (cbor_data)buffer; size_t len = read_sz;
+
     // TODO 从<buffer, read_sz>中通过cbor_stream_decode方式将数据读入received_pkt
     // TODO 应当读取到一个map
+    readJsonRpcPacket(cbuf, len, received_pkt);
 
     if (received_pkt.id == id && received_pkt.method == "") {
 #ifdef RPC_DEBUG
-      spdlog::debug("Me <-- returned");
+      spdlog::debug("Me <-- returned {}", toHex({ buffer, read_sz }));
 #endif
       // 并不关心lua返回了啥；那为什么还要去读取
       return;
     } else {
 #ifdef RPC_DEBUG
-      spdlog::debug("  Me <-- {}", received_pkt.method);
+      spdlog::debug("  Me <-- {} {}", received_pkt.method, toHex({ buffer, read_sz }));
 #endif
       auto res = JsonRpc::handleRequest(ServerRpcMethods, received_pkt);
       if (res) {
         if (res->error.code < 0) {
-          sendError(child_stdout, *res);
+          sendError(child_stdin, *res);
+#ifdef RPC_DEBUG
+          spdlog::debug("  Me --> returned an error");
+#endif
         } else if (res->id > 0) {
-          sendResponse(child_stdout, *res);
+          sendResponse(child_stdin, *res);
+#ifdef RPC_DEBUG
+          spdlog::debug("  Me --> returned some value");
+#endif
         } else {
           // 爆炸罢
           throw "unknown res type";
         }
-#ifdef RPC_DEBUG
-        spdlog::debug("  Me --> returned");
-#endif
       }
     }
   }

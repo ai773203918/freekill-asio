@@ -22,7 +22,7 @@ enum JsonKeys {
   ErrorData,
 };
 
-typedef std::variant<int, int64_t, std::string_view, bool, std::nullptr_t> JsonRpcParam;
+typedef std::variant<int, int64_t, std::string, std::string_view, bool, std::nullptr_t> JsonRpcParam;
 
 struct JsonRpcError {
   int code = 0;
@@ -46,6 +46,10 @@ struct JsonRpcPacket {
   JsonRpcParam result = nullptr;
 
   void reset();
+
+  JsonRpcPacket() = default;
+  JsonRpcPacket(JsonRpcPacket &) = delete;
+  JsonRpcPacket(JsonRpcPacket &&) = default;
 };
 
 using RpcMethod =

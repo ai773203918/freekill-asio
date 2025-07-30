@@ -13,7 +13,6 @@ public:
   RpcLua(RpcLua &&) = delete;
   ~RpcLua();
 
-  void dofile(const char *path);
   void call(const char *func_name, JsonRpcParam param1 = nullptr, JsonRpcParam param2 = nullptr, JsonRpcParam param3 = nullptr);
 
   // QString getConnectionInfo() const;

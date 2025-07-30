@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #ifndef _ROOMBASE_H
 #define _ROOMBASE_H
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #include "c-wrapper.h"
 #include <sqlite3.h>
 #include <spdlog/spdlog.h>

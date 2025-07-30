@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // jsonrpc.h
 // 让AI就着jsonrpc.lua改的 懒得优化写法了
 // 由于性能出现重大瓶颈，改为CBOR格式，反正这个也是Qt自带支持

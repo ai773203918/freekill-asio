@@ -58,6 +58,4 @@ public:
   char *generateCommand(const char *, int);
 };
 
-extern Shell *ShellInstance;
-
 #endif

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # Compiler settings
 CXX = g++
 CXXFLAGS = -std=c++17 -fPIC -shared -Wall -Wextra

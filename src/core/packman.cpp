@@ -6,7 +6,18 @@
 #include "core/packman.h"
 #include "core/c-wrapper.h"
 
-PackMan *Pacman = nullptr;
+static std::unique_ptr<PackMan> pacman_instance = nullptr;
+
+PackMan &PackMan::instance() {
+  if (!pacman_instance) {
+    pacman_instance = std::unique_ptr<PackMan>(new PackMan);
+  }
+  return *pacman_instance;
+}
+
+void PackMan::destroy() {
+  pacman_instance = nullptr;
+}
 
 PackMan::PackMan() {
   git_libgit2_init();

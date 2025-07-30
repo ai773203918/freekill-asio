@@ -9,6 +9,8 @@ class UserManager;
 class RoomManager;
 class RoomThread;
 
+class Shell;
+
 using asio::ip::tcp;
 
 class Server {
@@ -24,6 +26,7 @@ public:
 
   UserManager &user_manager();
   RoomManager &room_manager();
+  Shell &shell();
 
   void sendEarlyPacket(ClientSocket &client, const std::string_view &type, const std::string_view &msg);
 
@@ -62,6 +65,8 @@ private:
   std::unique_ptr<UserManager> m_user_manager;
   std::unique_ptr<RoomManager> m_room_manager;
   std::unordered_map<int, std::unique_ptr<RoomThread>> m_threads;
+
+  std::unique_ptr<Shell> m_shell;
 
   asio::io_context *main_io_ctx = nullptr;
 

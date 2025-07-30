@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #include "server/gamelogic/rpc-dispatchers.h"
 #include "server/server.h"
 #include "server/user/user_manager.h"

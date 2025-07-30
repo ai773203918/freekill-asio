@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #include "server/user/auth.h"
 #include "server/user/user_manager.h"
 #include "server/server.h"

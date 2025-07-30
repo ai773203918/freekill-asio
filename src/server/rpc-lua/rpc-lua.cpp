@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #include "server/rpc-lua/rpc-lua.h"
 #include "server/rpc-lua/jsonrpc.h"
 

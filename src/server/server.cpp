@@ -12,6 +12,8 @@
 #include "server/gamelogic/roomthread.h"
 #include "server/rpc-lua/rpc-lua.h"
 
+#include "server/cli/shell.h"
+
 #include "core/c-wrapper.h"
 
 static std::unique_ptr<Server> server_instance = nullptr;
@@ -90,6 +92,9 @@ void Server::listen(asio::io_context &io_ctx, asio::ip::tcp::endpoint end) {
 
   createThread();
 
+  m_shell = std::make_unique<Shell>();
+  m_shell->start();
+
   // connect(m_socket, SIGNAL(new_connection), user_manager, SLOT(processNewConnection))
   m_socket->set_new_connection_callback(
     std::bind(&UserManager::processNewConnection, m_user_manager.get(), std::placeholders::_1));
@@ -111,6 +116,10 @@ UserManager &Server::user_manager() {
 
 RoomManager &Server::room_manager() {
   return *m_room_manager;
+}
+
+Shell &Server::shell() {
+  return *m_shell;
 }
 
 void Server::sendEarlyPacket(ClientSocket &client, const std::string_view &type, const std::string_view &msg) {

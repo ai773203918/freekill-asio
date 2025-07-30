@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#ifndef _PACKMAN_H
-#define _PACKMAN_H
+#pragma once
 
 #include "c-wrapper.h"
 
 class PackMan {
 
 public:
-  PackMan();
+  static PackMan &instance();
+  static void destroy();
+  PackMan(PackMan &) = delete;
+  PackMan(PackMan &&) = delete;
   ~PackMan();
 
   std::vector<std::string> &getDisabledPacks();
@@ -32,6 +34,8 @@ public:
   void syncCommitHashToDatabase();
 
 private:
+  PackMan();
+
   std::unique_ptr<Sqlite3> db;
   std::vector<std::string> disabled_packs;
 
@@ -42,7 +46,3 @@ private:
   int status(const char *name); // return 1 if the workdir is modified
   std::string head(const char *name); // get commit hash of HEAD
 };
-
-extern PackMan *Pacman;
-
-#endif

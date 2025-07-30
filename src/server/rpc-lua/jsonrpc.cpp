@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #include "server/rpc-lua/jsonrpc.h"
 
 static int _reqId = 1;

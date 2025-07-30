@@ -21,7 +21,6 @@
 #include <cstdio>
 #include <cstring>
 
-Shell *ShellInstance = nullptr;
 static constexpr const char *prompt = "fk-asio> ";
 
 void Shell::helpCommand(StringList &) {
@@ -150,7 +149,7 @@ void Shell::installCommand(StringList &list) {
   }
 
   auto url = list[0];
-  Pacman->downloadNewPack(url.c_str());
+  PackMan::instance().downloadNewPack(url.c_str());
 }
 
 void Shell::removeCommand(StringList &list) {
@@ -160,21 +159,21 @@ void Shell::removeCommand(StringList &list) {
   }
 
   auto pack = list[0];
-  Pacman->removePack(pack.c_str());
+  PackMan::instance().removePack(pack.c_str());
 }
 
 void Shell::upgradeCommand(StringList &list) {
   if (list.empty()) {
-    auto arr = Pacman->listPackages();
+    auto arr = PackMan::instance().listPackages();
     for (auto &a : arr) {
-      Pacman->upgradePack(a["name"].c_str());
+      PackMan::instance().upgradePack(a["name"].c_str());
     }
     // ServerInstance->refreshMd5();
     return;
   }
 
   auto pack = list[0];
-  Pacman->upgradePack(pack.c_str());
+  PackMan::instance().upgradePack(pack.c_str());
   // ServerInstance->refreshMd5();
 }
 
@@ -185,7 +184,7 @@ void Shell::enableCommand(StringList &list) {
   }
 
   auto pack = list[0];
-  Pacman->enablePack(pack.c_str());
+  PackMan::instance().enablePack(pack.c_str());
   // ServerInstance->refreshMd5();
 }
 
@@ -196,12 +195,12 @@ void Shell::disableCommand(StringList &list) {
   }
 
   auto pack = list[0];
-  Pacman->disablePack(pack.c_str());
+  PackMan::instance().disablePack(pack.c_str());
   // ServerInstance->refreshMd5();
 }
 
 void Shell::lspkgCommand(StringList &) {
-  auto arr = Pacman->listPackages();
+  auto arr = PackMan::instance().listPackages();
   spdlog::info("Name\tVersion\t\tEnabled");
   spdlog::info("------------------------------");
   for (auto &a : arr) {
@@ -211,7 +210,7 @@ void Shell::lspkgCommand(StringList &) {
 }
 
 void Shell::syncpkgCommand(StringList &) {
-  Pacman->syncCommitHashToDatabase();
+  PackMan::instance().syncCommitHashToDatabase();
   spdlog::info("Done.");
 }
 
@@ -608,7 +607,6 @@ static char **fk_completion(const char *text, int start, int end);
 static char *null_completion(const char *, int) { return NULL; }
 
 Shell::Shell() {
-  ShellInstance = this;
   // setObjectName("Shell");
   // Setup readline here
 
@@ -740,10 +738,6 @@ QString Shell::syntaxHighlight(char *bytes) {
 }
 */
 
-static void linehandler(char *bytes) {
-  ShellInstance->handleLine(bytes);
-}
-
 char *Shell::generateCommand(const char *text, int state) {
   /*
   static int list_index, len;
@@ -768,7 +762,7 @@ char *Shell::generateCommand(const char *text, int state) {
 }
 
 static char *command_generator(const char *text, int state) {
-  return ShellInstance->generateCommand(text, state);
+  return Server::instance().shell().generateCommand(text, state);
 }
 
 static char *repo_generator(const char *text, int state) {
@@ -818,7 +812,7 @@ static char *package_generator(const char *text, int state) {
   const char *name;
 
   if (state == 0) {
-    arr = QJsonDocument::fromJson(Pacman->listPackages().toUtf8()).array();
+    arr = QJsonDocument::fromJson(PackMan::instance().listPackages().toUtf8()).array();
     list_index = 0;
     len = strlen(text);
   }

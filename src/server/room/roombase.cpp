@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #include "server/room/roombase.h"
 #include "server/room/lobby.h"
 #include "server/room/room.h"

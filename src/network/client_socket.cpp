@@ -50,7 +50,6 @@ void ClientSocket::disconnectFromHost() {
   // });
 }
 
-// 此函数必须只能在主线程调用！
 void ClientSocket::send(const asio::const_buffer &msg) {
   asio::async_write(m_socket, msg, [](const asio::error_code &, std::size_t) {
     // no-op

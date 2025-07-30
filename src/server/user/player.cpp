@@ -172,7 +172,7 @@ void Player::doNotify(const std::string_view &command, const std::string_view &d
   if (getState() != Player::Online)
     return;
 
-  spdlog::debug("TX(Room={}): {} {}", roomId, command, toHex(data));
+  // spdlog::debug("TX(Room={}): {} {}", roomId, command, toHex(data));
   int type =
       Router::TYPE_NOTIFICATION | Router::SRC_SERVER | Router::DEST_CLIENT;
 
@@ -203,7 +203,7 @@ void Player::set_kicked_callback(std::function<void()> callback) {
 }
 
 void Player::onNotificationGot(const Packet &packet) {
-  spdlog::debug("RX(Room={}): {} {}", roomId, packet.command, toHex(packet.cborData));
+  // spdlog::debug("RX(Room={}): {} {}", roomId, packet.command, toHex(packet.cborData));
   if (packet.command == "Heartbeat") {
     alive = true;
     return;

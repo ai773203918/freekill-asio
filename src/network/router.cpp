@@ -166,7 +166,13 @@ void Router::handlePacket(const Packet &packet) {
 }
 
 void Router::sendMessage(const std::string_view &msg) {
-  if (std::this_thread::get_id() != m_thread_id) {
+  // 根据本文 当发小包时应该可以认为线程安全
+  // 具体需要人多点的时候测试
+  // https://stackoverflow.com/questions/7362894/boostasiosocket-thread-safety
+  if (msg.size() > 65535 &&
+    std::this_thread::get_id() != m_thread_id) {
+
+    // 将send任务交给主进程（如同Qt）并等待
     auto &s = Server::instance().context();
     auto p = std::promise<bool>();
     auto f = p.get_future();
@@ -175,6 +181,7 @@ void Router::sendMessage(const std::string_view &msg) {
       p.set_value(true);
     });
     f.wait();
+
   } else {
     socket->send({ msg.data(), msg.size() });
   }

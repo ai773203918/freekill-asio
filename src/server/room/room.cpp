@@ -62,9 +62,9 @@ std::string &Room::getName() { return name; }
 
 void Room::setName(const std::string_view &name) { this->name = name; }
 
-int Room::getCapacity() const { return capacity; }
+size_t Room::getCapacity() const { return capacity; }
 
-void Room::setCapacity(int capacity) { this->capacity = capacity; }
+void Room::setCapacity(size_t capacity) { this->capacity = capacity; }
 
 bool Room::isFull() const { return players.size() == capacity; }
 

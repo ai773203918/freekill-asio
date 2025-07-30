@@ -191,7 +191,7 @@ void PackMan::removePack(const char *pack) {
   if (result.empty())
     return;
 
-  bool enabled = result[0]["enabled"] == "1";
+  // bool enabled = result[0]["enabled"] == "1";
   db->exec(std::format("DELETE FROM packages WHERE name = '{}';", pack));
 
   std::error_code ec;
@@ -270,7 +270,7 @@ int PackMan::clone(const char *u) {
     printf("\n");
   }
 
-clean:
+// clean:
   git_repository_free(repo);
   return err;
 }
@@ -412,7 +412,7 @@ int PackMan::status(const char *name) {
   GIT_CHK_CLEAN;
   maxi = git_status_list_entrycount(status_list);
   for (i = 0; i < maxi; ++i) {
-    char *istatus = NULL;
+    // char *istatus = NULL;
     s = git_status_byindex(status_list, i);
     if (s->status != GIT_STATUS_CURRENT && s->status != GIT_STATUS_IGNORED) {
       git_status_list_free(status_list);

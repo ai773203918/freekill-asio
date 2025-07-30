@@ -101,7 +101,7 @@ struct PacketBuilder {
     std::string_view sv { (char *)data, len };
 
     switch (current_field) {
-      case 2: 
+      case 2:
         pkt.command = sv;
         break;
       case 3:
@@ -124,7 +124,10 @@ struct PacketBuilder {
   }
 
   void reset() {
-    std::memset(&pkt, 0, sizeof(Packet));
+    pkt.type = 0;
+    pkt._len = 0;
+    pkt.command = "";
+    pkt.cborData = "";
     current_field = 0;
     valid_packet = false;
   }

@@ -28,8 +28,8 @@ public:
   // ==================================={
   std::string &getName();
   void setName(const std::string_view &name);
-  int getCapacity() const;
-  void setCapacity(int capacity);
+  size_t getCapacity() const;
+  void setCapacity(size_t capacity);
   bool isFull() const;
 
   const std::vector<int> &getPlayers() const;
@@ -102,7 +102,7 @@ private:
   std::vector<int> observers;
 
   std::string name;         // “阴间大乱斗”
-  int capacity = 0;         // by default is 5, max is 8
+  size_t capacity = 0;         // by default is 5, max is 8
   int m_owner_conn_id = 0;
 
   std::string settings;

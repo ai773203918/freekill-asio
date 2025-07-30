@@ -31,29 +31,42 @@ std::optional<JsonRpcError> getErrorObject(const std::string &errorName) {
 
 JsonRpcPacket notification(const std::string_view &method,
                            const JsonRpcParam &param1,
-                           const JsonRpcParam &param2)
+                           const JsonRpcParam &param2,
+                           const JsonRpcParam &param3)
 {
   JsonRpcPacket obj {
     .param_count = 0,
     .method = method,
   };
-  if (!std::holds_alternative<std::nullptr_t>(param1)) {
-    obj.param1 = param1;
-    obj.param_count++;
-    if (!std::holds_alternative<std::nullptr_t>(param2)) {
-      obj.param2 = param2;
-      obj.param_count++;
-    }
+
+  if (std::holds_alternative<std::nullptr_t>(param1)) {
+    return obj;
   }
+  obj.param1 = param1;
+  obj.param_count++;
+
+  if (std::holds_alternative<std::nullptr_t>(param2)) {
+    return obj;
+  }
+  obj.param2 = param2;
+  obj.param_count++;
+
+  if (std::holds_alternative<std::nullptr_t>(param3)) {
+    return obj;
+  }
+  obj.param3 = param3;
+  obj.param_count++;
+
   return obj;
 }
 
 JsonRpcPacket request(const std::string_view &method,
                       const JsonRpcParam &param1,
                       const JsonRpcParam &param2,
+                      const JsonRpcParam &param3,
                       int id)
 {
-  JsonRpcPacket obj = notification(method, param1, param2);
+  JsonRpcPacket obj = notification(method, param1, param2, param3);
   if (id == -1) {
     id = _reqId++;
     if (_reqId > 10000000) _reqId = 1;

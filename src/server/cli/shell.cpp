@@ -786,7 +786,7 @@ static char *repo_generator(const char *text, int state) {
     "https://gitee.com/Qsgs-Fans/hegemony",
     "https://gitee.com/Qsgs-Fans/lunar",
   };
-  static int list_index, len;
+  static size_t list_index, len;
   const char *name;
 
   if (state == 0) {

@@ -155,7 +155,6 @@ void Lobby::getRoomConfig(Player *sender, const QString &jsonData) {
 */
 
 void Lobby::enterRoom(Player &sender, const Packet &pkt) {
-  auto &um = Server::instance().user_manager();
   auto &rm = Server::instance().room_manager();
 
   auto data = pkt.cborData;
@@ -225,7 +224,6 @@ void Lobby::observeRoom(Player *sender, const QString &jsonData) {
 */
 
 void Lobby::refreshRoomList(Player &sender, const Packet &) {
-  auto &um = Server::instance().user_manager();
   auto &rm = Server::instance().room_manager();
 
   auto &rooms = rm.getRooms();

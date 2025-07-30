@@ -10,8 +10,6 @@
 RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
   child_stdin { ctx }, child_stdout { ctx }
 {
-  // env.insert("FK_RPC_MODE", "cbor");
-
   int stdin_pipe[2];  // [0]=read, [1]=write
   int stdout_pipe[2]; // [0]=read, [1]=write
   if (::pipe(stdin_pipe) == -1 || pipe(stdout_pipe) == -1) {
@@ -99,7 +97,7 @@ void RpcLua::dofile(const char *path) {
 void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param2, JsonRpcParam param3) {
   // QMutexLocker locker(&io_lock);
 
-  auto req = JsonRpc::request(func_name, param1, param2);
+  auto req = JsonRpc::request(func_name, param1, param2, param3);
   auto id = req.id;
   sendPacket(req);
 
@@ -150,8 +148,7 @@ void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param
   // }
 
 #ifdef RPC_DEBUG
-  // spdlog::debug("Me <-- IO read timeout. Is Lua process died?");
-  // spdlog::debug() << dynamic_cast<QProcess *>(socket)->readAllStandardError();
+  spdlog::debug("Me <-- IO read timeout. Is Lua process died?");
 #endif
 }
 

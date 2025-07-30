@@ -150,7 +150,7 @@ Player &UserManager::createRobot() {
   auto robot = std::make_shared<Player>();
   robot->setState(Player::Robot);
   robot->setId(nextRobotId--);
-  if (nextRobotId < 0xFFFFFF00) nextRobotId = -2;
+  if (nextRobotId < (int)0x800000FF) nextRobotId = -2;
   robot->setAvatar("guanyu");
   robot->setScreenName(fmt::format("COMP-{}", robot->getId()));
   robot->setReady(true);

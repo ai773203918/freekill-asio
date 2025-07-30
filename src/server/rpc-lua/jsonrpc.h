@@ -60,10 +60,12 @@ std::optional<JsonRpcError> getErrorObject(const std::string &errorName);
 
 JsonRpcPacket notification(const std::string_view &method,
                            const JsonRpcParam &param1 = nullptr,
-                           const JsonRpcParam &param2 = nullptr);
+                           const JsonRpcParam &param2 = nullptr,
+                           const JsonRpcParam &param3 = nullptr);
 JsonRpcPacket request(const std::string_view &method,
                       const JsonRpcParam &param1 = nullptr,
                       const JsonRpcParam &param2 = nullptr,
+                      const JsonRpcParam &param3 = nullptr,
                       int id = -1);
 JsonRpcPacket response(const JsonRpcPacket &req, const JsonRpcParam &result);
 JsonRpcPacket responseError(const JsonRpcPacket &req, const std::string &errorName,

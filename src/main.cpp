@@ -5,8 +5,39 @@
 #include "server/cli/shell.h"
 #include "server/gamelogic/roomthread.h"
 
-int main(int argc, char *argv[]) {
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/sinks/rotating_file_sink.h>
+#include <spdlog/sinks/ansicolor_sink.h>
+
+static void initLogger() {
+  auto logger_file = "freekill.server.log";
+
+  std::vector<spdlog::sink_ptr> sinks;
+  auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+
+  stdout_sink->set_color_mode(spdlog::color_mode::always);
+  sinks.push_back(stdout_sink);
+
+  // 单个log文件最大30M 最多备份5个 算上当前log文件的话最多同时存在6个log
+  // 解决了牢版服务器关服后log消失的事情 伟大
+  auto rotate_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(logger_file, 1048576 * 30, 5);
+  sinks.push_back(rotate_sink);
+
+  auto spd_logger = std::make_shared<spdlog::logger>("fk-logger", begin(sinks), end(sinks));
+  spdlog::register_logger(spd_logger);
+  spdlog::set_default_logger(spd_logger);
+  spdlog::set_pattern("[%C-%m-%d %H:%M:%S.%f] [%t/%^%L%$] %v");
   spdlog::set_level(spdlog::level::trace);
+  spdlog::flush_every(std::chrono::seconds(3));
+
+  // TODO 将Shell改为Server的成员后，添加callback处理此事
+  // if (ShellInstance && !ShellInstance->lineDone()) {
+  //   ShellInstance->redisplay();
+  // }
+}
+
+int main(int argc, char *argv[]) {
+  initLogger();
 
   Pacman = new PackMan; // TODO 别用new 改成Server::instance那样
 

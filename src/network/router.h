@@ -68,6 +68,8 @@ private:
 
   RouterType type;
 
+  std::thread::id m_thread_id;
+
 /*
 
   // For client side
@@ -83,9 +85,9 @@ private:
   QString m_reply;    // should be json string
   QSemaphore replyReadySemaphore;
   QSemaphore *extraReplyReadySemaphore;
-
-  void sendMessage(const QByteArray &msg);
   */
+
+  void sendMessage(const std::string_view &msg);
 
   // signals
   std::function<void(const std::vector<uint8_t>&)> message_ready_callback;

@@ -33,7 +33,7 @@ struct JsonRpcError {
 struct JsonRpcPacket {
   // const char *jsonrpc; // 必定是2.0 不加
   int id = -1; // 负数表示没有id 是notification
-  int param_count = 0;
+  size_t param_count = 0;
 
   std::string_view method;
   JsonRpcParam param1 = nullptr;
@@ -44,6 +44,8 @@ struct JsonRpcPacket {
 
   JsonRpcError error;
   JsonRpcParam result = nullptr;
+
+  void reset();
 };
 
 using RpcMethod =

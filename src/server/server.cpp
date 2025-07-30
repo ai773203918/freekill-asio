@@ -110,6 +110,10 @@ void Server::destroy() {
   server_instance = nullptr;
 }
 
+asio::io_context &Server::context() {
+  return *main_io_ctx;
+}
+
 UserManager &Server::user_manager() {
   return *m_user_manager;
 }

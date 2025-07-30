@@ -21,6 +21,13 @@ bool isStdError(const std::string_view &errorName) {
          errorName == "internal_error" || errorName == "server_error";
 }
 
+void JsonRpcPacket::reset() {
+  id = -1;
+  param_count = 0;
+  error.code = 0;
+  result = nullptr;
+}
+
 std::optional<JsonRpcError> getErrorObject(const std::string &errorName) {
   auto it = errorObjects.find(errorName);
   if (it != errorObjects.end()) {

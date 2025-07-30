@@ -66,9 +66,11 @@ public:
   void updateGeneralWinRate(const QString &general, const QString &mode, const QString &role, int result);
 
   void gameOver();
+  */
   void manuallyStart();
-  void pushRequest(const QString &req);
+  void pushRequest(const std::string &req);
 
+  /*
   void addRejectId(int id);
   void removeRejectId(int id);
 

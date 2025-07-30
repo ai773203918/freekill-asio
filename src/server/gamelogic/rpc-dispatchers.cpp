@@ -403,7 +403,7 @@ static _rpcRet _rpc_Room_decreaseRefCount(const JsonRpcPacket &packet) {
 
 // 收官：getRoom
 
-/*
+/* TODO 改成返回编码过的字符串
 static QCborMap getPlayerObject(Player *p) {
   JsonRpcPacket gameData;
   for (auto i : p->getGameData()) gameData << i;

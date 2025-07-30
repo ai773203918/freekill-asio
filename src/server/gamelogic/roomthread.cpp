@@ -14,34 +14,6 @@
 #include <unistd.h>
 
 /*
-Scheduler::Scheduler(RoomThread *thread) {
-  L = new RpcLua(ServerRpcMethods);
-}
-
-Scheduler::~Scheduler() {
-  delete L;
-}
-
-void Scheduler::handleRequest(const QString &req) {
-  auto bytes = req.toUtf8();
-  L->call("HandleRequest", { bytes });
-}
-
-void Scheduler::doDelay(int roomId, int ms) {
-  QTimer::singleShot(ms, [=](){ resumeRoom(roomId, "delay_done"); });
-}
-
-void Scheduler::resumeRoom(int roomId, const char *reason) {
-  auto room = ServerInstance->findRoom(roomId);
-  L->call("ResumeRoom", { roomId, reason });
-}
-
-void Scheduler::setPlayerState(const QString &connId, int roomId) {
-  auto player = ServerInstance->findPlayerByConnId(connId);
-  if (!player) return;
-  L->call("SetPlayerState", { roomId, player->getId(), player->getState() });
-}
-
 void Scheduler::addObserver(const QString &connId, int roomId) {
   auto p = ServerInstance->findPlayerByConnId(connId);
   if (!p) return;
@@ -63,13 +35,6 @@ void Scheduler::addObserver(const QString &connId, int roomId) {
       { "gameData", gameData },
     }
   });
-}
-
-void Scheduler::removeObserver(const QString &connId, int roomId) {
-  auto player = ServerInstance->findPlayerByConnId(connId);
-  if (!player) return;
-
-  L->call("RemoveObserver", { roomId, player->getId() });
 }
 */
 

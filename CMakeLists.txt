@@ -9,7 +9,7 @@ if (DEFINED RPC_DEBUG)
 endif()
 add_definitions(-DFK_SERVER_ONLY)
 
-add_compile_options(-Wall)
+# add_compile_options(-Wall)
 
 find_package(OpenSSL REQUIRED)
 find_package(SQLite3 REQUIRED)

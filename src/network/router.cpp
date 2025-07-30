@@ -3,6 +3,7 @@
 #include "network/router.h"
 #include "network/client_socket.h"
 #include "server/user/player.h"
+#include "server/server.h"
 #include "core/c-wrapper.h"
 
 Router::Router(Player *player, ClientSocket *socket, RouterType type) {
@@ -10,6 +11,8 @@ Router::Router(Player *player, ClientSocket *socket, RouterType type) {
   this->player = player;
   this->socket = nullptr;
   setSocket(socket);
+
+  m_thread_id = std::this_thread::get_id();
   // expectedReplyId = -1;
   // replyTimeout = 0;
   // extraReplyReadySemaphore = nullptr;
@@ -111,7 +114,7 @@ void Router::notify(int type, const std::string_view &command, const std::string
     command,
     data,
   });
-  socket->send({ buf.c_str(), buf.size() });
+  sendMessage(buf);
 }
 
 /*
@@ -186,10 +189,17 @@ void Router::handlePacket(const Packet &packet) {
   }
 }
 
-/*
-void Router::sendMessage(const QByteArray &msg) {
-  auto connType = qApp->thread() == QThread::currentThread()
-    ? Qt::DirectConnection : Qt::BlockingQueuedConnection;
-  QMetaObject::invokeMethod(qApp, [&]() { emit messageReady(msg); }, connType);
+void Router::sendMessage(const std::string_view &msg) {
+  if (std::this_thread::get_id() != m_thread_id) {
+    auto &s = Server::instance().context();
+    auto p = std::promise<bool>();
+    auto f = p.get_future();
+    asio::post(s, [&](){
+      socket->send({ msg.data(), msg.size() });
+      p.set_value(true);
+    });
+    f.wait();
+  } else {
+    socket->send({ msg.data(), msg.size() });
+  }
 }
-*/

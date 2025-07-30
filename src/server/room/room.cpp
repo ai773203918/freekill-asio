@@ -3,6 +3,7 @@
 #include "server/room/room.h"
 #include "server/room/lobby.h"
 #include "server/room/room_manager.h"
+#include "server/gamelogic/roomthread.h"
 #include "network/client_socket.h"
 #include "server/server.h"
 #include "server/user/player.h"
@@ -81,7 +82,6 @@ void Room::setSettings(const std::string_view &settings) {
   password = "";
   this->settings = settings;
 
-  struct cbor_decoder_result decode_result;
   auto cbuf = (cbor_data)this->settings.data();
   auto len = this->settings.size();
 
@@ -619,10 +619,12 @@ void Room::gameOver() {
 
   insideGameOver = false;
 }
+*/
 
 void Room::manuallyStart() {
   if (isFull() && !gameStarted) {
-    qInfo("[GameStart] Room %d started", getId());
+    spdlog::info("[GameStart] Room {} started", getId());
+    /*
     QMap<QString, QStringList> uuidList, ipList;
     for (auto p : players) {
       p->setReady(false);
@@ -656,18 +658,21 @@ void Room::manuallyStart() {
       doBroadcastNotify(getPlayers(), "ServerMessage", warnUtf8);
       qInfo("%s", warnUtf8.constData());
     }
+    */
 
     gameStarted = true;
-    auto thread = qobject_cast<RoomThread *>(parent());
-    thread->pushRequest(QString("-1,%1,newroom").arg(QString::number(id)));
+    // TODO 完善thread分配逻辑
+    auto thread = Server::instance().getThread(0); // qobject_cast<RoomThread *>(parent());
+    thread->pushRequest(fmt::format("-1,{},newroom", id));
   }
 }
 
-void Room::pushRequest(const QString &req) {
-  auto thread = qobject_cast<RoomThread *>(parent());
-  thread->pushRequest(QString("%1,%2").arg(QString::number(id), req));
+void Room::pushRequest(const std::string &req) {
+  auto thread = Server::instance().getThread(0); // qobject_cast<RoomThread *>(parent());
+  thread->pushRequest(std::format("{},{}", id, req));
 }
 
+/*
 void Room::addRejectId(int id) {
   rejected_players << id;
 }
@@ -723,18 +728,19 @@ void Room::ready(Player &player, const Packet &) {
   setPlayerReady(player, !player.isReady());
 }
 
-/*
-void Room::startGame(Player *player, const QString &) {
+void Room::startGame(Player &player, const Packet &) {
   if (isOutdated()) {
-    for (auto p : getPlayers()) {
+    auto &um = Server::instance().user_manager();
+    for (auto pid : getPlayers()) {
+      auto p = um.findPlayerByConnId(pid);
+      if (!p) continue;
       p->doNotify("ErrorMsg", "room is outdated");
-      emit p->kicked();
+      // emit p->kicked();
     }
   } else {
     manuallyStart();
   }
 }
-*/
 
 typedef void (Room::*room_cb)(Player &, const Packet &);
 
@@ -744,7 +750,7 @@ void Room::handlePacket(Player &sender, const Packet &packet) {
     {"AddRobot", &Room::addRobotRequest},
     {"KickPlayer", &Room::kickPlayer},
     {"Ready", &Room::ready},
-    // {"StartGame", &Room::startGame},
+    {"StartGame", &Room::startGame},
     {"Chat", &Room::chat},
   };
 

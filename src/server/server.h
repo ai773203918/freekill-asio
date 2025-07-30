@@ -24,6 +24,8 @@ public:
   void stop();
   static void destroy();
 
+  asio::io_context &context();
+
   UserManager &user_manager();
   RoomManager &room_manager();
   Shell &shell();

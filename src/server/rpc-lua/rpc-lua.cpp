@@ -3,8 +3,12 @@
 #include "server/rpc-lua/rpc-lua.h"
 #include "server/rpc-lua/jsonrpc.h"
 
-#include "core/util.h"
+#include "server/gamelogic/rpc-dispatchers.h"
 
+#include "core/util.h"
+#include "core/c-wrapper.h"
+
+#include <spdlog/spdlog.h>
 #include <unistd.h>
 
 RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
@@ -70,7 +74,7 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
 }
 
 RpcLua::~RpcLua() {
-  call("bye");
+  // call("bye");
 #ifdef RPC_DEBUG
   // spdlog::debug("Me --> %ls", qUtf16Printable(Color("Say goodbye", fkShell::Blue)));
 #endif
@@ -94,58 +98,156 @@ void RpcLua::dofile(const char *path) {
   call("dofile", path);
 }
 
+// 传过去的算上call和返回值只有int bytes和null... 毁灭吧
+static void sendParam(asio::posix::stream_descriptor &file, JsonRpcParam &param) {
+  u_char buf[10]; size_t buflen;
+  std::visit([&](auto&& arg) {
+    using T = std::decay_t<decltype(arg)>;
+    if constexpr (std::is_same_v<T, int>) {
+      if (arg < 0) {
+        buflen = cbor_encode_uint(arg, buf, 10);
+      } else {
+        buflen = cbor_encode_negint(arg, buf, 10);
+      }
+      file.write_some(asio::const_buffer(buf, buflen));
+    } else if constexpr (std::is_same_v<T, std::string_view>) {
+      buflen = cbor_encode_uint(arg.size(), buf, 10);
+      buf[0] += 0x40;
+      file.write_some(asio::const_buffer(buf, buflen));
+      file.write_some(asio::const_buffer(arg.data(), arg.size()));
+    } else if constexpr (std::is_same_v<T, std::nullptr_t>) {
+      file.write_some(asio::const_buffer("\xF6", 1));
+    }
+  }, param);
+}
+
+// request: { jsonRpc, method, params, id }
+static void sendRequest(asio::posix::stream_descriptor &file, JsonRpcPacket &pkt) {
+  u_char buf[10]; size_t buflen;
+  // { jsonRpc: '2.0', method: '
+  file.write_some(asio::const_buffer("\xa4\x18\x64\x43\x32\x2e\x30\x18\x65", 9));
+  buflen = cbor_encode_uint(pkt.method.size(), buf, 10);
+  buf[0] += 0x40;
+  // <method>',
+  file.write_some(asio::const_buffer(buf, buflen));
+  file.write_some(asio::const_buffer(pkt.method.data(), pkt.method.size()));
+  // id:
+  buflen = cbor_encode_uint(pkt.id, buf, 10);
+  file.write_some(asio::const_buffer("\x18\x68", 2));
+  file.write_some(asio::const_buffer(buf, buflen));
+  // params + arr head
+  size_t i = pkt.param_count;
+  buflen = cbor_encode_uint(i, buf, 10);
+  buf[0] += 0x80;
+  file.write_some(asio::const_buffer("\x18\x66", 2));
+  file.write_some(asio::const_buffer(buf, buflen));
+
+  if (i == 0) return;
+  sendParam(file, pkt.param1);
+  i--;
+
+  if (i == 0) return;
+  sendParam(file, pkt.param2);
+  i--;
+
+  if (i == 0) return;
+  sendParam(file, pkt.param3);
+}
+
+// response: { jsonRpc, result, id }
+static void sendResponse(asio::posix::stream_descriptor &file, JsonRpcPacket &pkt) {
+  u_char buf[10]; size_t buflen;
+  // { jsonRpc: '2.0', id:
+  file.write_some(asio::const_buffer("\xa3\x18\x64\x43\x32\x2e\x30\x18\x68", 9));
+
+  // id
+  buflen = cbor_encode_uint(pkt.id, buf, 10);
+  file.write_some(asio::const_buffer(buf, buflen));
+
+  // result
+  file.write_some(asio::const_buffer("\x18\x69", 2));
+  sendParam(file, pkt.result);
+}
+
+// response: { jsonRpc, error, [id] }
+static void sendError(asio::posix::stream_descriptor &file, JsonRpcPacket &pkt) {
+  u_char buf[10]; size_t buflen;
+
+  if (pkt.id < 0) {
+    file.write_some(asio::const_buffer("\xa2", 1));
+  } else {
+    file.write_some(asio::const_buffer("\xa3", 1));
+  }
+
+  // { jsonRpc: '2.0',
+  file.write_some(asio::const_buffer("\x18\x64\x43\x32\x2e\x30", 6));
+
+  // [id]
+  if (pkt.id >= 0) {
+    buflen = cbor_encode_uint(pkt.id, buf, 10);
+    file.write_some(asio::const_buffer("\x18\x68", 2));
+    file.write_some(asio::const_buffer(buf, buflen));
+  }
+
+  // error: { code:
+  file.write_some(asio::const_buffer("\x18\x67\xA3\x18\xC8", 5));
+  buflen = cbor_encode_negint(pkt.error.code, buf, 10);
+  file.write_some(asio::const_buffer(buf, buflen));
+
+  // msg:
+  file.write_some(asio::const_buffer("\x18\xC9", 2));
+  buflen = cbor_encode_uint(strlen(pkt.error.message), buf, 10);
+  buf[0] += 0x40;
+  file.write_some(asio::const_buffer(buf, buflen));
+  file.write_some(pkt.error.message);
+
+  // data:
+  file.write_some(asio::const_buffer("\x18\xCA", 2));
+  sendParam(file, pkt.error.data);
+}
+
+// TODO RpcPacketBuilder
+
 void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param2, JsonRpcParam param3) {
-  // QMutexLocker locker(&io_lock);
+  spdlog::debug("L->call({})", func_name);
 
   auto req = JsonRpc::request(func_name, param1, param2, param3);
   auto id = req.id;
-  sendPacket(req);
+  sendRequest(child_stdout, req);
 
-  // while (socket->bytesAvailable() > 0 || socket->waitForReadyRead(15000)) {
-  //   if (!socket->isOpen()) break;
+  JsonRpcPacket received_pkt;
 
-  //   auto bytes = socket->readAll();
-  //   QCborValue doc;
-  //   do {
-  //     QCborStreamReader reader(bytes);
-  //     doc = QCborValue::fromCbor(reader);
-  //     auto err = reader.lastError();
-  //     // spdlog::debug("  *DBG* Me <-- %ls {%s}", qUtf16Printable(err.toString()), qUtf8Printable(bytes.toHex()));
-  //     if (err == QCborError::EndOfFile) {
-  //       socket->waitForReadyRead(100);
-  //       bytes += socket->readAll();
-  //       reader.clear(); reader.addData(bytes);
-  //       continue;
-  //     } else if (err == QCborError::NoError) {
-  //       break;
-  //     } else {
-#ifdef RPC_DEBUG
-  //       spdlog::debug("Me <-- Unrecoverable reader error: %ls", qUtf16Printable(err.toString()));
-#endif
-  //       return QVariant();
-  //     }
-  //   } while (true);
+  while (child_stdout.is_open()) {
+    auto read_sz = child_stdout.read_some(asio::buffer(buffer, max_length));
+    // TODO 从<buffer, read_sz>中通过cbor_stream_decode方式将数据读入received_pkt
+    // TODO 应当读取到一个map
 
-  //   auto packet = doc.toMap();
-  //   if (packet[JsonRpc::JsonRpc].toByteArray() == "2.0" && packet[JsonRpc::Id] == id && !packet[JsonRpc::Method].isByteArray()) {
+    if (received_pkt.id == id && received_pkt.method == "") {
 #ifdef RPC_DEBUG
-  //     spdlog::debug("Me <-- %s", qUtf8Printable(mapToJson(packet, true)));
+      spdlog::debug("Me <-- returned");
 #endif
-  //     return packet[JsonRpc::Result].toVariant();
-  //   } else {
+      // 并不关心lua返回了啥；那为什么还要去读取
+      return;
+    } else {
 #ifdef RPC_DEBUG
-  //     spdlog::debug("  Me <-- %s", qUtf8Printable(mapToJson(packet, true)));
+      spdlog::debug("  Me <-- {}", received_pkt.method);
 #endif
-  //     auto res = JsonRpc::serverResponse(methods, packet);
-  //     if (res) {
-  //       socket->write(res->toCborValue().toCbor());
-  //       socket->waitForBytesWritten(15000);
+      auto res = JsonRpc::handleRequest(ServerRpcMethods, received_pkt);
+      if (res) {
+        if (res->error.code < 0) {
+          sendError(child_stdout, *res);
+        } else if (res->id > 0) {
+          sendResponse(child_stdout, *res);
+        } else {
+          // 爆炸罢
+          throw "unknown res type";
+        }
 #ifdef RPC_DEBUG
-  //       spdlog::debug("  Me --> %s", qUtf8Printable(mapToJson(*res, false)));
+        spdlog::debug("  Me --> returned");
 #endif
-  //     }
-  //   }
-  // }
+      }
+    }
+  }
 
 #ifdef RPC_DEBUG
   spdlog::debug("Me <-- IO read timeout. Is Lua process died?");
@@ -177,13 +279,3 @@ QString RpcLua::getConnectionInfo() const {
   }
 }
 */
-
-// TODO 用cbor_stream_encode或者徒手发送
-void RpcLua::sendPacket(const JsonRpcPacket &packet) {
-  // socket->write(req.toCborValue().toCbor());
-  // socket->waitForBytesWritten(15000);
-#ifdef RPC_DEBUG
-  // spdlog::debug("Me --> %s", qUtf8Printable(mapToJson(req, false)));
-#endif
-
-}

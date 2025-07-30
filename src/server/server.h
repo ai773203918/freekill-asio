@@ -19,6 +19,8 @@ public:
   ~Server();
 
   void listen(asio::io_context &io_ctx, tcp::endpoint end);
+  void stop();
+  static void destroy();
 
   UserManager &user_manager();
   RoomManager &room_manager();

@@ -75,9 +75,8 @@ void Shell::helpCommand(StringList &) {
 }
 
 Shell::~Shell() {
-  // TODO 关机
-  // wait();
   rl_clear_history();
+  m_thread.join();
 }
 
 void Shell::start() {
@@ -664,8 +663,7 @@ Shell::Shell() {
 void Shell::handleLine(char *bytes) {
   if (!bytes || !strncmp(bytes, "quit", 4)) {
     spdlog::info("Server is shutting down.");
-    // TODO 更优雅的关机
-    std::exit(0);
+    Server::instance().stop();
     done = true;
     return;
   }

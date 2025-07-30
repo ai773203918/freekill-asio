@@ -104,6 +104,15 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {}, main_io_ctx { ma
   // loop.exec();
 }
 
+RoomThread::~RoomThread() {
+  // if (isRunning()) {
+  //   quit(); wait();
+  // }
+  // delete m_scheduler;
+  io_ctx.stop();
+  m_thread.join();
+}
+
 int RoomThread::id() const {
   return m_id;
 }
@@ -128,7 +137,6 @@ void RoomThread::start() {
       });
 
     io_ctx.run();
-    spdlog::info("Roomthread quitting");
   });
 }
 
@@ -138,13 +146,6 @@ void RoomThread::quit() {
 }
 
 /*
-RoomThread::~RoomThread() {
-  if (isRunning()) {
-    quit(); wait();
-  }
-  delete m_scheduler;
-}
-
 Server *RoomThread::getServer() const {
   return m_server;
 }

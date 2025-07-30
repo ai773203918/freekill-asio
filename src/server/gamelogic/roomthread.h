@@ -37,6 +37,7 @@ public:
   explicit RoomThread(asio::io_context &main_ctx);
   RoomThread(RoomThread &) = delete;
   RoomThread(RoomThread &&) = delete;
+  ~RoomThread();
 
   int id() const;
   asio::io_context &context();
@@ -44,7 +45,6 @@ public:
   void quit();
 
   /*
-  ~RoomThread();
 
   Server *getServer() const;
   bool isFull() const;

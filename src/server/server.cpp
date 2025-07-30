@@ -81,7 +81,7 @@ Server::~Server() {
   delete db;
 
   */
-  server_instance = nullptr;
+  // server_instance = nullptr;
 }
 
 void Server::listen(asio::io_context &io_ctx, asio::ip::tcp::endpoint end) {
@@ -95,6 +95,14 @@ void Server::listen(asio::io_context &io_ctx, asio::ip::tcp::endpoint end) {
     std::bind(&UserManager::processNewConnection, m_user_manager.get(), std::placeholders::_1));
 
   m_socket->listen();
+}
+
+void Server::stop() {
+  main_io_ctx->stop();
+}
+
+void Server::destroy() {
+  server_instance = nullptr;
 }
 
 UserManager &Server::user_manager() {

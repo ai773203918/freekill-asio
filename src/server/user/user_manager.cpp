@@ -169,12 +169,38 @@ void UserManager::setupPlayer(Player &player, bool all_info) {
       std::chrono::system_clock::now().time_since_epoch()).count(),
   }));
 
-  // if (all_info) {
-  //   player->doNotify("SetServerSettings", QCborArray {
-  //         getConfig("motd").toString(),
-  //         QCborValue::fromJsonValue(getConfig("hiddenPacks")),
-  //         getConfig("enableBots").toBool(),
-  //         }.toCborValue().toCbor());
-  // }
+  if (all_info) {
+    auto &conf = Server::instance().config();
+
+    // 经典环节
+    std::string toSend;
+    toSend.reserve(1024);
+    u_char buf[10]; size_t buflen;
+
+    toSend += "\x83"; // array(3)
+
+    // arr[0] = motd
+    buflen = cbor_encode_uint(conf.motd.size(), buf, 10);
+    buf[0] += 0x60;
+    toSend += std::string_view { (char*)buf, buflen };
+    toSend += conf.motd;
+
+    // arr[1] = hiddenPacks
+    buflen = cbor_encode_uint(conf.hiddenPacks.size(), buf, 10);
+    buf[0] += 0x80;
+    toSend += std::string_view { (char*)buf, buflen };
+    for (auto &s : conf.hiddenPacks) {
+      buflen = cbor_encode_uint(s.size(), buf, 10);
+      buf[0] += 0x60;
+      toSend += std::string_view { (char*)buf, buflen };
+      toSend += s;
+    }
+
+    // arr[2] = enableBots
+    buflen = cbor_encode_bool(conf.enableBots, buf, 10);
+    toSend += std::string_view { (char*)buf, buflen };
+
+    player.doNotify("SetServerSettings", toSend);
+  }
 }
 

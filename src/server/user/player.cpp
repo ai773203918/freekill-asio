@@ -7,6 +7,7 @@
 #include "server/room/room_manager.h"
 #include "server/room/roombase.h"
 #include "server/room/room.h"
+#include "server/room/lobby.h"
 #include "network/client_socket.h"
 #include "network/router.h"
 
@@ -126,6 +127,9 @@ int Player::getConnId() const { return connId; }
 
 RoomBase &Player::getRoom() const {
   auto &room_manager = Server::instance().room_manager();
+  if (roomId == 0) {
+    return room_manager.lobby();
+  }
   return *room_manager.findRoom(roomId);
 }
 
@@ -175,7 +179,7 @@ void Player::doNotify(const std::string_view &command, const std::string_view &d
   if (getState() != Player::Online)
     return;
 
-  // spdlog::debug("TX(Room={}): {} {}", roomId, command, toHex(data));
+  spdlog::debug("TX(Room={}): {} {}", roomId, command, toHex(data));
   int type =
       Router::TYPE_NOTIFICATION | Router::SRC_SERVER | Router::DEST_CLIENT;
 
@@ -206,16 +210,15 @@ void Player::set_kicked_callback(std::function<void()> callback) {
 }
 
 void Player::onNotificationGot(const Packet &packet) {
-  // spdlog::debug("RX(Room={}): {} {}", roomId, packet.command, toHex(packet.cborData));
+  spdlog::debug("RX(Room={}): {} {}", roomId, packet.command, toHex(packet.cborData));
   if (packet.command == "Heartbeat") {
     alive = true;
     return;
   }
 
   auto &room_manager = Server::instance().room_manager();
-  auto room = room_manager.findRoom(roomId);
-  if (!room) return;
-  room->handlePacket(*this, packet);
+  auto &room = getRoom();
+  room.handlePacket(*this, packet);
 }
 
 void Player::onDisconnected() {

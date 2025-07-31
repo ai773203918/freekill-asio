@@ -16,6 +16,8 @@
 
 #include "core/c-wrapper.h"
 
+#include <cjson/cJSON.h>
+
 static std::unique_ptr<Server> server_instance = nullptr;
 
 Server &Server::instance() {
@@ -29,15 +31,11 @@ Server::Server() : m_socket { nullptr } {
   m_user_manager = std::make_unique<UserManager>();
   m_room_manager = std::make_unique<RoomManager>();
 
+  reloadConfig();
+
   /*
   db = new Sqlite3;
   md5 = calcFileMD5();
-  readConfig();
-
-  auth = new AuthManager(this);
-
-  nextRoomId = 1;
-  m_lobby = new Lobby(this);
 
   // 启动心跳包线程
   auto heartbeatThread = QThread::create([=]() {
@@ -177,40 +175,92 @@ void Server::broadcast(const QByteArray &command, const QByteArray &jsonData) {
     p->doNotify(command, jsonData);
   }
 }
+*/
 
-#define SET_DEFAULT_CONFIG(k, v) do {\
-  if (config.value(k).isUndefined()) { \
-    config[k] = (v); \
-  } } while (0)
-
-void Server::readConfig() {
-  QFile file("freekill.server.config.json");
-  QByteArray json = QByteArrayLiteral("{}");
-  if (file.open(QIODevice::ReadOnly)) {
-    json = file.readAll();
-  }
-  config = QJsonDocument::fromJson(json).object();
-
-  auto whitelist_json = getConfig("whitelist");
-  if (whitelist_json.isArray()) {
-    hasWhitelist = true;
-    whitelist = whitelist_json.toArray().toVariantList();
+void ServerConfig::loadConf(const char* jsonStr) {
+  cJSON* root = cJSON_Parse(jsonStr);
+  if (!root) {
+    spdlog::error("JSON parse error: {}", cJSON_GetErrorPtr());
+    return;
   }
 
-  // defaults
-  SET_DEFAULT_CONFIG("description", "FreeKill Server");
-  SET_DEFAULT_CONFIG("iconUrl", "default");
-  SET_DEFAULT_CONFIG("capacity", 100);
-  SET_DEFAULT_CONFIG("tempBanTime", 20);
-  SET_DEFAULT_CONFIG("motd", "Welcome!");
-  SET_DEFAULT_CONFIG("hiddenPacks", QJsonArray());
-  SET_DEFAULT_CONFIG("enableBots", true);
-  SET_DEFAULT_CONFIG("roomCountPerThread", 2000);
-  SET_DEFAULT_CONFIG("maxPlayersPerDevice", 5);
+  cJSON* item = nullptr;
+
+  if ((item = cJSON_GetObjectItem(root, "banWords")) && cJSON_IsArray(item)) {
+    int size = cJSON_GetArraySize(item);
+    banWords.clear();
+    for (int i = 0; i < size; ++i) {
+      cJSON* word = cJSON_GetArrayItem(item, i);
+      if (cJSON_IsString(word) && word->valuestring) {
+        banWords.push_back(word->valuestring);
+      }
+    }
+  }
+
+  if ((item = cJSON_GetObjectItem(root, "description")) && cJSON_IsString(item) && item->valuestring) {
+    description = item->valuestring;
+  }
+
+  if ((item = cJSON_GetObjectItem(root, "iconUrl")) && cJSON_IsString(item) && item->valuestring) {
+    iconUrl = item->valuestring;
+  }
+
+  if ((item = cJSON_GetObjectItem(root, "capacity")) && cJSON_IsNumber(item)) {
+    capacity = static_cast<int>(item->valuedouble);
+  }
+
+  if ((item = cJSON_GetObjectItem(root, "tempBanTime")) && cJSON_IsNumber(item)) {
+    tempBanTime = static_cast<int>(item->valuedouble);
+  }
+
+  if ((item = cJSON_GetObjectItem(root, "motd")) && cJSON_IsString(item) && item->valuestring) {
+    motd = item->valuestring;
+  }
+
+  if ((item = cJSON_GetObjectItem(root, "hiddenPacks")) && cJSON_IsArray(item)) {
+    int size = cJSON_GetArraySize(item);
+    hiddenPacks.clear();
+    for (int i = 0; i < size; ++i) {
+      cJSON* pack = cJSON_GetArrayItem(item, i);
+      if (cJSON_IsString(pack) && pack->valuestring) {
+        hiddenPacks.push_back(pack->valuestring);
+      }
+    }
+  }
+
+  if ((item = cJSON_GetObjectItem(root, "enableBots")) && cJSON_IsBool(item)) {
+    enableBots = cJSON_IsTrue(item);
+  }
+
+  if ((item = cJSON_GetObjectItem(root, "roomCountPerThread")) && cJSON_IsNumber(item)) {
+    roomCountPerThread = static_cast<int>(item->valuedouble);
+  }
+
+  if ((item = cJSON_GetObjectItem(root, "maxPlayersPerDevice")) && cJSON_IsNumber(item)) {
+    maxPlayersPerDevice = static_cast<int>(item->valuedouble);
+  }
+
+  cJSON_Delete(root);
 }
 
-QJsonValue Server::getConfig(const QString &key) { return config.value(key); }
-*/
+void Server::reloadConfig() {
+  std::string jsonStr = "{}";
+
+  std::ifstream file("freekill.server.config.json", std::ios::binary);
+  if (file.is_open()) {
+    file.seekg(0, std::ios::end);
+    size_t size = file.tellg();
+    jsonStr.resize(size);
+    file.seekg(0, std::ios::beg);
+    file.read(&jsonStr[0], size);
+    file.close();
+  }
+
+  m_config = std::make_unique<ServerConfig>();
+  m_config->loadConf(jsonStr.c_str());
+}
+
+const ServerConfig &Server::config() const { return *m_config; }
 
 bool Server::checkBanWord(const std::string_view &str) {
   // auto arr = getConfig("banwords").toArray();

@@ -703,7 +703,7 @@ void Room::quitRoom(Player &player, const Packet &) {
 }
 
 void Room::addRobotRequest(Player &player, const Packet &) {
-  // if (ServerInstance->getConfig("enableBots").toBool())
+  if (Server::instance().config().enableBots)
     addRobot(player);
 }
 

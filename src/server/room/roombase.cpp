@@ -10,7 +10,7 @@
 #include "network/client_socket.h"
 
 bool RoomBase::isLobby() const {
-  return id == 0;
+  return dynamic_cast<const Lobby *>(this) != nullptr;
 }
 
 int RoomBase::getId() const { return id; }

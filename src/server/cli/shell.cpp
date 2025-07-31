@@ -453,7 +453,7 @@ void Shell::unbanUuidCommand(StringList &list) {
 }
 
 void Shell::reloadConfCommand(StringList &) {
-  // ServerInstance->readConfig();
+  Server::instance().reloadConfig();
   spdlog::info("Reloaded server config file.");
 }
 

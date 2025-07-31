@@ -12,12 +12,13 @@ freekill-asio
 因此本项目的所有依赖为：
 
 - std
-- libcbor
 - libasio
+- libcbor
+- cJSON
 - sqlite3
 - libgit2
 - libreadline
-- libspdlog
+- libspdlog (！版本要求较高)
 - libcrypto (OpenSSL)
 
 由于大量copy了FreeKill项目的源码，本项目还是GPLv3协议开源。

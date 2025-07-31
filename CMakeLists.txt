@@ -15,6 +15,7 @@ set(CMAKE_COLOR_DIAGNOSTICS ON)
 find_package(OpenSSL REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(cJSON REQUIRED)
 find_package(PkgConfig)
 pkg_search_module(libgit2 REQUIRED libgit2)
 

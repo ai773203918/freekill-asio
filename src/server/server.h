@@ -13,6 +13,25 @@ class Shell;
 
 using asio::ip::tcp;
 
+struct ServerConfig {
+  std::vector<std::string> banWords;
+  std::string description = "FreeKill Server (non-Qt)";
+  std::string iconUrl = "default";
+  int capacity = 100;
+  int tempBanTime = 0;
+  std::string motd = "Welcome!";
+  std::vector<std::string> hiddenPacks;
+  bool enableBots = true;
+  int roomCountPerThread = 2000;
+  int maxPlayersPerDevice = 1000;
+
+  void loadConf(const char *json);
+
+  ServerConfig() = default;
+  ServerConfig(ServerConfig &) = delete;
+  ServerConfig(ServerConfig &&) = delete;
+};
+
 class Server {
 public:
   static Server &instance();
@@ -42,9 +61,10 @@ public:
 
   void broadcast(const QByteArray &command, const QByteArray &jsonData);
   bool isListening;
-
-  QJsonValue getConfig(const QString &command);
   */
+
+  const ServerConfig &config() const;
+  void reloadConfig();
   bool checkBanWord(const std::string_view &str);
   /*
   void temporarilyBan(int playerId);
@@ -72,6 +92,8 @@ private:
 
   asio::io_context *main_io_ctx = nullptr;
 
+  std::unique_ptr<ServerConfig> m_config;
+
   /*
   QList<QString> temp_banlist;
 
@@ -80,9 +102,6 @@ private:
   QString md5;
 
   QElapsedTimer uptime_counter;
-
-  void readConfig();
-  QJsonObject config;
 
   bool hasWhitelist = false;
   QVariantList whitelist;

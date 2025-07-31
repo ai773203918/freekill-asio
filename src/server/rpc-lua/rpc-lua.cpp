@@ -84,7 +84,7 @@ static void sendParam(asio::posix::stream_descriptor &file, JsonRpcParam &param)
       if (arg >= 0) {
         buflen = cbor_encode_uint(arg, buf, 10);
       } else {
-        buflen = cbor_encode_negint(arg, buf, 10);
+        buflen = cbor_encode_negint(-1-arg, buf, 10);
       }
       file.write_some(asio::const_buffer(buf, buflen));
     } else if constexpr (std::is_same_v<T, std::string_view> || std::is_same_v<T, std::string>) {

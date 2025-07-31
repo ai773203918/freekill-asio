@@ -106,18 +106,21 @@ AuthManager::AuthManager() {
     public_key = ss.str();
   }
 
-  cbor_item_t *cb = cbor_build_bytestring((cbor_data)public_key.c_str(), public_key.size());
-  cbor_serialize_alloc(cb, &public_key_cbor_buf, &public_key_cbor_bufsize);
-  cbor_decref(&cb);
+  public_key_cbor.clear();
+  public_key_cbor.reserve(550);
+  u_char buf[10]; size_t buflen;
+  buflen = cbor_encode_uint(public_key.size(), buf, 10);
+  buf[0] += 0x40;
+
+  public_key_cbor = std::string { (char*)buf, buflen } + public_key;
 }
 
 AuthManager::~AuthManager() noexcept {
   // delete p_ptr;
-  free(public_key_cbor_buf);
 }
 
 std::string_view AuthManager::getPublicKeyCbor() const {
-  return { (char *)public_key_cbor_buf, public_key_cbor_bufsize };
+  return public_key_cbor;
 }
 
 void AuthManager::processNewConnection(std::shared_ptr<ClientSocket> conn, Packet &packet) {

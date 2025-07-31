@@ -3,6 +3,7 @@
 #include "c-wrapper.h"
 #include <sqlite3.h>
 #include <spdlog/spdlog.h>
+#include "util.h"
 
 Sqlite3::Sqlite3(const char *filename, const char *initSql) {
   std::ifstream file { initSql, std::ios_base::in };
@@ -136,40 +137,46 @@ std::string Cbor::encodeArray(std::initializer_list<std::variant<
                               int, unsigned int, int64_t, uint64_t,
                               std::string_view, const char*, bool>> items) {
 
-  cbor_item_t* array = cbor_new_definite_array(items.size());
-  if (!array) {
-    throw std::runtime_error("Failed to create CBOR array");
-  }
+  std::string ret;
+  ret.reserve(items.size() * 128);
+  u_char buf[10]; size_t buflen;
+
+  // 经典array(n)起手
+  buflen = cbor_encode_uint(items.size(), buf, 10);
+  buf[0] += 0x80;
+  ret += std::string_view { (char*)buf, buflen };
 
   size_t i = 0;
   for (const auto& item : items) {
-    cbor_item_t* cbor_item = std::visit([](auto&& arg) {
-      return build_cbor_item(arg);
+    std::visit([&](auto&& arg) {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, int> || std::is_same_v<T, int64_t> ||
+        std::is_same_v<T, unsigned int> || std::is_same_v<T, uint64_t>
+      ) {
+        if (arg >= 0) {
+          buflen = cbor_encode_uint(arg, buf, 10);
+        } else {
+          buflen = cbor_encode_negint(-1-arg, buf, 10);
+        }
+        ret += std::string_view { (char*)buf, buflen };
+      } else if constexpr (std::is_same_v<T, std::string_view>) {
+        buflen = cbor_encode_uint(arg.size(), buf, 10);
+        buf[0] += 0x40;
+        ret += std::string_view { (char*)buf, buflen };
+        ret += arg;
+      } else if constexpr (std::is_same_v<T, const char*>) {
+        buflen = cbor_encode_uint(strlen(arg), buf, 10);
+        buf[0] += 0x60;
+        ret += std::string_view { (char*)buf, buflen };
+        ret += arg;
+      } else if constexpr (std::is_same_v<T, bool>) {
+        ret += arg ? "\xF5" : "\xF4";
+      }
+
     }, item);
-
-    if (!cbor_item || !cbor_array_set(array, i, cbor_item)) {
-      cbor_decref(&array);
-      if (cbor_item) cbor_decref(&cbor_item);
-      throw std::runtime_error("Failed to add item to CBOR array");
-    }
-    cbor_decref(&cbor_item);
-    i++;
   }
 
-  size_t buffer_size;
-  unsigned char* buffer = nullptr;
-  size_t serialized = cbor_serialize_alloc(array, &buffer, &buffer_size);
-  cbor_decref(&array);
-
-  if (serialized == 0) {
-    free(buffer);
-    throw std::runtime_error("Failed to serialize CBOR data");
-  }
-
-  std::string result(reinterpret_cast<char*>(buffer), buffer_size);
-  free(buffer);
-
-  return result;
+  return ret;
 }
 
 cbor_callbacks Cbor::intCallbacks = cbor_empty_callbacks;

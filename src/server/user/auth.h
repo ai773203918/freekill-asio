@@ -22,8 +22,7 @@ public:
   void processNewConnection(std::shared_ptr<ClientSocket> conn, Packet &packet);
 
 private:
-  unsigned char *public_key_cbor_buf;
-  size_t public_key_cbor_bufsize;
+  std::string public_key_cbor;
   std::unique_ptr<AuthManagerPrivate> p_ptr;
 
   bool loadSetupData(Packet &packet);

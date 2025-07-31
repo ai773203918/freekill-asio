@@ -55,6 +55,7 @@ public:
   void removeThread(int threadId);
   RoomThread *getThread(int threadId);
   RoomThread &getAvailableThread();
+  std::thread::id mainThreadId() const;
 
   /*
   Sqlite3 *getDatabase();
@@ -91,6 +92,7 @@ private:
   std::unique_ptr<Shell> m_shell;
 
   asio::io_context *main_io_ctx = nullptr;
+  std::thread::id main_thread_id;
 
   std::unique_ptr<ServerConfig> m_config;
 

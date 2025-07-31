@@ -149,10 +149,6 @@ bool RoomThread::isFull() const {
 
 QString RoomThread::getMd5() const { return md5; }
 
-Room *RoomThread::getRoom(int id) const {
-  return m_server->findRoom(id);
-}
-
 bool RoomThread::isOutdated() {
   bool ret = md5 != m_server->getMd5();
   if (ret) {
@@ -161,19 +157,5 @@ bool RoomThread::isOutdated() {
     md5 = QStringLiteral("");
   }
   return ret;
-}
-
-LuaInterface *RoomThread::getLua() const {
-  return m_scheduler->getLua();
-}
-
-void RoomThread::onRoomAbandoned() {
-  auto room = qobject_cast<Room *>(sender());
-
-  if (room->getRefCount() == 0) {
-    room->deleteLater();
-  } else {
-    wakeUp(room->getId(), "abandon");
-  }
 }
 */

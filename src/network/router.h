@@ -31,7 +31,6 @@ public:
 
   ClientSocket *getSocket() const;
   void setSocket(ClientSocket *socket);
-  void removeSocket();
 
   // signal connectors
   void set_reply_ready_callback(std::function<void()> callback);

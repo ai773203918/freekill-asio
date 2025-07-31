@@ -298,6 +298,7 @@ static _rpcRet _rpc_Room_updateGeneralWinRate(const JsonRpcPacket &packet) {
     return { false, "Room not found"sv };
   }
 
+  // TODO
   // room->updateGeneralWinRate(general, mode, role, result);
 
   return { true, nullVal };
@@ -316,7 +317,7 @@ static _rpcRet _rpc_Room_gameOver(const JsonRpcPacket &packet) {
     return { false, "Room not found"sv };
   }
 
-  // room->gameOver();
+  room->gameOver();
 
   return { true, nullVal };
 }
@@ -376,8 +377,7 @@ static _rpcRet _rpc_Room_increaseRefCount(const JsonRpcPacket &packet) {
     return { false, "Room not found"sv };
   }
 
-  // TODO
-  // room->increaseRefCount();
+  room->increaseRefCount();
 
   return { true, nullVal };
 }
@@ -395,8 +395,7 @@ static _rpcRet _rpc_Room_decreaseRefCount(const JsonRpcPacket &packet) {
     return { false, "Room not found"sv };
   }
 
-  // TODO
-  // room->decreaseRefCount();
+  room->decreaseRefCount();
 
   return { true, nullVal };
 }

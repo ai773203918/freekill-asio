@@ -37,10 +37,6 @@ void Router::setSocket(ClientSocket *socket) {
   }
 }
 
-void Router::removeSocket() {
-  socket = nullptr;
-}
-
 void Router::set_reply_ready_callback(std::function<void()> callback) {
   reply_ready_callback = std::move(callback);
 }

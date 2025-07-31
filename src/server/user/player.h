@@ -87,6 +87,7 @@ public:
   void onReadyChanged();
   void onDisconnected();
 
+  Router &getRouter();
   /*
   void kick();
   void reconnect(ClientSocket *socket);

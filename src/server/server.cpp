@@ -17,6 +17,7 @@
 #include "core/c-wrapper.h"
 
 #include <cjson/cJSON.h>
+#include <thread>
 
 static std::unique_ptr<Server> server_instance = nullptr;
 
@@ -30,6 +31,8 @@ Server &Server::instance() {
 Server::Server() : m_socket { nullptr } {
   m_user_manager = std::make_unique<UserManager>();
   m_room_manager = std::make_unique<RoomManager>();
+
+  main_thread_id = std::this_thread::get_id();
 
   reloadConfig();
 
@@ -164,6 +167,10 @@ RoomThread &Server::getAvailableThread() {
   }
 
   return createThread();
+}
+
+std::thread::id Server::mainThreadId() const {
+  return main_thread_id;
 }
 
 /*

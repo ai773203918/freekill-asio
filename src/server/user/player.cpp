@@ -37,7 +37,7 @@ Player::Player() {
 }
 
 Player::~Player() {
-  spdlog::debug("Player {} destructed", id);
+  spdlog::debug("Player {} ({}) destructed", id, getStateString());
 }
 
 int Player::getId() const { return id; }
@@ -241,51 +241,22 @@ void Player::onDisconnected() {
         return;
       }
       if (thinking()) {
-        // TODO
-        auto &thread = Server::instance().getAvailableThread();
-        thread.wakeUp(room->getId(), "player_disconnect");
+        auto thread = room->thread();
+        thread->wakeUp(room->getId(), "player_disconnect");
       }
       setState(Player::Offline);
       m_router->setSocket(nullptr);
       // TODO: add a robot
     } else {
-      // 下面注释说的不错但我现在还没到开始游戏那一步
       room->removePlayer(*this);
       um.deletePlayer(*this);
-      // // 这里有一个多线程问题，可能与Room::gameOver同时deleteLater导致出事
-      // // FIXME: 这种解法肯定不安全
-      // if (!room->insideGameOver)
-      //   deleteLater();
     }
   }
 }
 
+Router &Player::getRouter() { return *m_router; }
+
 /*
- *
-Player::~Player() {
-  // 机器人直接被Room删除了
-  if (getId() < 0) return;
-
-  // 真人的话 需要先退出房间，再退出大厅
-  room->removePlayer(this);
-  if (room != nullptr) {
-    room->removePlayer(this);
-  }
-
-  // 最后服务器删除他
-  if (server->findPlayer(getId()) == this)
-    server->removePlayer(getId());
-
-  server->removePlayerByConnId(connId);
-}
-
-// 处理跑路玩家专用，就单纯把socket置为null
-// 因为后面还会用到socket所以不删除
-void Player::removeSocket() {
-  socket->disconnect(this);
-  socket = nullptr;
-  router->removeSocket();
-}
 
 void Player::kick() {
   setState(Player::Offline);
@@ -340,9 +311,9 @@ void Player::onReplyReady() {
   setThinking(false);
   auto &room_ = getRoom();
   if (!room_.isLobby()) {
-    // TODO 完善thread逻辑
-    auto &thread = Server::instance().getAvailableThread();
-    thread.wakeUp(room_.getId(), "reply");
+    auto room = dynamic_cast<Room *>(&room_);
+    auto thread = room->thread();
+    thread->wakeUp(room_.getId(), "reply");
   }
 }
 
@@ -352,9 +323,8 @@ void Player::onStateChanged() {
   auto room = dynamic_cast<Room *>(&_room);
   if (room->hasObserver(*this)) return;
 
-  // TODO 完善thread逻辑
-  auto &thread = Server::instance().getAvailableThread();
-  thread.setPlayerState(connId, room->getId());
+  auto thread = room->thread();
+  thread->setPlayerState(connId, room->getId());
 
   if (room->isAbandoned()) return;
 

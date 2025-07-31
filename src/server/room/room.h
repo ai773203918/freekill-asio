@@ -54,14 +54,20 @@ public:
   bool isOutdated();
 
   bool isStarted() const;
+
+  RoomThread *thread() const;
+  void setThread(RoomThread &);
+
+  void checkAbandoned();
+
   // ====================================}
 
   /*
   void updatePlayerWinRate(int id, const QString &mode, const QString &role, int result);
   void updateGeneralWinRate(const QString &general, const QString &mode, const QString &role, int result);
+  */
 
   void gameOver();
-  */
   void manuallyStart();
   void pushRequest(const std::string &req);
 
@@ -70,14 +76,8 @@ public:
   bool isRejected(Player &) const;
 
   // router用
-
   void setRequestTimer(int ms);
   void destroyRequestTimer();
-
-  /*
-  // FIXME
-  volatile bool insideGameOver = false;
-  */
 
   // Lua专用
   int getRefCount();
@@ -86,7 +86,6 @@ public:
 
   /*
  signals:
-  void abandoned();
 
   void playerAdded(Player *player);
   void playerRemoved(Player *player);
@@ -113,7 +112,6 @@ private:
   std::vector<int> rejected_players;
 
   bool gameStarted = false;
-  bool m_ready = false;
 
   int timeout = 0;
   // QString md5;
@@ -122,6 +120,18 @@ private:
   std::mutex lua_ref_mutex;
 
   std::unique_ptr<asio::steady_timer> request_timer = nullptr;
+
+  class GameSession {
+  public:
+    explicit GameSession(Room &r);
+    GameSession(GameSession &) = delete;
+    GameSession(GameSession &&) = delete;
+    ~GameSession();
+
+  private:
+    Room &room;
+  };
+  std::unique_ptr<GameSession> m_session;
 
   void addRunRate(int id, const std::string_view &mode);
   void updatePlayerGameData(int id, const std::string_view &mode);

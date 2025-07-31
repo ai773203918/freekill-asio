@@ -87,11 +87,9 @@ Server::~Server() {
   // server_instance = nullptr;
 }
 
-void Server::listen(asio::io_context &io_ctx, asio::ip::tcp::endpoint end) {
+void Server::listen(asio::io_context &io_ctx, asio::ip::tcp::endpoint end, asio::ip::udp::endpoint uend) {
   main_io_ctx = &io_ctx;
-  m_socket = std::make_unique<ServerSocket>(io_ctx, end);
-
-  createThread();
+  m_socket = std::make_unique<ServerSocket>(io_ctx, end, uend);
 
   m_shell = std::make_unique<Shell>();
   m_shell->start();
@@ -101,6 +99,7 @@ void Server::listen(asio::io_context &io_ctx, asio::ip::tcp::endpoint end) {
     std::bind(&UserManager::processNewConnection, m_user_manager.get(), std::placeholders::_1));
 
   m_socket->listen();
+  m_socket->listen_udp();
 }
 
 void Server::stop() {

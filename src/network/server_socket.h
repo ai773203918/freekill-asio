@@ -3,6 +3,7 @@
 #pragma once
 
 using asio::ip::tcp;
+using asio::ip::udp;
 
 class ClientSocket;
 
@@ -11,9 +12,10 @@ public:
   ServerSocket() = delete;
   ServerSocket(ServerSocket &) = delete;
   ServerSocket(ServerSocket &&) = delete;
-  ServerSocket(asio::io_context &io_ctx, tcp::endpoint end);
+  ServerSocket(asio::io_context &io_ctx, tcp::endpoint end, udp::endpoint udpEnd);
 
   void listen();
+  void listen_udp();
 
   // signal connectors
   void set_new_connection_callback(std::function<void(std::shared_ptr<ClientSocket>)>);
@@ -21,14 +23,14 @@ public:
 private:
   asio::io_context &io_ctx;
   tcp::acceptor m_acceptor;
+  udp::socket m_udp_socket;
+
+  udp::endpoint udp_remote_end;
+  std::array<char, 128> udp_recv_buffer;
 
   // signals
   std::function<void(std::shared_ptr<ClientSocket>)> new_connection_callback;
 
-  /* TODO: udp
-  QUdpSocket *udpSocket;
-
-  void processDatagram(const QByteArray &msg, const QHostAddress &addr, uint port);
-  void readPendingDatagrams();
-  */
+  // void processDatagram(const QByteArray &msg, const QHostAddress &addr, uint port);
+  // void readPendingDatagrams();
 };

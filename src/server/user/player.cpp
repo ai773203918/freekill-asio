@@ -25,9 +25,6 @@ Player::Player() {
     std::bind(&Player::onReplyReady, this));
 
   roomId = 0;
-  // connect(this, &Player::kicked, this, &Player::kick);
-  // connect(this, &Player::stateChanged, this, &Player::onStateChanged);
-  // connect(this, &Player::readyChanged, this, &Player::onReadyChanged);
 
   connId = nextConnId++;
   if (nextConnId >= 0x7FFFFF00) nextConnId = 1000;
@@ -197,18 +194,6 @@ void Player::setThinking(bool t) {
   m_thinking = t;
 }
 
-void Player::set_state_changed_callback(std::function<void()> callback) {
-  state_changed_callback = std::move(callback);
-}
-
-void Player::set_ready_changed_callback(std::function<void()> callback) {
-  ready_changed_callback = std::move(callback);
-}
-
-void Player::set_kicked_callback(std::function<void()> callback) {
-  kicked_callback = std::move(callback);
-}
-
 void Player::onNotificationGot(const Packet &packet) {
   spdlog::debug("RX(Room={}): {} {}", roomId, packet.command, toHex(packet.cborData));
   if (packet.command == "Heartbeat") {
@@ -256,39 +241,56 @@ void Player::onDisconnected() {
 
 Router &Player::getRouter() { return *m_router; }
 
-/*
-
 void Player::kick() {
   setState(Player::Offline);
-  if (socket != nullptr) {
-    socket->disconnectFromHost();
+  if (m_router->getSocket() != nullptr) {
+    m_router->getSocket()->disconnectFromHost();
   } else {
     // 还是得走一遍这个流程才行
     onDisconnected();
   }
-  setSocket(nullptr);
+  m_router->setSocket(nullptr);
+}
+
+void Player::emitKicked() {
+  auto &s = Server::instance();
+  if (std::this_thread::get_id() != s.mainThreadId()) {
+    auto &ctx = Server::instance().context();
+
+    auto p = std::promise<bool>();
+    auto f = p.get_future();
+    asio::post(ctx, [this, &p](){
+      kick();
+      p.set_value(true);
+    });
+    f.wait();
+  } else {
+    kick();
+  }
 }
 
 void Player::reconnect(ClientSocket *client) {
-  if (server->getPlayers().count() <= 10) {
-    server->broadcast("ServerMessage", tr("%1 backed").arg(getScreenName()).toUtf8());
-  }
+  // if (server->getPlayers().count() <= 10) {
+  //   server->broadcast("ServerMessage", tr("%1 backed").arg(getScreenName()).toUtf8());
+  // }
 
   setState(Player::Online);
-  setSocket(client);
+  m_router->setSocket(client);
   alive = true;
-  // client->disconnect(this);
 
-  if (room && !room->isLobby()) {
-    server->setupPlayer(this, true);
-    qobject_cast<Room *>(room)->pushRequest(std::string("%1,reconnect").arg(getId()));
+  auto &room_ = getRoom();
+  if (!room_.isLobby()) {
+    Server::instance().user_manager().setupPlayer(*this, true);
+    auto room = dynamic_cast<Room *>(&room_);
+    room->pushRequest(fmt::format("{},reconnect", id));
   } else {
     // 懒得处理掉线玩家在大厅了！踢掉得了
     doNotify("ErrorMsg", "Unknown Error");
-    emit kicked();
+    emitKicked();
   }
 }
 
+/*
 void Player::startGameTimer() {
   gameTime = 0;
   gameTimer.start();

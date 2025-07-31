@@ -636,7 +636,7 @@ Room::GameSession::~GameSession() {
         if (!room.isOutdated()) {
           // server->temporarilyBan(pid);
         } else {
-          // emit p->kicked();
+          p->emitKicked();
         }
       }
       to_delete.push_back(pConnId);
@@ -722,10 +722,12 @@ void Room::quitRoom(Player &player, const Packet &) {
   removePlayer(player);
   auto &rm = Server::instance().room_manager();
   rm.lobby().addPlayer(player);
-  // if (isOutdated()) {
-  //   auto p = server->findPlayer(player->getId());
-  //   if (p) emit p->kicked();
-  // }
+
+  if (isOutdated()) {
+    auto &um = Server::instance().user_manager();
+    auto p = um.findPlayer(player.getId());
+    if (p) p->emitKicked();
+  }
 }
 
 void Room::addRobotRequest(Player &player, const Packet &) {
@@ -771,7 +773,7 @@ void Room::startGame(Player &player, const Packet &) {
       auto p = um.findPlayerByConnId(pid);
       if (!p) continue;
       p->doNotify("ErrorMsg", "room is outdated");
-      // emit p->kicked();
+      p->emitKicked();
     }
   } else {
     manuallyStart();

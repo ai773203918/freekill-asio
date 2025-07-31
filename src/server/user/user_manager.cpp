@@ -121,13 +121,11 @@ void UserManager::createNewPlayer(std::shared_ptr<ClientSocket> client, std::str
   // create new Player and setup
   auto player = std::make_shared<Player>();
   player->router().setSocket(client.get());
-  // player->setParent(this);
-  // client->disconnect(this);
   player->setState(Player::Online);
-  player->setScreenName(name.data());
-  player->setAvatar(avatar.data());
+  player->setScreenName(std::string(name));
+  player->setAvatar(std::string(avatar));
   player->setId(id);
-  player->setUuid(uuid_str.data());
+  player->setUuid(std::string(uuid_str));
   // if (players.count() <= 10) {
   //   broadcast("ServerMessage", tr("%1 logged in").arg(player->getScreenName()).toUtf8());
   // }

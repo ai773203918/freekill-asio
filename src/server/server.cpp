@@ -17,7 +17,6 @@
 #include "core/c-wrapper.h"
 
 #include <cjson/cJSON.h>
-#include <thread>
 
 static std::unique_ptr<Server> server_instance = nullptr;
 
@@ -34,12 +33,11 @@ Server::Server() : m_socket { nullptr } {
 
   main_thread_id = std::this_thread::get_id();
 
+  db = std::make_unique<Sqlite3>();
+
   reloadConfig();
 
-  db = std::unique_ptr<Sqlite3>(new Sqlite3);
-
   /*
-  db = new Sqlite3;
   md5 = calcFileMD5();
 
   // 启动心跳包线程
@@ -313,6 +311,7 @@ void Server::temporarilyBan(int playerId) {
       });
   emit player->kicked();
 }
+*/
 
 void Server::beginTransaction() {
   transaction_mutex.lock();
@@ -324,6 +323,7 @@ void Server::endTransaction() {
   transaction_mutex.unlock();
 }
 
+/*
 const QString &Server::getMd5() const {
   return md5;
 }
@@ -358,9 +358,10 @@ qint64 Server::getUptime() const {
   if (!uptime_counter.isValid()) return 0;
   return uptime_counter.elapsed();
 }
-
-bool Server::nameIsInWhiteList(const QString &name) const {
-  if (!hasWhitelist) return true;
-  return whitelist.length() > 0 && whitelist.contains(name);
-}
 */
+
+bool Server::nameIsInWhiteList(const std::string_view &name) const {
+  // if (!hasWhitelist) return true;
+  // return whitelist.length() > 0 && whitelist.contains(name);
+  return true;
+}

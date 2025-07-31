@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#ifndef _AUTH_H
-#define _AUTH_H
+#pragma once
 
 class Server;
 class Sqlite3;
@@ -25,16 +24,14 @@ private:
   std::string public_key_cbor;
   std::unique_ptr<AuthManagerPrivate> p_ptr;
 
-  bool loadSetupData(Packet &packet);
+  bool loadSetupData(const Packet &packet);
   bool checkVersion();
 
   bool checkIfUuidNotBanned();
   bool checkMd5();
+
   std::map<std::string, std::string> checkPassword();
-  std::map<std::string, std::string> queryUserInfo(const std::string &decrypted_pw);
+  std::map<std::string, std::string> queryUserInfo(const std::string_view &decrypted_pw);
 
   void updateUserLoginData(int id);
-
 };
-
-#endif // _AUTH_H

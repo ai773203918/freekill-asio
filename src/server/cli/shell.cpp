@@ -221,18 +221,16 @@ void Shell::kickCommand(StringList &list) {
     return;
   }
 
-  /*
   auto pid = list[0];
   bool ok;
-  int id = pid.toInt(&ok);
+  int id = std::stoi(pid);
   if (!ok)
     return;
 
-  auto p = ServerInstance->findPlayer(id);
+  auto p = Server::instance().user_manager().findPlayer(id);
   if (p) {
-    p->kicked();
+    p->emitKicked();
   }
-  */
 }
 
 void Shell::msgCommand(StringList &list) {

@@ -40,6 +40,7 @@
 #include <chrono>
 #include <filesystem>
 #include <regex>
+#include <random>
 
 // spdlog
 #include <spdlog/spdlog.h>

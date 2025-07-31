@@ -614,6 +614,7 @@ Room::GameSession::~GameSession() {
   auto &um = Server::instance().user_manager();
   for (auto pConnId : room.players) {
     auto p = um.findPlayerByConnId(pConnId);
+    if (!p) continue;
 
     /* 计时相关 再说
     if (pid > 0) {

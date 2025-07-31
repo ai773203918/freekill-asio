@@ -1,171 +1,107 @@
 freekill-asio
-===============
+==============
 
-还就是那个C++的新月杀服务端，但是：
+![](https://img.shields.io/github/repo-size/Qsgs-Fans/freekill-asio?color=green)
+![](https://img.shields.io/github/languages/top/Qsgs-Fans/freekill-asio?color=red)
+![](https://img.shields.io/github/license/Qsgs-Fans/freekill-asio)
+![](https://img.shields.io/github/v/tag/Qsgs-Fans/freekill-asio)
+![](https://img.shields.io/github/issues/Qsgs-Fans/freekill-asio)
+[![Discord](https://img.shields.io/badge/chat-discord-blue)](https://discord.gg/tp35GrQR6v)
+![](https://img.shields.io/github/stars/Qsgs-Fans/freekill-asio?style=social)
 
-- Qt不是面向服务端的库，直接踹了
-- SWIG不需要了，本服务端必须使用rpc与Lua通信
-- 跨平台不需要了，专为Linux服务端编写
+freekill-asio是一个移除了Qt依赖的freekill服务端，力求不浪费服务器的性能。
 
-没有了Qt，我们引入asio库和libcbor。选择它们的原因是因为Debian包管理器里面有。
+构建运行
+-----------
 
-因此本项目的所有依赖为：
+本服务端只支持Linux，且至少需要Debian11(需要至少g++ 10.2，用到了一些C++20特性)。推荐用尽可能新的版本。
 
-- std
-- libasio
-- libcbor
-- cJSON
-- sqlite3
-- libgit2
-- libreadline
-- libspdlog (！版本要求较高)
-- libcrypto (OpenSSL)
+### 安装依赖
 
-由于大量copy了FreeKill项目的源码，本项目还是GPLv3协议开源。
+**Debian 13:**
 
-构建与运行
-------------
-
-__________________
-
-重构的规划
--------------
-
-### 单线程内的信号槽替换方案
-
-单一线程中emit信号就是直接调用槽函数。直接改成普通的函数调用。
-
-具体而言：
-
-- 将signal全部改成`<sig_name>_callback`
-- 将`QObject::connect`全部改成`set_<sig_name>_callback`
-
-### 多线程之间信号槽替换方案
-
-原本FreeKill服务端主要是两个线程，线程之间通过Qt信号槽处理，具体而言：
-
-场景1:主线程告诉thread有消息可读
-
-- 主线程处理完数据后，emit某个signal（主线程不阻塞）
-- 因为slot在另一个线程，那个signal及其参数置入某个Qt消息队列
-- 另一个thread完成dispatcher返回poll中时，发现有信号，于是不断处理它们
-
-```cpp
-Mutex mutex = 1;
-Semaphore full = 0;
-Queue msgqueue;
-
-// 主线程
-void sendSignal(auto msg) {
-    P(mutex);
-    msgqueue.enqueue(msg);
-    V(mutex);
-
-    V(full);
-}
-
-// 子线程的任务就是不断等待
-void thread_main() {
-    while (true) {
-        P(full);
-
-        P(mutex);
-        auto msg = msgqueue.dequeue();
-        V(mutex);
-
-        handle(msg);
-    }
-}
+```sh
+$ sudo apt install git g++ cmake pkg-config
+$ sudo apt install libasio-dev libssl-dev libcbor-dev libcjson-dev libsqlite3-dev libgit2-dev libreadline-dev libspdlog-dev
 ```
 
-但是这是直接基于std的做法，而我们最好要能用到asio的设施（尤其是异步计时器，实现QTimer行为），因此需要针对asio库的情况重新设计一下新线程的实现。
+其余版本较新的发行版（如Arch、Kali等）安装依赖方式与此大同小异。
 
-```cpp
-void thread_main() {
-    // 这个io_context相当于Qt中创建新的EventLoop
-    // 表示我们新线程是一个单独的处理循环 而非线程池的一分子
-    // 实际中可能是一个对象成员
-    io_context io_ctx2;
+**Debian 12:**
 
-    io_ctx2.run();
-}
+推荐将整个系统升级到Debian 13，或者按下面所述单独手动编译安装spdlog，因为对spdlog库版本要求稍微较高：
 
-// 主线程向子线程传递信号
-// ...
-asio::post(io_ctx2 /*, <lambda> */);
+```sh
+$ sudo apt install git g++ cmake pkg-config
+$ sudo apt install libasio-dev libssl-dev libcbor-dev libcjson-dev libsqlite3-dev libgit2-dev libreadline-dev
 
+$ git clone https://github.com/gabime/spdlog.git
+$ cd spdlog && mkdir build && cd build
+$ cmake .. && cmake --build .
+$ sudo cmake --install .
 ```
 
-场景2:thread想要向socket写数据，必须交给主线程完成
+### 另外安装Lua的依赖
 
-这个一般用于thread想要通过socket发信息的问题。直接post的话会把内容塞到内部某个队列中，
-若不等待的话可能导致向已关闭的socket发信息，在asio这边就不是warning而是直接抛异常了，必须阻塞。
+freekill-asio并不直接将Lua嵌入到自己执行，而是将Lua作为子进程执行，这需要系统安装了lua5.4。
 
-- 另一个thread发出send信号。
-- 另一个thread发出信号后进入阻塞状态。
-- 主线程回到poll后发现有信号，于是进行写入。
-- 主线程告诉thread写入完毕，thread退出阻塞。
+**Debian 12, 13:**
 
-可能可以基于std里面的promise-future以及asio::post实现异步等待与跨线程发信号
-
-```cpp
-// ... 假设在Router::sendMessage中
-if (i_am_main_thread) {
-    socket->send( { msg.data(), msg.size() } );
-} else {
-    std::promise<bool> p;
-    auto f = p.get_future();
-
-    asio::post(main_io_context, [&](){
-        socket->send( /* ... */ );
-        p.set_value(true);
-    });
-
-    f.get();
-}
+```sh
+$ sudo apt install lua5.4 lua-socket lua-filesystem
 ```
 
-从以上两个伪代码可以看出需要再实现这两点：
+因为历史遗留原因Lua还另外有个Qt依赖（绝望），需要手动安装：
 
-- 可以判断当前线程是否为主线程
-- 可以拿到当前线程对应的io_context
+```sh
+$ sudo apt install qt6-base-dev liblua5.4-dev
 
-场景3:基于锁的临界区访问
-
-这个一般是基于QMutex确保这个变量同时只会被一个进程读写。
-
-直接用std::mutex平替即可
-
-做起来好像也不是那么痛苦，为数不多比较像人的地方
-
-### Qt基础设施替换方案
-
-没什么好说的，大部分可以用STL平替，但是freekill中Qt设施用的实在太多，换起来会非常痛苦。
-
-#### QTimer
-
-见于Room中设置Timer与取消Timer，用于Lua中实现delay以及携带一个超时等待用户答复。
-
-```cpp
-// setRequestTimer
-request_timer = asio::steady_timer(io_ctx2);
-request_timer.expires_after(std::chrono::milliseconds(ms));
-request_timer.async_wait([&](){ /* 唤起房间... */ });
-
-// destroyRequestTimer
-request_timer.cancel();
+$ git clone https://github.com/Qsgs-Fans/freekill-asio.git
+$ cd freekill-asio && cd qrandom
+$ make
+$ sudo make install
 ```
 
-#### QProcess
+（不推荐）Debian11由于无法安装Qt6Core，可以改安装`qtbase5-dev`包，并将qrandom/Makefile中所有的Qt6全部替换为Qt5，然后照常编译安装。其是否能正确执行无法保证。
 
-见于RoomThread中通过stdio (piped) 与Lua子进程进行rpc通信的场景。
+不想sudo make install的话，详见qrandom文件夹下的README解决。
 
-可惜的是std和无boost的asio并没有对子进程的支持。但我们是Linux专用，因此子进程的创建可以用系统调用来做，我们要读的stdout, stderr和要写的stdin自己手动弄个基于文件描述符的、asio包装过的。
+### 构建
 
-- 父进程要维护子进程的pid，在析构时杀掉子进程
-- 父进程要维护子进程的文件描述符（通过`asio::posix::stream_descriptor(io_ctx2, ::dup(fd))`包装）
-- 包装后通过`read_some`和`write_some`实现阻塞式的读写
+上文安装Lua依赖时已经clone过仓库了，下面需要在仓库的根目录下执行：
 
-```cpp
+```sh
+$ mkdir build && cd build
+$ cmake ..
+$ make
+```
+
+### 运行
+
+和Freekill一样，freekill-asio不能直接在build目录下运行，需要在repo目录下运行：
+
+```sh
+$ ln -s build/freekill-asio
+$ ./freekill-asio
+```
+
+这样就启动了freekill-asio服务器，界面与FreeKill类似，但是必须安装freekill-core，否则无法游玩（实际上在原版Freekill服务器撒谎那个这个包也是必须安装的）
 
 ```
+[freekill-asio v0.0.1] Welcome to CLI. Enter 'help' for usage hints.
+fk-asio> install https://gitee.com/Qsgs-Fans/freekill-core
+```
+
+然后如同普通的FreeKill服务器一样安装其他需要的包即可。
+
+平台支持
+-----------
+
+仅测试过Linux (GCC 10+)
+
+- Linux (Debian 12+, Arch)
+
+开源许可
+-----------
+
+本项目是基于FreeKill的源码重新开发的，依照GPL协议继续使用GPLv3许可。

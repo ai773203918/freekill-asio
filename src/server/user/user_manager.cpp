@@ -57,12 +57,13 @@ void UserManager::addPlayer(std::shared_ptr<Player> player) {
 }
 
 void UserManager::deletePlayer(Player &p) {
-  removePlayer(p.getId());
+  removePlayer(p, p.getId());
   removePlayerByConnId(p.getConnId());
 }
 
-void UserManager::removePlayer(int id) {
-  if (online_players_map.find(id) != online_players_map.end()) {
+void UserManager::removePlayer(Player &p, int id) {
+  if (online_players_map.find(id) != online_players_map.end() &&
+    online_players_map[id].get() == &p) {
     online_players_map.erase(id);
   }
   if (robots_map.find(id) != robots_map.end()) {

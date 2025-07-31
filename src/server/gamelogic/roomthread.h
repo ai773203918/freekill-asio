@@ -51,9 +51,6 @@ private:
 
   std::vector<int> m_rooms;
 
-  // 缺少一个Qt家的全局timer 必须自己维护一个
-  asio::steady_timer timer;
-
   std::unique_ptr<RpcLua> L;
 
   void start();

@@ -49,7 +49,7 @@ static _rpcRet _rpc_qCritical(const JsonRpcPacket &packet) {
     return { false, nullVal };
   }
 
-  spdlog::critical("{}", std::get<std::string_view>(packet.param1));
+  spdlog::error("{}", std::get<std::string_view>(packet.param1));
   return { true, nullVal };
 }
 

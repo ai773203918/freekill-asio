@@ -235,23 +235,23 @@ void Player::onDisconnected() {
   } else {
     auto room = dynamic_cast<Room *>(&_room);
     if (room->isStarted()) {
-      // if (room->hasObserver(*this)) {
-      //   room->removeObserver(*this);
-      //   deleteLater();
-      //   return;
-      // }
-      // if (thinking()) {
-      //   auto thread = qobject_cast<RoomThread *>(room->parent());
-      //   thread->wakeUp(room->getId(), "player_disconnect");
-      // }
-      // setState(Player::Offline);
-      // setSocket(nullptr);
+      if (room->hasObserver(*this)) {
+        room->removeObserver(*this);
+        um.deletePlayer(*this);
+        return;
+      }
+      if (thinking()) {
+        // TODO
+        auto &thread = Server::instance().getAvailableThread();
+        thread.wakeUp(room->getId(), "player_disconnect");
+      }
+      setState(Player::Offline);
+      m_router->setSocket(nullptr);
       // TODO: add a robot
     } else {
       // 下面注释说的不错但我现在还没到开始游戏那一步
       room->removePlayer(*this);
       um.deletePlayer(*this);
-      // setState(Player::Robot); // 大厅！然而又不能设Offline
       // // 这里有一个多线程问题，可能与Room::gameOver同时deleteLater导致出事
       // // FIXME: 这种解法肯定不安全
       // if (!room->insideGameOver)

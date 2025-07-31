@@ -23,8 +23,8 @@ ClientSocket *Router::getSocket() const { return socket; }
 
 void Router::setSocket(ClientSocket *socket) {
   if (this->socket != nullptr) {
-    socket->set_message_got_callback([](Packet&){});
-    socket->set_disconnected_callback([](){});
+    this->socket->set_message_got_callback([](Packet&){});
+    this->socket->set_disconnected_callback([](){});
   }
 
   this->socket = nullptr;
@@ -129,6 +129,7 @@ void Router::handlePacket(const Packet &packet) {
 }
 
 void Router::sendMessage(const std::string_view &msg) {
+  if (!socket) return;
   // 根据本文 当发小包时应该可以认为线程安全
   // 具体需要人多点的时候测试
   // https://stackoverflow.com/questions/7362894/boostasiosocket-thread-safety

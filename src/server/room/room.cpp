@@ -146,9 +146,7 @@ void Room::setOwner(Player &owner) {
 
 void Room::addPlayer(Player &player) {
   auto pid = player.getId();
-  if (std::find(rejected_players.begin(), rejected_players.end(), pid)
-    != rejected_players.end()) {
-
+  if (isRejected(player)) {
     player.doNotify("ErrorMsg", "rejected your demand of joining room");
     return;
   }
@@ -323,11 +321,10 @@ void Room::addObserver(Player &player) {
     return;
   }
 
-  // TODO
-  // if (rejected_players.contains(player->getId())) {
-  //   player->doNotify("ErrorMsg", "rejected your demand of joining room");
-  //   return;
-  // }
+  if (isRejected(player)) {
+    player.doNotify("ErrorMsg", "rejected your demand of joining room");
+    return;
+  }
 
   // 向observers中追加player，并从大厅移除player，然后将player的room设为this
   observers.push_back(player.getConnId());
@@ -676,16 +673,21 @@ void Room::pushRequest(const std::string &req) {
   thread.pushRequest(std::format("{},{}", id, req));
 }
 
-/*
 void Room::addRejectId(int id) {
-  rejected_players << id;
+  rejected_players.push_back(id);
 }
 
 void Room::removeRejectId(int id) {
-  rejected_players.removeOne(id);
+  if (auto it = std::find(rejected_players.begin(), rejected_players.end(), id);
+    it != rejected_players.end()) {
+    rejected_players.erase(it);
+  }
 }
 
-*/
+bool Room::isRejected(Player &player) const {
+  return std::find(rejected_players.begin(), rejected_players.end(), player.getId()) != rejected_players.end();
+}
+
 void Room::setPlayerReady(Player &p, bool ready) {
   p.setReady(ready);
   doBroadcastNotify(players, "ReadyChanged", Cbor::encodeArray({ p.getId(), ready }));
@@ -716,15 +718,21 @@ void Room::kickPlayer(Player &player, const Packet &pkt) {
   auto &um = Server::instance().user_manager();
   auto &rm = Server::instance().room_manager();
   auto p = um.findPlayer(i);
-  if (p && !isStarted()) {
+  if (p && p->getRoom().getId() == id &&  !isStarted()) {
     removePlayer(*p);
-    // 这集必须手动控制玩家移除后的去向，不过还是交给lobby吧
     rm.lobby().addPlayer(*p);
-    // TODO 主线程timer
-    // addRejectId(i);
-    // QTimer::singleShot(30000, this, [=]() {
-    //     removeRejectId(i);
-    //     });
+
+    addRejectId(i);
+
+    using namespace std::chrono_literals;
+    auto timer = std::make_shared<asio::steady_timer>(Server::instance().context(), 30000ms);
+    timer->async_wait([this, i, timer](const asio::error_code &ec) {
+      if (!ec) {
+        removeRejectId(i);
+      } else {
+        spdlog::error(ec.message());
+      }
+    });
   }
 }
 
@@ -758,11 +766,10 @@ void Room::handlePacket(Player &sender, const Packet &packet) {
     {"Chat", &Room::chat},
   };
 
-  // TODO
-  // if (packet.command == "PushRequest") {
-  //   pushRequest(QString("%1,").arg(sender->getId()) + jsonData);
-  //   return;
-  // }
+  if (packet.command == "PushRequest") {
+    pushRequest(fmt::format("{},{}", sender.getId(), packet.cborData));
+    return;
+  }
 
   auto iter = room_actions.find(packet.command);
   if (iter != room_actions.end()) {
@@ -784,7 +791,10 @@ void Room::setRequestTimer(int ms) {
     if (!ec) {
       thread.wakeUp(id, "request_timer");
     } else {
-      spdlog::error(ec.message());
+      // 我们本来就会调cancel()并销毁requestTimer，所以aborted的情况很多很多
+      if (ec != asio::error::operation_aborted) {
+        spdlog::error("error in request timer of room {}: {}", id, ec.message());
+      }
     }
   });
 }

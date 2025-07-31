@@ -65,10 +65,9 @@ public:
   void manuallyStart();
   void pushRequest(const std::string &req);
 
-  /*
   void addRejectId(int id);
   void removeRejectId(int id);
-  */
+  bool isRejected(Player &) const;
 
   // router用
 
@@ -109,8 +108,10 @@ private:
   std::string password;
   bool m_abandoned;     // If room is empty, delete it
 
+  // id[]
   std::vector<int> runned_players;
   std::vector<int> rejected_players;
+
   bool gameStarted = false;
   bool m_ready = false;
 

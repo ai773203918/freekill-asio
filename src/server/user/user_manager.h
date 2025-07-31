@@ -16,7 +16,7 @@ public:
   Player *findPlayerByConnId(int connId) const;
   void addPlayer(std::shared_ptr<Player> player);
   void deletePlayer(Player &p);
-  void removePlayer(int id);
+  void removePlayer(Player &p, int id);
   void removePlayerByConnId(int connid);
 
   const std::unordered_map<int, std::shared_ptr<Player>> &getPlayers() const;

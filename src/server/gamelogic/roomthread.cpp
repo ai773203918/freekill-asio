@@ -17,7 +17,7 @@ using namespace std::literals;
 
 
 RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {}, main_io_ctx { main_ctx },
-  m_thread {}, timer { io_ctx } // 调用start后才有效
+  m_thread {} // 调用start后才有效
 {
   static int nextThreadId = 1000;
   m_id = nextThreadId++;
@@ -33,12 +33,12 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {}, main_io_ctx { ma
   };
   delay_callback = [&](int roomId, int ms) {
     spdlog::debug("delay {} ms", ms);
-    timer = asio::steady_timer { io_ctx, std::chrono::milliseconds(ms) };
-    timer.async_wait([&, roomId](const asio::error_code& ec){
+    auto timer = std::make_shared<asio::steady_timer>(io_ctx, std::chrono::milliseconds(ms));
+    timer->async_wait([this, roomId, timer](const asio::error_code& ec){
       if (!ec) {
         L->call("ResumeRoom", roomId, "delay_done"sv);
       } else {
-        spdlog::error(ec.message());
+        spdlog::error("error in delay(): {}", ec.message());
       }
     });
   };

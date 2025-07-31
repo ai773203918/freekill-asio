@@ -6,6 +6,7 @@
 #include "server/room/lobby.h"
 #include "server/user/user_manager.h"
 #include "server/user/auth.h"
+#include "server/user/player.h"
 #include "network/server_socket.h"
 #include "network/client_socket.h"
 #include "network/router.h"
@@ -122,7 +123,7 @@ RoomManager &Server::room_manager() {
   return *m_room_manager;
 }
 
-Sqlite3 &Server::getDatabase() {
+Sqlite3 &Server::database() {
   return *db;
 }
 
@@ -176,14 +177,11 @@ std::thread::id Server::mainThreadId() const {
   return main_thread_id;
 }
 
-/*
-
-void Server::broadcast(const QByteArray &command, const QByteArray &jsonData) {
-  for (Player *p : players.values()) {
+void Server::broadcast(const std::string_view &command, const std::string_view &jsonData) {
+  for (auto &[_, p] : user_manager().getPlayers()) {
     p->doNotify(command, jsonData);
   }
 }
-*/
 
 void ServerConfig::loadConf(const char* jsonStr) {
   cJSON* root = cJSON_Parse(jsonStr);
@@ -271,31 +269,26 @@ void Server::reloadConfig() {
 const ServerConfig &Server::config() const { return *m_config; }
 
 bool Server::checkBanWord(const std::string_view &str) {
-  // auto arr = getConfig("banwords").toArray();
-  // if (arr.isEmpty()) {
-  //   return true;
-  // }
-  // for (auto v : arr) {
-  //   auto s = v.toString().toUpper();
-  //   if (str.toUpper().indexOf(s) != -1) {
-  //     return false;
-  //   }
-  // }
+  auto arr = m_config->banWords;
+  for (auto &s : arr) {
+    if (str.find(s) != -1) {
+      return false;
+    }
+  }
   return true;
 }
 
-/*
 void Server::temporarilyBan(int playerId) {
-  auto player = findPlayer(playerId);
+  auto player = m_user_manager->findPlayer(playerId);
   if (!player) return;
 
-  auto socket = player->getSocket();
-  QString addr;
+  auto socket = player->getRouter().getSocket();
+  std::string addr;
   if (!socket) {
-    QString sql_find = QString("SELECT * FROM userinfo \
-        WHERE id=%1;").arg(playerId);
-    auto result = db->select(sql_find);
-    if (result.isEmpty())
+    static constexpr const char *sql_find =
+      "SELECT lastLoginIp FROM userinfo WHERE id={};";
+    auto result = db->select(fmt::format(sql_find, playerId));
+    if (result.empty())
       return;
 
     auto obj = result[0];
@@ -303,15 +296,22 @@ void Server::temporarilyBan(int playerId) {
   } else {
     addr = socket->peerAddress();
   }
-  temp_banlist.append(addr);
+  temp_banlist.push_back(addr);
 
-  auto time = getConfig("tempBanTime").toInt();
-  QTimer::singleShot(time * 60000, this, [=]() {
-      temp_banlist.removeOne(addr);
-      });
-  emit player->kicked();
+  auto time = m_config->tempBanTime;
+  using namespace std::chrono;
+  auto timer = std::make_shared<asio::steady_timer>(*main_io_ctx, seconds(time * 60));
+  timer->async_wait([this, addr, timer](const asio::error_code& ec){
+    if (!ec) {
+      auto it = std::find(temp_banlist.begin(), temp_banlist.end(), addr);
+      if (it != temp_banlist.end())
+        temp_banlist.erase(it);
+    } else {
+      spdlog::error("error in tempBan timer: {}", ec.message());
+    }
+  });
+  player->emitKicked();
 }
-*/
 
 void Server::beginTransaction() {
   transaction_mutex.lock();

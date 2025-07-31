@@ -226,7 +226,7 @@ bool AuthManager::checkVersion() {
 
 bool AuthManager::checkIfUuidNotBanned() {
   auto &server = Server::instance();
-  auto &db = server.getDatabase();
+  auto &db = server.database();
   auto uuid_str = p_ptr->uuid;
   if (!Sqlite3::checkString(uuid_str)) return false;
 
@@ -264,7 +264,7 @@ bool AuthManager::checkMd5() {
 
 std::map<std::string, std::string> AuthManager::queryUserInfo(const std::string_view &password) {
   auto &server = Server::instance();
-  auto &db = server.getDatabase();
+  auto &db = server.database();
 
   auto sql_find = fmt::format("SELECT * FROM userinfo WHERE name='{}';", p_ptr->name);
   auto sql_count_uuid =
@@ -449,7 +449,7 @@ FAIL:
 
 void AuthManager::updateUserLoginData(int id) {
   auto &server = Server::instance();
-  auto &db = server.getDatabase();
+  auto &db = server.database();
   auto client = p_ptr->client.lock();
   if (!client) return;
 

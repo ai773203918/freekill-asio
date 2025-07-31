@@ -49,7 +49,7 @@ public:
 
   UserManager &user_manager();
   RoomManager &room_manager();
-  Sqlite3 &getDatabase();
+  Sqlite3 &database();
   Shell &shell();
 
   void sendEarlyPacket(ClientSocket &client, const std::string_view &type, const std::string_view &msg);
@@ -60,18 +60,13 @@ public:
   RoomThread &getAvailableThread();
   std::thread::id mainThreadId() const;
 
-  /*
-
-  void broadcast(const QByteArray &command, const QByteArray &jsonData);
-  bool isListening;
-  */
+  void broadcast(const std::string_view &command, const std::string_view &jsonData);
 
   const ServerConfig &config() const;
   void reloadConfig();
   bool checkBanWord(const std::string_view &str);
-  /*
+
   void temporarilyBan(int playerId);
-  */
 
   void beginTransaction();
   void endTransaction();
@@ -103,9 +98,9 @@ private:
 
   std::unique_ptr<ServerConfig> m_config;
 
-  /*
-  QList<QString> temp_banlist;
+  std::vector<std::string> temp_banlist;
 
+  /*
   QString md5;
 
   QElapsedTimer uptime_counter;

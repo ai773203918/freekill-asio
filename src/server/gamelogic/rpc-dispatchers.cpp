@@ -219,8 +219,7 @@ static _rpcRet _rpc_Player_emitKick(const JsonRpcPacket &packet) {
     return { false, "Player not found"sv };
   }
 
-  // TODO 别急
-  // player->emitKicked();
+  player->emitKicked();
   return { true, nullVal };
 }
 
@@ -270,8 +269,7 @@ static _rpcRet _rpc_Room_updatePlayerWinRate(const JsonRpcPacket &packet) {
     return { false, "Room not found"sv };
   }
 
-  // TODO
-  // room->updatePlayerWinRate(playerId, mode, role, result);
+  room->updatePlayerWinRate(playerId, mode, role, result);
 
   return { true, nullVal };
 }
@@ -288,9 +286,9 @@ static _rpcRet _rpc_Room_updateGeneralWinRate(const JsonRpcPacket &packet) {
   }
 
   int roomId = std::get<int>(packet.param1);
-  auto general = std::get<int>(packet.param2);
-  auto mode = std::get<int>(packet.param3);
-  auto role = std::get<int>(packet.param4);
+  auto general = std::get<std::string_view>(packet.param2);
+  auto mode = std::get<std::string_view>(packet.param3);
+  auto role = std::get<std::string_view>(packet.param4);
   int result = std::get<int>(packet.param5);
 
   auto room = Server::instance().room_manager().findRoom(roomId);
@@ -298,8 +296,7 @@ static _rpcRet _rpc_Room_updateGeneralWinRate(const JsonRpcPacket &packet) {
     return { false, "Room not found"sv };
   }
 
-  // TODO
-  // room->updateGeneralWinRate(general, mode, role, result);
+  room->updateGeneralWinRate(general, mode, role, result);
 
   return { true, nullVal };
 }

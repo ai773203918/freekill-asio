@@ -45,7 +45,6 @@ private:
   void reloadConfCommand(StringList &);
   void resetPasswordCommand(StringList &);
   void statCommand(StringList &);
-  void dumpRoomCommand(StringList &);
   void killRoomCommand(StringList &);
 
 private:

@@ -27,7 +27,7 @@ $ sudo apt install libasio-dev libssl-dev libcbor-dev libcjson-dev libsqlite3-de
 
 其余版本较新的发行版（如Arch、Kali等）安装依赖方式与此大同小异。
 
-**Debian 12:**
+**Debian 11, 12:**
 
 推荐将整个系统升级到Debian 13，或者按下面所述单独手动编译安装spdlog，因为对spdlog库版本要求稍微较高：
 
@@ -45,7 +45,7 @@ $ sudo cmake --install .
 
 freekill-asio并不直接将Lua嵌入到自己执行，而是将Lua作为子进程执行，这需要系统安装了lua5.4。
 
-**Debian 12, 13:**
+**Debian 11, 12, 13:**
 
 ```sh
 $ sudo apt install lua5.4 lua-socket lua-filesystem
@@ -62,7 +62,23 @@ $ make
 $ sudo make install
 ```
 
-（不推荐）Debian11由于无法安装Qt6Core，可以改安装`qtbase5-dev`包，并将qrandom/Makefile中所有的Qt6全部替换为Qt5，然后照常编译安装。其是否能正确执行无法保证。
+> **Debian11 附注:**
+>
+> 由于无法安装Qt6Core，改为安装`qtbase5-dev`包，并将qrandom/Makefile中所有的Qt6全部替换为Qt5，然后照常编译安装。
+>
+> 由于apt提供的lua-socket没有5.4版，需要手动处理。apt提供的luarocks亦没有5.4版，因此我们全部都需要手动安装：
+>
+> ```sh
+> $ sudo apt install build-essential libreadline-dev liblua5.4-dev unzip
+> $ wget https://luarocks.github.io/luarocks/releases/luarocks-3.12.2.tar.gz
+> $ tar xf luarocks-3.12.2.tar.gz && cd luarocks-3.12.2
+> $ ./configure
+> $ make
+> $ sudo make install
+> $ sudo luarocks install LuaSocket
+> ```
+>
+> 结论是不要用Debian11安装。直接用13吧，所有全部apt搞定。
 
 不想sudo make install的话，详见qrandom文件夹下的README解决。
 
@@ -99,7 +115,7 @@ fk-asio> install https://gitee.com/Qsgs-Fans/freekill-core
 
 仅测试过Linux (GCC 10+)
 
-- Linux (Debian 12+, Arch)
+- Linux (Debian 11+, Arch)
 
 开源许可
 -----------

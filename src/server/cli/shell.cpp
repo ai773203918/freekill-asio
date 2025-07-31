@@ -169,13 +169,13 @@ void Shell::upgradeCommand(StringList &list) {
     for (auto &a : arr) {
       PackMan::instance().upgradePack(a["name"].c_str());
     }
-    // ServerInstance->refreshMd5();
+    // Server::instance().refreshMd5();
     return;
   }
 
   auto pack = list[0];
   PackMan::instance().upgradePack(pack.c_str());
-  // ServerInstance->refreshMd5();
+  // Server::instance().refreshMd5();
 }
 
 void Shell::enableCommand(StringList &list) {
@@ -186,7 +186,7 @@ void Shell::enableCommand(StringList &list) {
 
   auto pack = list[0];
   PackMan::instance().enablePack(pack.c_str());
-  // ServerInstance->refreshMd5();
+  // Server::instance().refreshMd5();
 }
 
 void Shell::disableCommand(StringList &list) {
@@ -197,7 +197,7 @@ void Shell::disableCommand(StringList &list) {
 
   auto pack = list[0];
   PackMan::instance().disablePack(pack.c_str());
-  // ServerInstance->refreshMd5();
+  // Server::instance().refreshMd5();
 }
 
 void Shell::lspkgCommand(StringList &) {
@@ -239,215 +239,195 @@ void Shell::msgCommand(StringList &list) {
     return;
   }
 
-  // auto msg = list.join(' ');
-  // ServerInstance->broadcast("ServerMessage", msg.toUtf8());
+  std::string msg;
+  for (auto &s : list) {
+    msg += s;
+    msg += ' ';
+  }
+  Server::instance().broadcast("ServerMessage", msg);
 }
 
 void Shell::msgRoomCommand(StringList &list) {
-  /*
-  if (list.count() < 2) {
+  if (list.size() < 2) {
     spdlog::warn("The 'msgroom' command needs <roomId> and message body.");
     return;
   }
 
-  auto roomId = list.takeFirst().toInt();
-  auto room = ServerInstance->findRoom(roomId);
+  auto roomId = stoi(list[0]);
+  auto room = Server::instance().room_manager().findRoom(roomId);
   if (!room) {
     spdlog::info("No such room.");
     return;
   }
-  auto msg = list.join(' ');
-  room->doBroadcastNotify(room->getPlayers(), "ServerMessage", msg.toUtf8());
-  */
+  std::string msg;
+  for (int i = 1; i < list.size(); i++) {
+    msg += list[i];
+    msg += ' ';
+  }
+  room->doBroadcastNotify(room->getPlayers(), "ServerMessage", msg);
 }
 
-static void banAccount(Sqlite3 *db, const std::string_view &name, bool banned) {
-  /*
+static void banAccount(Sqlite3 &db, const std::string_view &name, bool banned) {
   if (!Sqlite3::checkString(name))
     return;
-  QString sql_find = QString("SELECT * FROM userinfo \
-        WHERE name='%1';")
-                         .arg(name);
-  auto result = db->select(sql_find);
+  static constexpr const char *sql_find =
+    "SELECT id FROM userinfo WHERE name='{}';";
+  auto result = db.select(fmt::format(sql_find, name));
   if (result.empty())
     return;
   auto obj = result[0];
-  int id = obj["id"].toInt();
-  db->exec(QString("UPDATE userinfo SET banned=%2 WHERE id=%1;")
-                  .arg(id)
-                  .arg(banned ? 1 : 0));
+  int id = stoi(obj["id"]);
+  db.exec(fmt::format("UPDATE userinfo SET banned={} WHERE id={};",
+                  banned ? 1 : 0, id));
 
   if (banned) {
-    auto p = ServerInstance->findPlayer(id);
+    auto p = Server::instance().user_manager().findPlayer(id);
     if (p) {
-      p->kicked();
+      p->emitKicked();
     }
-    spdlog::info("Banned {}.", name.toUtf8().constData());
+    spdlog::info("Banned {}.", name);
   } else {
-    spdlog::info("Unbanned {}.", name.toUtf8().constData());
+    spdlog::info("Unbanned {}.", name);
   }
-  */
 }
 
 void Shell::banCommand(StringList &list) {
-  /*
   if (list.empty()) {
     spdlog::warn("The 'ban' command needs at least 1 <name>.");
     return;
   }
 
-  auto db = ServerInstance->getDatabase();
+  auto &db = Server::instance().database();
 
-  for (auto name : list) {
+  for (auto &name : list) {
     banAccount(db, name, true);
   }
-
-  // banipCommand(list);
-  // banUuidCommand(list);
-  // */
 }
 
 void Shell::unbanCommand(StringList &list) {
-  /*
   if (list.empty()) {
     spdlog::warn("The 'unban' command needs at least 1 <name>.");
     return;
   }
 
-  auto db = ServerInstance->getDatabase();
+  auto &db = Server::instance().database();
 
-  for (auto name : list) {
+  for (auto &name : list) {
     banAccount(db, name, false);
   }
 
   // unbanipCommand(list);
   unbanUuidCommand(list);
-  */
 }
 
-static void banIPByName(Sqlite3 *db, const std::string_view &name, bool banned) {
-  /*
+static void banIPByName(Sqlite3 &db, const std::string_view &name, bool banned) {
   if (!Sqlite3::checkString(name))
     return;
 
-  QString sql_find = QString("SELECT * FROM userinfo \
-        WHERE name='%1';")
-                         .arg(name);
-  auto result = db->select(sql_find);
+  static constexpr const char *sql_find =
+    "SELECT id, lastLoginIp FROM userinfo WHERE name='{}';";
+  auto result = db.select(fmt::format(sql_find, name));
   if (result.empty())
     return;
   auto obj = result[0];
-  int id = obj["id"].toInt();
+  int id = stoi(obj["id"]);
   auto addr = obj["lastLoginIp"];
 
   if (banned) {
-    db->exec(QString("INSERT INTO banip VALUES('%1');").arg(addr));
+    db.exec(fmt::format("INSERT INTO banip VALUES('{}');", addr));
 
-    auto p = ServerInstance->findPlayer(id);
+    auto p = Server::instance().user_manager().findPlayer(id);
     if (p) {
-      p->kicked();
+      p->emitKicked();
     }
-    spdlog::info("Banned IP {}.", addr.toUtf8().constData());
+    spdlog::info("Banned IP {}.", addr);
   } else {
-    db->exec(QString("DELETE FROM banip WHERE ip='%1';").arg(addr));
-    spdlog::info("Unbanned IP {}.", addr.toUtf8().constData());
+    db.exec(fmt::format("DELETE FROM banip WHERE ip='{}';", addr));
+    spdlog::info("Unbanned IP {}.", addr);
   }
-  */
 }
 
 void Shell::banipCommand(StringList &list) {
-  /*
   if (list.empty()) {
     spdlog::warn("The 'banip' command needs at least 1 <name>.");
     return;
   }
 
-  auto db = ServerInstance->getDatabase();
+  auto &db = Server::instance().database();
 
-  for (auto name : list) {
+  for (auto &name : list) {
     banIPByName(db, name, true);
   }
-  */
 }
 
 void Shell::unbanipCommand(StringList &list) {
-  /*
   if (list.empty()) {
     spdlog::warn("The 'unbanip' command needs at least 1 <name>.");
     return;
   }
 
-  auto db = ServerInstance->getDatabase();
+  auto &db = Server::instance().database();
 
-  for (auto name : list) {
+  for (auto &name : list) {
     banIPByName(db, name, false);
   }
-  */
 }
 
-static void banUuidByName(Sqlite3 *db, const std::string_view &name, bool banned) {
-  /*
+static void banUuidByName(Sqlite3 &db, const std::string_view &name, bool banned) {
   if (!Sqlite3::checkString(name))
     return;
-
-  QString sql_find = QString("SELECT * FROM userinfo \
-        WHERE name='%1';")
-                         .arg(name);
-  auto result = db->select(sql_find);
+  static constexpr const char *sql_find =
+    "SELECT id FROM userinfo WHERE name='{}';";
+  auto result = db.select(fmt::format(sql_find, name));
   if (result.empty())
     return;
   auto obj = result[0];
-  int id = obj["id"].toInt();
+  int id = stoi(obj["id"]);
 
-  auto result2 = db->select(QString("SELECT * FROM uuidinfo WHERE id=%1;").arg(id));
+  auto result2 = db.select(fmt::format("SELECT * FROM uuidinfo WHERE id={};", id));
   if (result2.empty())
     return;
 
   auto uuid = result2[0]["uuid"];
 
   if (banned) {
-    db->exec(QString("INSERT INTO banuuid VALUES('%1');").arg(uuid));
+    db.exec(fmt::format("INSERT INTO banuuid VALUES('{}');", uuid));
 
-    auto p = ServerInstance->findPlayer(id);
+    auto p = Server::instance().user_manager().findPlayer(id);
     if (p) {
-      p->kicked();
+      p->emitKicked();
     }
-    spdlog::info("Banned UUID {}.", uuid.toUtf8().constData());
+    spdlog::info("Banned UUID {}.", uuid);
   } else {
-    db->exec(QString("DELETE FROM banuuid WHERE uuid='%1';").arg(uuid));
-    spdlog::info("Unbanned UUID {}.", uuid.toUtf8().constData());
+    db.exec(fmt::format("DELETE FROM banuuid WHERE uuid='{}';", uuid));
+    spdlog::info("Unbanned UUID {}.", uuid);
   }
-  */
 }
 
 void Shell::banUuidCommand(StringList &list) {
-  /*
   if (list.empty()) {
     spdlog::warn("The 'banuuid' command needs at least 1 <name>.");
     return;
   }
 
-  auto db = ServerInstance->getDatabase();
+  auto &db = Server::instance().database();
 
-  for (auto name : list) {
+  for (auto &name : list) {
     banUuidByName(db, name, true);
   }
-  */
 }
 
 void Shell::unbanUuidCommand(StringList &list) {
-  /*
   if (list.empty()) {
     spdlog::warn("The 'unbanuuid' command needs at least 1 <name>.");
     return;
   }
 
-  auto db = ServerInstance->getDatabase();
+  auto &db = Server::instance().database();
 
-  for (auto name : list) {
+  for (auto &name : list) {
     banUuidByName(db, name, false);
   }
-  */
 }
 
 void Shell::reloadConfCommand(StringList &) {
@@ -456,20 +436,18 @@ void Shell::reloadConfCommand(StringList &) {
 }
 
 void Shell::resetPasswordCommand(StringList &list) {
-  /*
   if (list.empty()) {
     spdlog::warn("The 'resetpassword' command needs at least 1 <name>.");
     return;
   }
 
-  auto db = ServerInstance->getDatabase();
-  for (auto name : list) {
+  auto &db = Server::instance().database();
+  for (auto &name : list) {
     // 重置为1234
-    db->exec(QString("UPDATE userinfo SET password=\
-          'dbdc2ad3d9625407f55674a00b58904242545bfafedac67485ac398508403ade',\
-          salt='00000000' WHERE name='%1';").arg(name));
+    db.exec(fmt::format("UPDATE userinfo SET password="
+          "'dbdc2ad3d9625407f55674a00b58904242545bfafedac67485ac398508403ade',"
+          "salt='00000000' WHERE name='{}';", name));
   }
-  */
 }
 
 /*
@@ -479,121 +457,79 @@ static QString formatMsDuration(qint64 time) {
   auto ms = time % 1000;
   time /= 1000;
   auto sec = time % 60;
-  ret = QString("%1.%2 seconds").arg(sec).arg(ms) + ret;
+  ret = QString("{}.{} seconds").arg(sec).arg(ms) + ret;
   time /= 60;
   if (time == 0) return ret;
 
   auto min = time % 60;
-  ret = QString("%1 minutes, ").arg(min) + ret;
+  ret = QString("{} minutes, ").arg(min) + ret;
   time /= 60;
   if (time == 0) return ret;
 
   auto hour = time % 24;
-  ret = QString("%1 hours, ").arg(hour) + ret;
+  ret = QString("{} hours, ").arg(hour) + ret;
   time /= 24;
   if (time == 0) return ret;
 
-  ret = QString("%1 days, ").arg(time) + ret;
+  ret = QString("{} days, ").arg(time) + ret;
   return ret;
 }
 */
 
 void Shell::statCommand(StringList &) {
-  /*
-  auto server = ServerInstance;
-  auto uptime_ms = server->getUptime();
-  spdlog::info("uptime: {}", formatMsDuration(uptime_ms).toUtf8().constData());
+  auto &server = Server::instance();
+  // auto uptime_ms = server->getUptime();
+  // spdlog::info("uptime: {}", formatMsDuration(uptime_ms).toUtf8().constData());
 
-  auto players = server->getPlayers();
-  spdlog::info("Player(s) logged in: %lld", players.count());
-  spdlog::info("Next roomId: %d", server->nextRoomId); // FIXME: friend class
+  auto players = server.user_manager().getPlayers();
+  spdlog::info("Player(s) logged in: {}", players.size());
+  spdlog::info("Rooms: {}", server.room_manager().getRooms().size());
 
-  auto threads = server->findChildren<RoomThread *>();
-  static const char *getmem = "return collectgarbage('count') / 1024";
-  for (auto thr : threads) {
-    auto rooms = thr->findChildren<Room *>();
-    auto L = thr->getLua();
+  // auto threads = server->findChildren<RoomThread *>();
+  // for (auto &thr : threads) {
+  //   auto rooms = thr->findChildren<Room *>();
+  //   auto L = thr->getLua();
 
-    QString stat_str = QStringLiteral("unknown");
-    auto rpcL = dynamic_cast<RpcLua *>(L);
-    if (rpcL) {
-      stat_str = rpcL->getConnectionInfo();
-    }
-    auto outdated = thr->isOutdated();
-    if (rooms.count() == 0 && outdated) {
-      thr->deleteLater();
-    } else {
-      spdlog::info("RoomThread %p | %ls | %lld room(s) {}", thr, qUtf16Printable(stat_str), rooms.count(),
-            outdated ? "| Outdated" : "");
-    }
-  }
+  //   QString stat_str = QStringLiteral("unknown");
+  //   stat_str = L->getConnectionInfo();
+  //   auto outdated = thr->isOutdated();
+  //   if (rooms.count() == 0 && outdated) {
+  //     thr->deleteLater();
+  //   } else {
+  //     spdlog::info("RoomThread %p | %ls | %lld room(s) {}", thr, qUtf16Printable(stat_str), rooms.count(),
+  //           outdated ? "| Outdated" : "");
+  //   }
+  // }
 
   spdlog::info("Database memory usage: %.2f MiB",
-        ((double)server->db->getMemUsage()) / 1048576);
-  */
-}
-
-void Shell::dumpRoomCommand(StringList &list) {
-  /*
-  if (list.empty() || list[0].isEmpty()) {
-    static const char *code =
-      "local _, reqRoom = debug.getupvalue(ResumeRoom, 1)\n"
-      "for id, room in pairs(reqRoom.runningRooms) do\n"
-      "  fk.spdlog::info(string.format('<Lua> Room #%d', id))\n"
-      "end\n";
-    for (auto thr : ServerInstance->findChildren<RoomThread *>()) {
-      spdlog::info("== Lua room info of RoomThread %p ==", thr);
-      thr->getLua()->eval(code);
-    }
-    return;
-  }
-
-  auto pid = list[0];
-  bool ok;
-  int id = pid.toInt(&ok);
-  if (!ok) return;
-
-  auto room = ServerInstance->findRoom(id);
-  if (!room) {
-    spdlog::info("No such room.");
-  } else {
-    static auto code = QStringLiteral(
-      "(function(id)\n"
-      "  local _, reqRoom = debug.getupvalue(ResumeRoom, 1)\n"
-      "  local room = reqRoom.runningRooms[id]\n"
-      "  if not room then fk.spdlog::info('<Lua> No such room.'); return end\n"
-      "  fk.spdlog::info(string.format('== <Lua> Data of room %d ==', id))\n"
-      "  fk.spdlog::info(json.encode(room:toJsonObject(room.players[1])))\n"
-      "end)\n");
-    auto L = qobject_cast<RoomThread *>(room->parent())->getLua();
-    L->eval(code + QStringLiteral("(%1)").arg(id));
-  }
-  */
+        ((double)server.database().getMemUsage()) / 1048576);
 }
 
 void Shell::killRoomCommand(StringList &list) {
-  /*
-  if (list.empty() || list[0].isEmpty()) {
+  if (list.empty() || list[0].empty()) {
     spdlog::warn("Need room id to do this.");
     return;
   }
 
   auto pid = list[0];
   bool ok;
-  int id = pid.toInt(&ok);
-  if (!ok) return;
+  int id = stoi(pid);
 
-  auto room = ServerInstance->findRoom(id);
+  auto &um = Server::instance().user_manager();
+  auto &rm = Server::instance().room_manager();
+  auto room = rm.findRoom(id);
   if (!room) {
     spdlog::info("No such room.");
   } else {
     spdlog::info("Killing room %d", id);
-    for (auto player : room->getPlayers()) {
-      if (player->getId() > 0) emit player->kicked();
+
+    for (auto pConnId : room->getPlayers()) {
+      auto player = um.findPlayerByConnId(pConnId);
+      if (player && player->getId() > 0)
+        player->emitKicked();
     }
-    emit room->abandoned();
+    room->checkAbandoned();
   }
-  */
 }
 
 static void sigintHandler(int) {
@@ -648,7 +584,6 @@ Shell::Shell() {
     {"rp", &Shell::resetPasswordCommand},
     {"stat", &Shell::statCommand},
     {"gc", &Shell::statCommand},
-    {"dumproom", &Shell::dumpRoomCommand},
     {"killroom", &Shell::killRoomCommand},
     // special command
     {"quit", &Shell::helpCommand},
@@ -738,9 +673,14 @@ QString Shell::syntaxHighlight(char *bytes) {
 */
 
 char *Shell::generateCommand(const char *text, int state) {
-  /*
   static int list_index, len;
-  static auto keys = handler_map.keys();
+  static std::vector<std::string_view> keys;
+  static std::once_flag flag;
+  std::call_once(flag, [&](){
+    for (const auto &[k, _] : handler_map) {
+      keys.push_back(k);
+    }
+  });
   const char *name;
 
   if (state == 0) {
@@ -748,14 +688,13 @@ char *Shell::generateCommand(const char *text, int state) {
     len = strlen(text);
   }
 
-  while (list_index < keys.length()) {
-    name = keys[list_index].toUtf8().constData();
+  while (list_index < keys.size()) {
+    name = keys[list_index].data();
     ++list_index;
     if (strncmp(name, text, len) == 0) {
       return strdup(name);
     }
   }
-  */
 
   return NULL;
 }
@@ -836,7 +775,7 @@ static char *user_generator(const char *text, int state) {
   const char *name;
 
   if (state == 0) {
-    arr = ServerInstance->getDatabase()->select("SELECT name FROM userinfo;");
+    arr = Server::instance().database()->select("SELECT name FROM userinfo;");
     list_index = 0;
     len = strlen(text);
   }
@@ -859,7 +798,7 @@ static char *banned_user_generator(const char *text, int state) {
   static Sqlite3::QueryResult arr;
   static int list_index, len;
   const char *name;
-  auto db = ServerInstance->getDatabase();
+  auto db = Server::instance().database();
 
   if (state == 0) {
     arr = db->select("SELECT name FROM userinfo WHERE banned = 1;");

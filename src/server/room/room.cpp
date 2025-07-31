@@ -203,7 +203,7 @@ void Room::addPlayer(Player &player) {
 
   if (player.getLastGameMode() != mode) {
     player.setLastGameMode(std::string(mode));
-    // updatePlayerGameData(pid, mode);
+    updatePlayerGameData(pid, mode);
   } else {
     doBroadcastNotify(players, "UpdateGameData", Cbor::encodeArray({
       pid,
@@ -285,9 +285,9 @@ void Room::removePlayer(Player &player) {
     runner->doNotify("ChangeSelf", { (char*)buf, buflen });
 
     // 如果走小道的人不是单机启动玩家 且房没过期 那么直接ban
-    // if (!isOutdated() && !player->isDied()) {
-    //   server->temporarilyBan(runner->getId());
-    // }
+    if (!isOutdated() && !player.isDied()) {
+      Server::instance().temporarilyBan(runner->getId());
+    }
   }
 
   if (isAbandoned()) {
@@ -314,8 +314,6 @@ void Room::addObserver(Player &player) {
   // 向observers中追加player，并从大厅移除player，然后将player的room设为this
   observers.push_back(player.getConnId());
   player.setRoom(*this);
-  // 这集要手动从大厅删除玩家 详见lobby.cpp
-  // emit playerAdded(player);
 
   auto thread = this->thread();
   thread->addObserver(player.getConnId(), id);
@@ -326,8 +324,6 @@ void Room::removeObserver(Player &player) {
   if (auto it = std::find(observers.begin(), observers.end(), player.getId()); it != observers.end()) {
     observers.erase(it);
   }
-  // 这集要手动把玩家加入大厅 需要注意手动从最外面调的情况
-  // emit playerRemoved(player);
 
   if (player.getState() == Player::Online) {
     player.doNotify("Setup", Cbor::encodeArray({
@@ -384,53 +380,41 @@ void Room::checkAbandoned() {
   rm.removeRoom(id);
 }
 
-/*
-static const QString findPWinRate =
-    QString("SELECT win, lose, draw "
-            "FROM pWinRate WHERE id = %1 and mode = '%2' and role = '%3';");
+static constexpr const char *findPWinRate = "SELECT win, lose, draw "
+            "FROM pWinRate WHERE id = {} and mode = '{}' and role = '{}';";
 
-static const QString updatePWinRate =
-    QString("UPDATE pWinRate "
-            "SET win = %4, lose = %5, draw = %6 "
-            "WHERE id = %1 and mode = '%2' and role = '%3';");
+static constexpr const char *updatePWinRate = ("UPDATE pWinRate "
+            "SET win = {}, lose = {}, draw = {} "
+            "WHERE id = {} and mode = '{}' and role = '{}';");
 
-static const QString insertPWinRate =
-    QString("INSERT INTO pWinRate "
+static constexpr const char *insertPWinRate = ("INSERT INTO pWinRate "
             "(id, mode, role, win, lose, draw) "
-            "VALUES (%1, '%2', '%3', %4, %5, %6);");
+            "VALUES ({}, '{}', '{}', {}, {}, {});");
 
-static const QString findGWinRate =
-    QString("SELECT win, lose, draw "
-            "FROM gWinRate WHERE general = '%1' and mode = '%2' and role = '%3';");
+static constexpr const char *findGWinRate = ("SELECT win, lose, draw "
+            "FROM gWinRate WHERE general = '{}' and mode = '{}' and role = '{}';");
 
-static const QString updateGWinRate =
-    QString("UPDATE gWinRate "
-            "SET win = %4, lose = %5, draw = %6 "
-            "WHERE general = '%1' and mode = '%2' and role = '%3';");
+static constexpr const char *updateGWinRate = ("UPDATE gWinRate "
+            "SET win = {}, lose = {}, draw = {} "
+            "WHERE general = '{}' and mode = '{}' and role = '{}';");
 
-static const QString insertGWinRate =
-    QString("INSERT INTO gWinRate "
+static constexpr const char *insertGWinRate = ("INSERT INTO gWinRate "
             "(general, mode, role, win, lose, draw) "
-            "VALUES ('%1', '%2', '%3', %4, %5, %6);");
+            "VALUES ('{}', '{}', '{}', {}, {}, {});");
 
-static const QString findRunRate =
-  QString("SELECT run "
-      "FROM runRate WHERE id = %1 and mode = '%2';");
+static constexpr const char *findRunRate = ("SELECT run "
+      "FROM runRate WHERE id = {} and mode = '{}';");
 
-static const QString updateRunRate =
-    QString("UPDATE runRate "
-            "SET run = %3 "
-            "WHERE id = %1 and mode = '%2';");
+static constexpr const char *updateRunRate = ("UPDATE runRate "
+            "SET run = {} WHERE id = {} and mode = '{}';");
 
-static const QString insertRunRate =
-    QString("INSERT INTO runRate "
-            "(id, mode, run) "
-            "VALUES (%1, '%2', %3);");
+static constexpr const char *insertRunRate = ("INSERT INTO runRate "
+            "(id, mode, run) VALUES ({}, '{}', {});");
 
-void Room::updatePlayerWinRate(int id, const QString &mode, const QString &role, int game_result) {
+void Room::updatePlayerWinRate(int id, const std::string_view &mode, const std::string_view &role, int game_result) {
   if (!Sqlite3::checkString(mode))
     return;
-  auto db = server->getDatabase();
+  auto &db = Server::instance().database();
 
   int win = 0;
   int lose = 0;
@@ -444,39 +428,36 @@ void Room::updatePlayerWinRate(int id, const QString &mode, const QString &role,
   default: break;
   }
 
-  auto result = db->select(findPWinRate.arg(QString::number(id), mode, role));
+  auto result = db.select(fmt::format(findPWinRate, id, mode, role));
 
-  if (result.isEmpty()) {
-    db->exec(insertPWinRate.arg(QString::number(id), mode, role,
-                               QString::number(win), QString::number(lose),
-                               QString::number(draw)));
+  if (result.empty()) {
+    db.exec(fmt::format(insertPWinRate, id, mode, role, win, lose, draw));
   } else {
     auto obj = result[0];
-    win += obj["win"].toInt();
-    lose += obj["lose"].toInt();
-    draw += obj["draw"].toInt();
-    db->exec(updatePWinRate.arg(QString::number(id), mode, role,
-                                QString::number(win), QString::number(lose),
-                                QString::number(draw)));
+    win += std::stoi(obj["win"]);
+    lose += std::stoi(obj["lose"]);
+    draw += std::stoi(obj["draw"]);
+    db.exec(fmt::format(updatePWinRate, win, lose, draw, id, mode, role));
   }
 
-  if (runned_players.contains(id)) {
+  if (std::find(runned_players.begin(), runned_players.end(), id) != runned_players.end()) {
     addRunRate(id, mode);
   }
 
-  auto player = server->findPlayer(id);
-  if (players.contains(player)) {
-    player->setLastGameMode(mode);
+  auto &um = Server::instance().user_manager();
+  auto player = um.findPlayer(id);
+  if (player && std::find(players.begin(), players.end(), player->getConnId()) != players.end()) {
+    player->setLastGameMode(std::string(mode));
     updatePlayerGameData(id, mode);
   }
 }
 
-void Room::updateGeneralWinRate(const QString &general, const QString &mode, const QString &role, int game_result) {
+void Room::updateGeneralWinRate(const std::string_view &general, const std::string_view &mode, const std::string_view &role, int game_result) {
   if (!Sqlite3::checkString(general))
     return;
   if (!Sqlite3::checkString(mode))
     return;
-  auto db = server->getDatabase();
+  auto &db = Server::instance().database();
 
   int win = 0;
   int lose = 0;
@@ -490,73 +471,71 @@ void Room::updateGeneralWinRate(const QString &general, const QString &mode, con
   default: break;
   }
 
-  auto result = db->select(findGWinRate.arg(general, mode, role));
+  auto result = db.select(fmt::format(findGWinRate, general, mode, role));
 
-  if (result.isEmpty()) {
-    db->exec(insertGWinRate.arg(general, mode, role,
-                                QString::number(win), QString::number(lose),
-                                QString::number(draw)));
+  if (result.empty()) {
+    db.exec(fmt::format(insertGWinRate, general, mode, role, win, lose, draw));
   } else {
     auto obj = result[0];
-    win += obj["win"].toInt();
-    lose += obj["lose"].toInt();
-    draw += obj["draw"].toInt();
-    db->exec(updateGWinRate.arg(general, mode, role,
-                                QString::number(win), QString::number(lose),
-                                QString::number(draw)));
+    win += std::stoi(obj["win"]);
+    lose += std::stoi(obj["lose"]);
+    draw += std::stoi(obj["draw"]);
+    db.exec(fmt::format(updateGWinRate, win, lose, draw, general, mode, role));
   }
 }
 
-void Room::addRunRate(int id, const QString &mode) {
+void Room::addRunRate(int id, const std::string_view &mode) {
   int run = 1;
-  auto db = server->getDatabase();
-  auto result =db->select(findRunRate.arg(QString::number(id), mode));
+  auto &db = Server::instance().database();
+  auto result = db.select(fmt::format(findRunRate, id, mode));
 
-  if (result.isEmpty()) {
-    db->exec(insertRunRate.arg(QString::number(id), mode,
-                               QString::number(run)));
+  if (result.empty()) {
+    db.exec(fmt::format(insertRunRate, id, mode, run));
   } else {
     auto obj = result[0];
-    run += obj["run"].toInt();
-    db->exec(updateRunRate.arg(QString::number(id), mode,
-                               QString::number(run)));
+    run += std::stoi(obj["run"]);
+    db.exec(fmt::format(updateRunRate, run, id, mode));
   }
 }
 
-void Room::updatePlayerGameData(int id, const QString &mode) {
-  static const QString findModeRate = QString("SELECT win, total FROM pWinRateView "
-            "WHERE id = %1 and mode = '%2';");
+void Room::updatePlayerGameData(int id, const std::string_view &mode) {
+  static constexpr const char *findModeRate =
+    "SELECT win, total FROM pWinRateView WHERE id = {} and mode = '{}';";
 
   if (id < 0) return;
-  auto player = server->findPlayer(id);
-  if (player->getState() == Player::Robot || !player->getRoom()) {
+
+  auto &server = Server::instance();
+  auto &um = server.user_manager();
+  auto &db = server.database();
+
+  auto player = um.findPlayer(id);
+  if (!player) return;
+  if (player->getState() == Player::Robot || player->getRoom().isLobby()) {
     return;
   }
 
   int total = 0;
   int win = 0;
   int run = 0;
-  auto db = server->getDatabase();
 
-  auto result = db->select(findRunRate.arg(QString::number(id), mode));
+  auto result = db.select(fmt::format(findRunRate, id, mode));
 
-  if (!result.isEmpty()) {
-    run = result[0]["run"].toInt();
+  if (!result.empty()) {
+    run = stoi(result[0]["run"]);
   }
 
-  result = db->select(findModeRate.arg(QString::number(id), mode));
+  result = db.select(fmt::format(findModeRate, id, mode));
 
-  if (!result.isEmpty()) {
-    total = result[0]["total"].toInt();
-    win = result[0]["win"].toInt();
+  if (!result.empty()) {
+    total = stoi(result[0]["total"]);
+    win = stoi(result[0]["win"]);
   }
 
-  auto room = player->getRoom();
+  auto room = dynamic_cast<Room *>(&player->getRoom());
   player->setGameData(total, win, run);
-  QCborArray data_arr { player->getId(), total, win, run };
-  room->doBroadcastNotify(room->getPlayers(), "UpdateGameData", data_arr.toCborValue().toCbor());
+  room->doBroadcastNotify(room->getPlayers(), "UpdateGameData",
+                          Cbor::encodeArray({ player->getId(), total, win, run }));
 }
-*/
 
 // 多线程非常麻烦 把GameOver交给主线程完成去
 void Room::gameOver() {
@@ -587,31 +566,34 @@ Room::GameSession::~GameSession() {
   room.gameStarted = false;
   room.runned_players.clear();
 
+  auto &server = Server::instance();
+  auto &um = server.user_manager();
   const auto &mode = room.gameMode;
   std::vector<int> to_delete;
-  /*
+
   // 首先只写数据库，这个过程不能向主线程提交申请(doNotify) 否则会死锁
-  server->beginTransaction();
-  for (auto p : players) {
+  server.beginTransaction();
+  for (auto pConnId : room.players) {
+    auto p = um.findPlayerByConnId(pConnId);
+    if (!p) continue;
     auto pid = p->getId();
 
     if (pid > 0) {
-      int time = p->getGameTime();
+      // TODO 游玩时长统计
+      // int time = p->getGameTime();
 
-      // 将游戏时间更新到数据库中
-      auto info_update = QString("UPDATE usergameinfo SET totalGameTime = "
-      "IIF(totalGameTime IS NULL, %2, totalGameTime + %2) WHERE id = %1;").arg(pid).arg(time);
-      server->getDatabase()->exec(info_update);
+      // // 将游戏时间更新到数据库中
+      // auto info_update = QString("UPDATE usergameinfo SET totalGameTime = "
+      // "IIF(totalGameTime IS NULL, {}, totalGameTime + {}) WHERE id = {};").arg(pid).arg(time);
+      // server->database()->exec(info_update);
     }
 
     if (p->getState() == Player::Offline) {
-      addRunRate(pid, mode);
+      room.addRunRate(pid, mode);
     }
   }
-  server->endTransaction();
-  */
+  server.endTransaction();
 
-  auto &um = Server::instance().user_manager();
   for (auto pConnId : room.players) {
     auto p = um.findPlayerByConnId(pConnId);
     if (!p) continue;
@@ -634,7 +616,7 @@ Room::GameSession::~GameSession() {
     if (p->getState() != Player::Online) {
       if (p->getState() == Player::Offline) {
         if (!room.isOutdated()) {
-          // server->temporarilyBan(pid);
+          server.temporarilyBan(p->getId());
         } else {
           p->emitKicked();
         }
@@ -652,7 +634,7 @@ Room::GameSession::~GameSession() {
 void Room::manuallyStart() {
   if (isFull() && !gameStarted) {
     spdlog::info("[GameStart] Room {} started", getId());
-    /*
+    /* TODO 多开警告 我感觉单独拿个函数吧
     QMap<QString, QStringList> uuidList, ipList;
     for (auto p : players) {
       p->setReady(false);
@@ -673,7 +655,7 @@ void Room::manuallyStart() {
 
     for (auto i = ipList.cbegin(); i != ipList.cend(); i++) {
       if (i.value().length() <= 1) continue;
-      auto warn = QString("*WARN* Same IP address: [%1]").arg(i.value().join(", "));
+      auto warn = QString("*WARN* Same IP address: [{}]").arg(i.value().join(", "));
       auto warnUtf8 = warn.toUtf8();
       doBroadcastNotify(getPlayers(), "ServerMessage", warnUtf8);
       qInfo("%s", warnUtf8.constData());
@@ -681,7 +663,7 @@ void Room::manuallyStart() {
 
     for (auto i = uuidList.cbegin(); i != uuidList.cend(); i++) {
       if (i.value().length() <= 1) continue;
-      auto warn = QString("*WARN* Same device id: [%1]").arg(i.value().join(", "));
+      auto warn = QString("*WARN* Same device id: [{}]").arg(i.value().join(", "));
       auto warnUtf8 = warn.toUtf8();
       doBroadcastNotify(getPlayers(), "ServerMessage", warnUtf8);
       qInfo("%s", warnUtf8.constData());
@@ -694,7 +676,7 @@ void Room::manuallyStart() {
 
 void Room::pushRequest(const std::string &req) {
   auto thread = this->thread();
-  if (thread) thread->pushRequest(std::format("{},{}", id, req));
+  if (thread) thread->pushRequest(fmt::format("{},{}", id, req));
 }
 
 void Room::addRejectId(int id) {

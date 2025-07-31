@@ -62,10 +62,8 @@ public:
 
   // ====================================}
 
-  /*
-  void updatePlayerWinRate(int id, const QString &mode, const QString &role, int result);
-  void updateGeneralWinRate(const QString &general, const QString &mode, const QString &role, int result);
-  */
+  void updatePlayerWinRate(int id, const std::string_view &mode, const std::string_view &role, int result);
+  void updateGeneralWinRate(const std::string_view &general, const std::string_view &mode, const std::string_view &role, int result);
 
   void gameOver();
   void manuallyStart();

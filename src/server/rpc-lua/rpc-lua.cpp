@@ -493,7 +493,7 @@ void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param
 #ifdef RPC_DEBUG
       spdlog::debug("  Me <-- {} {}", received_pkt.method, toHex({ buffer, read_sz }));
 #endif
-      auto res = JsonRpc::handleRequest(ServerRpcMethods, received_pkt);
+      auto res = JsonRpc::handleRequest(RpcDispatchers::ServerRpcMethods, received_pkt);
       if (res) {
         if (res->error.code < 0) {
           sendError(child_stdin, *res);

@@ -2,35 +2,8 @@
 
 #pragma once
 
-class LuaInterface;
 class Room;
-class Server;
-class ServerPlayer;
-class RoomThread;
 class RpcLua;
-
-class Scheduler {
- public:
-  /*
-  explicit Scheduler(RoomThread *m_thread);
-  ~Scheduler();
-
-  auto getLua() const { return L; }
-
- public slots:
-  void handleRequest(const QString &req);
-  void doDelay(int roomId, int ms);
-  void resumeRoom(int roomId, const char *reason);
-
-  // 只在rpc模式下有效果
-  void setPlayerState(const QString &, int roomId);
-  void addObserver(const QString &, int roomId);
-  void removeObserver(const QString &, int roomId);
-
- private:
-  LuaInterface *L;
-  */
-};
 
 class RoomThread {
 public:
@@ -98,7 +71,5 @@ private:
   /*
   int m_capacity;
   QString md5;
-
-  Scheduler *m_scheduler;
   */
 };

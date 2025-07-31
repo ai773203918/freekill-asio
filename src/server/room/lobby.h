@@ -26,10 +26,11 @@ private:
   void updateAvatar(Player &, const Packet &);
   void updatePassword(Player &, const Packet &);
   void createRoom(Player &, const Packet &);
-  void getRoomConfig(Player &, const Packet &);
   void enterRoom(Player &, const Packet &);
   void observeRoom(Player &, const Packet &);
   void refreshRoomList(Player &, const Packet &);
+
+  void joinRoom(Player &, const Packet &, bool ob = false);
 
   // connId -> true
   std::unordered_map<int, bool> players;

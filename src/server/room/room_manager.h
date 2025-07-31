@@ -14,11 +14,11 @@ public:
   RoomManager(RoomManager &&) = delete;
 
   Room *createRoom(Player &, const std::string &name, int capacity,
-                  int timeout = 15, const std::string &settings = "\xA0");
+                                 int timeout = 15, const std::string &settings = "\xA0");
 
   void removeRoom(int id);
 
-  RoomBase *findRoom(int id) const;
+  Room *findRoom(int id) const;
   Lobby &lobby() const;
   const std::map<int, std::unique_ptr<Room>> &getRooms() const;
 

@@ -8,11 +8,6 @@ class Server;
 class Player;
 class RoomThread;
 
-/**
-  @brief Server类负责管理游戏服务端的运行。
-
-  该类负责表示游戏房间，与大厅进行交互以调整玩家
-*/
 class Room : public RoomBase {
 public:
   explicit Room();
@@ -73,12 +68,14 @@ public:
   /*
   void addRejectId(int id);
   void removeRejectId(int id);
+  */
 
   // router用
 
   void setRequestTimer(int ms);
   void destroyRequestTimer();
 
+  /*
   // FIXME
   volatile bool insideGameOver = false;
   */
@@ -123,7 +120,7 @@ private:
   int lua_ref_count = 0; // Lua引用计数，当Room被abandon时，若lua有计数就不可删除
   std::mutex lua_ref_mutex;
 
-  // QTimer *request_timer = nullptr;
+  std::unique_ptr<asio::steady_timer> request_timer = nullptr;
 
   void addRunRate(int id, const std::string_view &mode);
   void updatePlayerGameData(int id, const std::string_view &mode);

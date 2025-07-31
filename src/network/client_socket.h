@@ -75,7 +75,5 @@ private:
 
   AES_KEY aes_key;
   bool aes_ready;
-
-  void raiseError(QAbstractSocket::SocketError error);
   */
 };

@@ -102,19 +102,20 @@ void Shell::lsrCommand(StringList &list) {
     auto pid = list[0];
     int id = std::atoi(pid.c_str());
 
-    auto room_ = room_manager.findRoom(id);
-    if (!room_) {
-      spdlog::info("No such room.");
-    } else if (room_->isLobby()) {
-      spdlog::info("You are viewing lobby, players in lobby are:");
+    auto room = room_manager.findRoom(id);
+    if (!room) {
+      if (id != 0) {
+        spdlog::info("No such room.");
+      } else {
+        spdlog::info("You are viewing lobby, players in lobby are:");
 
-      auto lobby = dynamic_cast<Lobby *>(room_);
-      for (auto &[pid, _] : lobby->getPlayers()) {
-        auto p = user_manager.findPlayerByConnId(pid);
-        if (p) spdlog::info("{}, {}", p->getId(), p->getScreenName());
+        auto &lobby = room_manager.lobby();
+        for (auto &[pid, _] : lobby.getPlayers()) {
+          auto p = user_manager.findPlayerByConnId(pid);
+          if (p) spdlog::info("{}, {}", p->getId(), p->getScreenName());
+        }
       }
     } else {
-      auto room = dynamic_cast<Room *>(room_);
       auto pw = room->getPassword();
       spdlog::info("{}, {} [pw={}]", room->getId(), room->getName(),
         pw == "" ? "<nil>" : pw);

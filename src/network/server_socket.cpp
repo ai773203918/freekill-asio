@@ -30,13 +30,3 @@ void ServerSocket::set_new_connection_callback(std::function<void(std::shared_pt
   new_connection_callback = f;
 }
 
-/**
-void ServerSocket::processNewConnection() {
-  QTcpSocket *socket = server->nextPendingConnection();
-  ClientSocket *connection = new ClientSocket(socket);
-  // 这里怎么能一断连就自己删呢，应该让上层的来
-  // connect(connection, &ClientSocket::disconnected, this,
-  //        [connection]() { connection->deleteLater(); });
-  emit new_connection(connection);
-}
-*/

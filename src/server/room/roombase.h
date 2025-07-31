@@ -18,12 +18,6 @@ public:
 
   int getId() const;
 
-  /*
-  QList<Player *> getPlayers() const;
-  QList<Player *> getOtherPlayers(Player *expect) const;
-  Player *findPlayer(int id) const;
-  */
-
   void doBroadcastNotify(const std::vector<int> targets,
                          const std::string_view &command, const std::string_view &cborData);
 

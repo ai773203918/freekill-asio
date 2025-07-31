@@ -13,38 +13,31 @@ Router::Router(Player *player, ClientSocket *socket, RouterType type) {
   setSocket(socket);
 
   m_thread_id = std::this_thread::get_id();
-  // expectedReplyId = -1;
-  // replyTimeout = 0;
-  // extraReplyReadySemaphore = nullptr;
 }
 
 Router::~Router() {
-  //abortRequest();
+  abortRequest();
 }
 
 ClientSocket *Router::getSocket() const { return socket; }
 
 void Router::setSocket(ClientSocket *socket) {
   if (this->socket != nullptr) {
-    // this->socket->disconnect(this);
-    // disconnect(this->socket);
-    // this->socket->deleteLater();
+    socket->set_message_got_callback([](Packet&){});
+    socket->set_disconnected_callback([](){});
   }
 
   this->socket = nullptr;
   if (socket != nullptr) {
-    // connect(this, &Router::messageReady, socket, &ClientSocket::send);
     socket->set_message_got_callback(
       std::bind(&Router::handlePacket, this, std::placeholders::_1));
     socket->set_disconnected_callback(
       std::bind(&Player::onDisconnected, player));
-    // socket->setParent(this);
     this->socket = socket;
   }
 }
 
 void Router::removeSocket() {
-  // socket->disconnect(this);
   socket = nullptr;
 }
 
@@ -55,12 +48,6 @@ void Router::set_reply_ready_callback(std::function<void()> callback) {
 void Router::set_notification_got_callback(std::function<void(const Packet &)> callback) {
   notification_got_callback = std::move(callback);
 }
-
-/*
-void Router::setReplyReadySemaphore(QSemaphore *semaphore) {
-  extraReplyReadySemaphore = semaphore;
-}
-*/
 
 void Router::request(int type, const std::string_view &command,
                      const std::string_view &cborData, int timeout, int64_t timestamp) {
@@ -73,7 +60,7 @@ void Router::request(int type, const std::string_view &command,
   replyTimeout = timeout;
 
   using namespace std::chrono;
-  requestStartTime = 
+  requestStartTime =
     duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
   m_reply = "__notready";
@@ -99,41 +86,17 @@ void Router::notify(int type, const std::string_view &command, const std::string
   sendMessage(buf);
 }
 
-/*
-int Router::getTimeout() const { return requestTimeout; }
-
-// cancel last request from the sender
-void Router::cancelRequest() {
-  replyMutex.lock();
-  expectedReplyId = -1;
-  replyTimeout = 0;
-  extraReplyReadySemaphore = nullptr;
-  replyMutex.unlock();
-
-  if (replyReadySemaphore.available() > 0)
-    replyReadySemaphore.acquire(replyReadySemaphore.available());
-}
-*/
-
 // timeout永远是0
 std::string Router::waitForReply(int timeout) {
   std::lock_guard<std::mutex> lock(replyMutex);
   return m_reply;
 }
 
-/*
 void Router::abortRequest() {
-  replyMutex.lock();
-  if (expectedReplyId != -1) {
-    replyReadySemaphore.release();
-    if (extraReplyReadySemaphore)
-      extraReplyReadySemaphore->release();
-    expectedReplyId = -1;
-    extraReplyReadySemaphore = nullptr;
-  }
-  replyMutex.unlock();
+  std::lock_guard<std::mutex> lock(replyMutex);
+  m_reply = "";
+  // TODO wake up room?
 }
-*/
 
 void Router::handlePacket(const Packet &packet) {
   int requestId = packet.requestId;

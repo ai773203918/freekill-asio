@@ -5,7 +5,7 @@
 // #include "core/util.h"
 #include "core/c-wrapper.h"
 // #include "server/rpc-lua/rpc-lua.h"
-// #include "server/gamelogic/rpc-dispatchers.h"
+#include "server/gamelogic/rpc-dispatchers.h"
 #include "server/user/player.h"
 #include "server/user/user_manager.h"
 #include "server/rpc-lua/rpc-lua.h"
@@ -15,30 +15,6 @@
 
 using namespace std::literals;
 
-/*
-void Scheduler::addObserver(const QString &connId, int roomId) {
-  auto p = ServerInstance->findPlayerByConnId(connId);
-  if (!p) return;
-
-  QVariantList gameData;
-  for (auto i : p->getGameData()) gameData << i;
-
-  L->call("AddObserver", {
-    roomId,
-    QVariantMap {
-      { "connId", p->getConnId() },
-      { "id", p->getId() },
-      { "screenName", p->getScreenName() },
-      { "avatar", p->getAvatar() },
-      { "totalGameTime", p->getTotalGameTime() },
-
-      { "state", p->getState() },
-
-      { "gameData", gameData },
-    }
-  });
-}
-*/
 
 RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {}, main_io_ctx { main_ctx },
   m_thread {}, timer { io_ctx } // 调用start后才有效
@@ -82,7 +58,8 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {}, main_io_ctx { ma
     auto &um = Server::instance().user_manager();
     auto p = um.findPlayerByConnId(connId);
     if (!p) return;
-    // TODO
+
+    L->call("AddObserver", roomId, RpcDispatchers::getPlayerObject(*p));
   };
   remove_observer_callback = [&](int connId, int roomId) {
     auto &um = Server::instance().user_manager();

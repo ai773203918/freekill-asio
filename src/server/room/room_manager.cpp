@@ -39,8 +39,7 @@ Room *RoomManager::createRoom(Player &creator, const std::string &name, int capa
 void RoomManager::removeRoom(int id) {
 }
 
-RoomBase *RoomManager::findRoom(int id) const {
-  if (id == 0) return m_lobby.get();
+Room *RoomManager::findRoom(int id) const {
   auto it = rooms.find(id);
   if (it != rooms.end()) {
     return it->second.get();

@@ -10,7 +10,6 @@
 
 #include "core/c-wrapper.h"
 
-// TODO: instance
 Lobby::Lobby() {
   id = 0;
 }
@@ -139,22 +138,7 @@ void Lobby::createRoom(Player &sender, const Packet &packet) {
   }
 }
 
-/*
-void Lobby::getRoomConfig(Player *sender, const QString &jsonData) {
-  auto arr = String2Json(jsonData).array();
-  auto roomId = arr[0].toInt();
-  auto room = ServerInstance->findRoom(roomId);
-  if (room) {
-    auto settings = room->getSettings();
-    // 手搓JSON数组 跳过编码解码
-    sender->doNotify("GetRoomConfig", QCborArray { roomId, settings }.toCborValue().toCbor());
-  } else {
-    sender->doNotify("ErrorMsg", "no such room");
-  }
-}
-*/
-
-void Lobby::enterRoom(Player &sender, const Packet &pkt) {
+void Lobby::joinRoom(Player &sender, const Packet &pkt, bool observe) {
   auto &rm = Server::instance().room_manager();
 
   auto data = pkt.cborData;
@@ -179,16 +163,20 @@ void Lobby::enterRoom(Player &sender, const Packet &pkt) {
   if (result.read == 0) return;
   cbuf += result.read; len -= result.read;
 
-  auto room_ = rm.findRoom(roomId);
-  if (room_) {
-    auto &room = *dynamic_cast<Room *>(room_);
-    auto password = room.getPassword();
+  auto room = rm.findRoom(roomId);
+  if (room) {
+    auto password = room->getPassword();
     if (password.empty() || pw == password) {
-      if (room.isOutdated()) {
+      if (room->isOutdated()) {
         sender.doNotify("ErrorMsg", "room is outdated");
       } else {
-        room.addPlayer(sender);
-        if (sender.getRoom().getId() == room.getId()) {
+        if (observe) {
+          room->addPlayer(sender);
+        } else {
+          room->addObserver(sender);
+        }
+
+        if (sender.getRoom().getId() == room->getId()) {
           removePlayer(sender);
         }
       }
@@ -200,28 +188,13 @@ void Lobby::enterRoom(Player &sender, const Packet &pkt) {
   }
 }
 
-/*
-void Lobby::observeRoom(Player *sender, const QString &jsonData) {
-  auto arr = String2Json(jsonData).array();
-  auto roomId = arr[0].toInt();
-  auto room = ServerInstance->findRoom(roomId);
-  if (room) {
-    auto settings = QJsonDocument::fromJson(room->getSettings());
-    auto password = settings["password"].toString();
-    if (password.isEmpty() || arr[1].toString() == password) {
-      if (room->isOutdated()) {
-        sender->doNotify("ErrorMsg", "room is outdated");
-      } else {
-        room->addObserver(sender);
-      }
-    } else {
-      sender->doNotify("ErrorMsg", "room password error");
-    }
-  } else {
-    sender->doNotify("ErrorMsg", "no such room");
-  }
+void Lobby::enterRoom(Player &sender, const Packet &pkt) {
+  joinRoom(sender, pkt, false);
 }
-*/
+
+void Lobby::observeRoom(Player &sender, const Packet &pkt) {
+  joinRoom(sender, pkt, true);
+}
 
 void Lobby::refreshRoomList(Player &sender, const Packet &) {
   auto &rm = Server::instance().room_manager();
@@ -272,9 +245,8 @@ void Lobby::handlePacket(Player &sender, const Packet &packet) {
     // {"UpdateAvatar", &Lobby::updateAvatar},
     // {"UpdatePassword", &Lobby::updatePassword},
     {"CreateRoom", &Lobby::createRoom},
-    // {"GetRoomConfig", &Lobby::getRoomConfig},
     {"EnterRoom", &Lobby::enterRoom},
-    // {"ObserveRoom", &Lobby::observeRoom},
+    {"ObserveRoom", &Lobby::observeRoom},
     {"RefreshRoomList", &Lobby::refreshRoomList},
     {"Chat", &Lobby::chat},
   };

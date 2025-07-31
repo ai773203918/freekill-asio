@@ -37,25 +37,12 @@ public:
   void set_reply_ready_callback(std::function<void()> callback);
   void set_notification_got_callback(std::function<void(const Packet &)> callback);
 
-  /*
-  void setReplyReadySemaphore(QSemaphore *semaphore);
-  */
-
   void request(int type, const std::string_view &command,
               const std::string_view &cborData, int timeout, int64_t timestamp = -1);
   void notify(int type, const std::string_view &command, const std::string_view &cborData);
   std::string waitForReply(int timeout);
 
-  /*
-  int getTimeout() const;
-
-  void cancelRequest();
   void abortRequest();
-
-
-  int getRequestId() const { return requestId; }
-  qint64 getRequestTimestamp() { return requestTimestamp; }
-  */
 
 protected:
   void handlePacket(const Packet &packet);
@@ -74,17 +61,6 @@ private:
   std::string m_reply;    // should be json string
   int expectedReplyId;
   int replyTimeout;
-/*
-
-  // For client side
-  int requestId;
-  int requestTimeout;
-  qint64 requestTimestamp;
-
-  // For server side
-  QSemaphore replyReadySemaphore;
-  QSemaphore *extraReplyReadySemaphore;
-  */
 
   void sendMessage(const std::string_view &msg);
 

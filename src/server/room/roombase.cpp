@@ -10,28 +10,10 @@
 #include "network/client_socket.h"
 
 bool RoomBase::isLobby() const {
-  return dynamic_cast<const Lobby *>(this) != nullptr;
+  return id == 0;
 }
 
 int RoomBase::getId() const { return id; }
-
-/*
-QList<ServerPlayer *> RoomBase::getPlayers() const { return players; }
-
-QList<ServerPlayer *> RoomBase::getOtherPlayers(ServerPlayer *expect) const {
-  QList<ServerPlayer *> others = getPlayers();
-  others.removeOne(expect);
-  return others;
-}
-
-ServerPlayer *RoomBase::findPlayer(int id) const {
-  for (auto p : players) {
-    if (p->getId() == id)
-      return p;
-  }
-  return nullptr;
-}
-*/
 
 void RoomBase::doBroadcastNotify(const std::vector<int> targets,
                                  const std::string_view &command, const std::string_view &cborData) {
@@ -46,9 +28,6 @@ void RoomBase::chat(Player &sender, const Packet &packet) {
   auto &server = Server::instance();
   auto &um = server.user_manager();
   auto data = packet.cborData;
-  // auto doc = String2Json(cborData).object();
-  // auto type = doc["type"].toInt();
-  // doc["sender"] = sender->getId();
 
   struct cbor_load_result result;
   auto mp = cbor_load((cbor_data)data.data(), data.size(), &result);

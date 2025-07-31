@@ -239,7 +239,7 @@ void Room::removePlayer(Player &player) {
   auto pid = player.getId();
   // 如果是旁观者的话，就清旁观者
   if (hasObserver(player)) {
-    // removeObserver(player);
+    removeObserver(player);
     return;
   }
 
@@ -250,7 +250,7 @@ void Room::removePlayer(Player &player) {
       player.setReady(false);
       players.erase(it);
     }
-    // TODO 加入到大厅
+    // 这集必须手动加入到大厅
     // emit playerRemoved(player);
 
     doBroadcastNotify(players, "RemovePlayer", Cbor::encodeArray({ player.getId() }));
@@ -316,47 +316,51 @@ void Room::removePlayer(Player &player) {
   }
 }
 
-/*
-void Room::addObserver(Player *player) {
+void Room::addObserver(Player &player) {
   // 首先只能旁观在运行的房间，因为旁观是由Lua处理的
   if (!gameStarted) {
-    player->doNotify("ErrorMsg", "Can only observe running room.");
+    player.doNotify("ErrorMsg", "Can only observe running room.");
     return;
   }
 
-  if (rejected_players.contains(player->getId())) {
-    player->doNotify("ErrorMsg", "rejected your demand of joining room");
-    return;
-  }
+  // TODO
+  // if (rejected_players.contains(player->getId())) {
+  //   player->doNotify("ErrorMsg", "rejected your demand of joining room");
+  //   return;
+  // }
 
   // 向observers中追加player，并从大厅移除player，然后将player的room设为this
-  observers.append(player);
-  player->setRoom(this);
-  emit playerAdded(player);
-  auto thread = qobject_cast<RoomThread *>(parent());
-  emit thread->addObserver(player->getConnId(), id);
-  pushRequest(QString("%1,observe").arg(player->getId()));
+  observers.push_back(player.getConnId());
+  player.setRoom(*this);
+  // 这集要手动从大厅删除玩家 详见lobby.cpp
+  // emit playerAdded(player);
+
+  // TODO 完善thread逻辑
+  auto &thread = Server::instance().getAvailableThread();
+  thread.addObserver(player.getConnId(), id);
+  pushRequest(fmt::format("{},observe", player.getId()));
 }
 
-void Room::removeObserver(Player *player) {
-  if (observers.contains(player)) {
-    observers.removeOne(player);
+void Room::removeObserver(Player &player) {
+  if (auto it = std::find(observers.begin(), observers.end(), player.getId()); it != observers.end()) {
+    observers.erase(it);
   }
-  emit playerRemoved(player);
+  // 这集要手动把玩家加入大厅 需要注意手动从最外面调的情况
+  // emit playerRemoved(player);
 
-  if (player->getState() == Player::Online) {
-    QCborArray arr {
-      player->getId(),
-      player->getScreenName(),
-      player->getAvatar(),
-    };
-    player->doNotify("Setup", arr.toCborValue().toCbor());
+  if (player.getState() == Player::Online) {
+    player.doNotify("Setup", Cbor::encodeArray({
+      player.getId(),
+      player.getScreenName(),
+      player.getAvatar(),
+    }));
   }
-  auto thread = qobject_cast<RoomThread *>(parent());
-  emit thread->removeObserver(player->getConnId(), id);
-  pushRequest(QString("%1,leave").arg(player->getId()));
+
+  // TODO 完善thread逻辑
+  auto &thread = Server::instance().getAvailableThread();
+  thread.removeObserver(player.getConnId(), id);
+  pushRequest(fmt::format("{},leave", player.getId()));
 }
-*/
 
 bool Room::hasObserver(Player &player) const {
   return std::find(observers.begin(), observers.end(), player.getId()) != observers.end();
@@ -766,28 +770,31 @@ void Room::handlePacket(Player &sender, const Packet &packet) {
     (this->*func)(sender, packet);
   }
 }
-/*
 
 // Lua用：request之前设置计时器防止等到死。
 void Room::setRequestTimer(int ms) {
-  request_timer = new QTimer();
-  request_timer->setSingleShot(true);
-  request_timer->setInterval(ms);
-  connect(request_timer, &QTimer::timeout, this, [=](){
-      auto thread = qobject_cast<RoomThread *>(parent());
-      thread->wakeUp(id, "request_timer");
-      });
-  request_timer->start();
+  // TODO 完善thread逻辑
+  auto &thread = Server::instance().getAvailableThread();
+  auto &ctx = thread.context();
+
+  request_timer = std::make_unique<asio::steady_timer>(
+    ctx, std::chrono::milliseconds(ms));
+
+  request_timer->async_wait([&](const asio::error_code& ec){
+    if (!ec) {
+      thread.wakeUp(id, "request_timer");
+    } else {
+      spdlog::error(ec.message());
+    }
+  });
 }
 
 // Lua用：当request完成后手动销毁计时器。
 void Room::destroyRequestTimer() {
   if (!request_timer) return;
-  request_timer->stop();
-  delete request_timer;
+  request_timer->cancel();
   request_timer = nullptr;
 }
-*/
 
 int Room::getRefCount() {
   std::lock_guard<std::mutex> locker(lua_ref_mutex);

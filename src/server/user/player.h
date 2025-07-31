@@ -67,7 +67,6 @@ public:
 
   void doRequest(const std::string_view &command,
                  const std::string_view &jsonData, int timeout = -1, int64_t timestamp = -1);
-  // void abortRequest();
   std::string waitForReply(int timeout);
   void doNotify(const std::string_view &command, const std::string_view &data);
 
@@ -89,12 +88,6 @@ public:
   void onDisconnected();
 
   /*
-  // server stuff
-  void speak(const  std::string &&message);
-
-  void prepareForRequest(const  std::string &&command,
-                         const  std::string &&data);
-
   void kick();
   void reconnect(ClientSocket *socket);
 

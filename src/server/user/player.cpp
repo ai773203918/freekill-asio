@@ -10,6 +10,7 @@
 #include "network/client_socket.h"
 #include "network/router.h"
 
+#include "core/c-wrapper.h"
 #include "core/util.h"
 
 static int nextConnId = 1000;
@@ -83,12 +84,16 @@ std::string_view Player::getStateString() const {
 
 void Player::setState(Player::State state) {
   this->state = state;
+
+  // QT祖宗之法不可变
+  onStateChanged();
 }
 
 bool Player::isReady() const { return ready; }
 
 void Player::setReady(bool ready) {
   this->ready = ready;
+  onReadyChanged();
 }
 
 std::vector<int> Player::getGameData() {
@@ -155,8 +160,6 @@ void Player::doRequest(const std::string_view &command,
   int type = Router::TYPE_REQUEST | Router::SRC_SERVER | Router::DEST_CLIENT;
   m_router->request(type, command, jsonData, timeout, timestamp);
 }
-
-// void Player::abortRequest() { router->abortRequest(); }
 
 std::string Player::waitForReply(int timeout) {
   std::string ret;
@@ -281,13 +284,6 @@ void Player::removeSocket() {
   router->removeSocket();
 }
 
-void Player::speak(const std::string &message) { ; }
-void Player::prepareForRequest(const std::string &command,
-                                     const std::string &data) {
-  requestCommand = command;
-  requestData = data;
-}
-
 void Player::kick() {
   setState(Player::Offline);
   if (socket != nullptr) {
@@ -342,42 +338,39 @@ void Player::onReplyReady() {
   auto &room_ = getRoom();
   if (!room_.isLobby()) {
     // TODO 完善thread逻辑
-    // auto room = qobject_cast<Room *>(room);
-    // auto thread = qobject_cast<RoomThread *>(_room->parent());
     auto &thread = Server::instance().getAvailableThread();
     thread.wakeUp(room_.getId(), "reply");
   }
 }
 
-/*
 void Player::onStateChanged() {
-  auto _room = getRoom();
-  if (!_room || _room->isLobby()) return;
-  auto room = qobject_cast<Room *>(_room);
-  if (room->hasObserver(this)) return;
+  auto &_room = getRoom();
+  if (_room.isLobby()) return;
+  auto room = dynamic_cast<Room *>(&_room);
+  if (room->hasObserver(*this)) return;
 
-  auto thread = qobject_cast<RoomThread *>(room->parent());
-  if (thread) {
-    emit thread->setPlayerState(connId, room->getId());
-  }
+  // TODO 完善thread逻辑
+  auto &thread = Server::instance().getAvailableThread();
+  thread.setPlayerState(connId, room->getId());
 
   if (room->isAbandoned()) return;
 
   auto state = getState();
   room->doBroadcastNotify(room->getPlayers(), "NetStateChanged",
-      QCborArray { getId(), getStateString() }.toCborValue().toCbor());
+                          Cbor::encodeArray({ id, getStateString() }));
 
-  if (state == Player::Online) {
-    resumeGameTimer();
-  } else {
-    pauseGameTimer();
-  }
+  // TODO
+  // if (state == Player::Online) {
+  //   resumeGameTimer();
+  // } else {
+  //   pauseGameTimer();
+  // }
 }
 
 void Player::onReadyChanged() {
-  if (room && !room->isLobby()) {
-    room->doBroadcastNotify(room->getPlayers(), "ReadyChanged",
-                            QCborArray { getId(), isReady() }.toCborValue().toCbor());
-  }
+  auto &_room = getRoom();
+  if (_room.isLobby()) return;
+  auto room = dynamic_cast<Room *>(&_room);
+  room->doBroadcastNotify(room->getPlayers(), "ReadyChanged",
+                          Cbor::encodeArray({ id, ready }));
 }
-*/

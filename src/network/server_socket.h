@@ -29,7 +29,6 @@ private:
   QUdpSocket *udpSocket;
 
   void processDatagram(const QByteArray &msg, const QHostAddress &addr, uint port);
-  void processNewConnection();
   void readPendingDatagrams();
   */
 };

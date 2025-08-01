@@ -9,6 +9,7 @@
 #include "server/room/room_manager.h"
 #include "server/room/room.h"
 #include "server/room/lobby.h"
+#include "server/rpc-lua/rpc-lua.h"
 #include "server/gamelogic/roomthread.h"
 #include "core/util.h"
 #include "core/c-wrapper.h"
@@ -151,6 +152,7 @@ void Shell::installCommand(StringList &list) {
 
   auto url = list[0];
   PackMan::instance().downloadNewPack(url.c_str());
+  Server::instance().refreshMd5();
 }
 
 void Shell::removeCommand(StringList &list) {
@@ -161,6 +163,7 @@ void Shell::removeCommand(StringList &list) {
 
   auto pack = list[0];
   PackMan::instance().removePack(pack.c_str());
+  Server::instance().refreshMd5();
 }
 
 void Shell::upgradeCommand(StringList &list) {
@@ -169,13 +172,13 @@ void Shell::upgradeCommand(StringList &list) {
     for (auto &a : arr) {
       PackMan::instance().upgradePack(a["name"].c_str());
     }
-    // Server::instance().refreshMd5();
+    Server::instance().refreshMd5();
     return;
   }
 
   auto pack = list[0];
   PackMan::instance().upgradePack(pack.c_str());
-  // Server::instance().refreshMd5();
+  Server::instance().refreshMd5();
 }
 
 void Shell::enableCommand(StringList &list) {
@@ -186,7 +189,7 @@ void Shell::enableCommand(StringList &list) {
 
   auto pack = list[0];
   PackMan::instance().enablePack(pack.c_str());
-  // Server::instance().refreshMd5();
+  Server::instance().refreshMd5();
 }
 
 void Shell::disableCommand(StringList &list) {
@@ -197,7 +200,7 @@ void Shell::disableCommand(StringList &list) {
 
   auto pack = list[0];
   PackMan::instance().disablePack(pack.c_str());
-  // Server::instance().refreshMd5();
+  Server::instance().refreshMd5();
 }
 
 void Shell::lspkgCommand(StringList &) {
@@ -483,25 +486,24 @@ void Shell::statCommand(StringList &) {
 
   auto players = server.user_manager().getPlayers();
   spdlog::info("Player(s) logged in: {}", players.size());
-  spdlog::info("Rooms: {}", server.room_manager().getRooms().size());
+  // spdlog::info("Rooms: {}", server.room_manager().getRooms().size());
 
-  // auto threads = server->findChildren<RoomThread *>();
-  // for (auto &thr : threads) {
-  //   auto rooms = thr->findChildren<Room *>();
-  //   auto L = thr->getLua();
+  auto &threads = server.getThreads();
+  for (auto &[id, thr] : threads) {
+    // auto rooms = thr->findChildren<Room *>();
+    auto &L = thr->getLua();
 
-  //   QString stat_str = QStringLiteral("unknown");
-  //   stat_str = L->getConnectionInfo();
-  //   auto outdated = thr->isOutdated();
-  //   if (rooms.count() == 0 && outdated) {
-  //     thr->deleteLater();
-  //   } else {
-  //     spdlog::info("RoomThread %p | %ls | %lld room(s) {}", thr, qUtf16Printable(stat_str), rooms.count(),
-  //           outdated ? "| Outdated" : "");
-  //   }
-  // }
+    auto stat_str = L.getConnectionInfo();
+    auto outdated = thr->isOutdated();
+    // if (rooms.count() == 0 && outdated) {
+      // thr->deleteLater();
+    // } else {
+      spdlog::info("RoomThread {} | {} | {} room(s) {}", id, stat_str, '?', //rooms.count(),
+            outdated ? "| Outdated" : "");
+    // }
+  }
 
-  spdlog::info("Database memory usage: %.2f MiB",
+  spdlog::info("Database memory usage: {:.2f} MiB",
         ((double)server.database().getMemUsage()) / 1048576);
 }
 
@@ -521,7 +523,7 @@ void Shell::killRoomCommand(StringList &list) {
   if (!room) {
     spdlog::info("No such room.");
   } else {
-    spdlog::info("Killing room %d", id);
+    spdlog::info("Killing room {}", id);
 
     for (auto pConnId : room->getPlayers()) {
       auto player = um.findPlayerByConnId(pConnId);
@@ -838,9 +840,9 @@ static char **fk_completion(const char* text, int start, int end) {
     } else if (command == "remove" || command == "upgrade"
         || command == "enable" || command == "disable") {
       matches = rl_completion_matches(text, package_generator);
-    } else if (command.compare(0, 3, "ban") || command == "resetpassword" || command == "rp") {
+    } else if (command.starts_with("ban") || command == "resetpassword" || command == "rp") {
       matches = rl_completion_matches(text, user_generator);
-    } else if (command.compare(0, 5, "unban")) {
+    } else if (command.starts_with("unban")) {
       matches = rl_completion_matches(text, banned_user_generator);
     }
   }

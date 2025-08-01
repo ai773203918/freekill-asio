@@ -26,16 +26,18 @@ public:
   void addObserver(int connId, int roomId);
   void removeObserver(int connId, int roomId);
 
+  const RpcLua &getLua() const;
   /*
   bool isFull() const;
 
   int getCapacity() const { return m_capacity; }
   QString getMd5() const;
   Room *getRoom(int id) const;
+  */
 
   bool isOutdated();
 
-  LuaInterface *getLua() const;
+  /*
 
  public slots:
   void onRoomAbandoned();
@@ -65,8 +67,6 @@ private:
 
   void emit_signal(std::function<void()> f);
 
-  /*
   int m_capacity;
-  QString md5;
-  */
+  std::string md5;
 };

@@ -42,7 +42,7 @@ void ServerSocket::listen_udp() {
           asio::const_buffer("me", 2),
           udp_remote_end,
           [](const asio::error_code &ec, size_t){});
-      } else if (sv.compare(0, 12, "fkGetDetail,", 12) == 0) {
+      } else if (sv.starts_with("fkGetDetail,")) {
         auto &conf = Server::instance().config();
         auto &um = Server::instance().user_manager();
 

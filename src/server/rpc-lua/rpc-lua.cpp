@@ -44,6 +44,7 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
 
     std::exit(EXIT_FAILURE);
   } else if (pid > 0) { // 父进程
+    child_pid = pid;
     // 转下文
   } else {
     throw std::runtime_error("Failed to fork process");
@@ -518,28 +519,30 @@ void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param
 #endif
 }
 
-/*
-QString RpcLua::getConnectionInfo() const {
-  auto process = dynamic_cast<QProcess *>(socket);
+std::string RpcLua::getConnectionInfo() const {
+  auto ret = fmt::format("PID {}", child_pid);
+  if (kill(child_pid, 0) == 0) {
+    std::ifstream f { fmt::format("/proc/{}/statm", child_pid) };
+    if (f.is_open()) {
+      std::string line;
+      std::getline(f, line);
 
-  if (process) {
-    auto pid = process->processId();
-    auto ret = QString("PID %1").arg(pid);
+      std::istringstream iss(line);
+      // 取splited[1]
+      long rss_pages;
+      iss >> rss_pages;
+      iss >> rss_pages;
 
-#ifdef Q_OS_LINUX
-    // 若为Linux，附送RSS信息
-    QFile f(QString("/proc/%1/statm").arg(pid));
-    if (f.open(QIODevice::ReadOnly)) {
-      const QList<QByteArray> parts = f.readAll().split(' ');
-      const long pageSize = sysconf(_SC_PAGESIZE);
-      auto mem_mib = (parts[1].toLongLong() * pageSize) / (1024.0 * 1024.0);
-      ret += QString::asprintf(" (RSS = %.2f MiB)", mem_mib);
+      long pageSize = sysconf(_SC_PAGESIZE);
+      double mem_mib = (rss_pages * pageSize) / (1024.0 * 1024.0);
+
+      ret += fmt::format(" (RSS = {:.2f} MiB)", mem_mib);
+    } else {
+      ret += " (unknown)";
     }
-#endif
-
-    return ret;
   } else {
-    return "unknown";
+    ret += " (died)";
   }
+
+  return ret;
 }
-*/

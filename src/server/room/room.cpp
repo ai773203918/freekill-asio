@@ -29,7 +29,7 @@ Room::Room() {
 Room::~Room() {
   spdlog::debug("Room {} destructed", id);
   // 标记为过期 避免封人
-  // md5 = "";
+  md5 = "";
 
   auto &um = Server::instance().user_manager();
   auto &rm = Server::instance().room_manager();
@@ -352,10 +352,9 @@ void Room::delay(int ms) {
 }
 
 bool Room::isOutdated() {
-  // bool ret = md5 != server->getMd5();
-  // if (ret) md5 = QStringLiteral("");
-  // return ret;
-  return false;
+  bool ret = md5 != Server::instance().getMd5();
+  if (ret) md5 = "";
+  return ret;
 }
 
 bool Room::isStarted() const { return gameStarted; }

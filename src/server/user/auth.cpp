@@ -247,17 +247,15 @@ bool AuthManager::checkMd5() {
   auto &server = Server::instance();
   auto md5_str = p_ptr->md5;
 
-  //因为server还没有md5，先搁置
-  /*
   if (server.getMd5() != md5_str) {
     if (auto client = p_ptr->client.lock()) {
       server.sendEarlyPacket(*client, "ErrorMsg", "MD5 check failed!");
-      server.sendEarlyPacket(*client, "UpdatePackage", Pacman->getPackSummary().toUtf8());
+      // TODO
+      // server.sendEarlyPacket(*client, "UpdatePackage", Pacman->getPackSummary().toUtf8());
       client->disconnectFromHost();
     }
     return false;
   }
-  */
 
   return true;
 }

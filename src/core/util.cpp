@@ -2,103 +2,154 @@
 
 #include "core/util.h"
 #include "core/packman.h"
+#include <openssl/md5.h>
 
-/*
-static void writeFileMD5(QFile &dest, const QString &fname) {
-  QFile f(fname);
-  if (!f.open(QIODevice::ReadOnly)) {
+namespace fs = std::filesystem;
+
+// Forward declarations
+void writeFileMD5(std::ofstream &dest, const std::string &fname);
+void writeDirMD5(std::ofstream &dest, const std::string &dir, const std::regex &filter_re);
+void writePkgsMD5(std::ofstream &dest, const std::string &dir, const std::string &filter_pattern);
+
+// Read file content, normalize \r\n → \n, compute MD5
+std::string computeFileMD5(const std::string &fname) {
+  std::ifstream file(fname, std::ios::binary);
+  if (!file.is_open()) {
+    return std::string(32, '0'); // Return 32-char zero hash if fail
+  }
+
+  std::vector<char> data;
+  char buffer[4096];
+
+  while (file.read(buffer, sizeof(buffer)) || file.gcount() > 0) {
+    data.insert(data.end(), buffer, buffer + file.gcount());
+  }
+
+  // Normalize line endings: \r\n → \n
+  std::vector<char> normalized;
+  normalized.reserve(data.size());
+  for (size_t i = 0; i < data.size(); ++i) {
+    if (data[i] == '\r' && i + 1 < data.size() && data[i+1] == '\n') {
+      continue; // skip \r, keep \n
+    }
+    normalized.push_back(data[i]);
+  }
+
+  unsigned char digest[MD5_DIGEST_LENGTH];
+  MD5(reinterpret_cast<const unsigned char*>(normalized.data()), normalized.size(), digest);
+
+  return toHex({ (char*)digest, MD5_DIGEST_LENGTH });
+}
+
+// Write file MD5: "filename=md5;"
+void writeFileMD5(std::ofstream &dest, const std::string &fname) {
+  std::string hash = computeFileMD5(fname);
+  dest << fname << '=' << hash << ';';
+}
+
+// Recursively write all files matching regex (sorted by name), dirs first in name order
+void writeDirMD5(std::ofstream &dest, const std::string &dir, const std::regex &filter_re) {
+  fs::path path(dir);
+
+  if (!fs::exists(path) || !fs::is_directory(path)) {
     return;
   }
 
-  auto data = f.readAll();
-  f.close();
-  data.replace(QByteArray("\r\n"), QByteArray("\n"));
-  auto hash = QCryptographicHash::hash(data, QCryptographicHash::Md5).toHex();
-  dest.write(fname.toUtf8() + '=' + hash + ';');
-}
+  // Collect entries to sort by filename
+  std::vector<fs::directory_entry> entries;
+  for (const auto& entry : fs::directory_iterator(path)) {
+    entries.push_back(entry);
+  }
 
-static void writeDirMD5(QFile &dest, const QString &dir,
-                        const QString &filter) {
-  QDir d(dir);
-  auto entries = d.entryInfoList(
-      QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-  auto re = QRegularExpression::fromWildcard(filter);
-  for (QFileInfo info : entries) {
-    if (info.isDir()) {
-      writeDirMD5(dest, info.filePath(), filter);
-    } else {
-      if (re.match(info.fileName()).hasMatch()) {
-        writeFileMD5(dest, info.filePath());
+  // Sort by filename (lexicographical, like Qt QDir::Name)
+  std::sort(entries.begin(), entries.end(), [](const fs::directory_entry& a, const fs::directory_entry& b) {
+    return a.path().filename() < b.path().filename();
+  });
+
+  for (const auto& entry : entries) {
+    if (entry.is_directory()) {
+      writeDirMD5(dest, entry.path().string(), filter_re);
+    } else if (entry.is_regular_file()) {
+      std::string filename = entry.path().filename().string();
+      if (std::regex_match(filename, filter_re)) {
+        writeFileMD5(dest, entry.path().string());
       }
     }
   }
 }
 
-static void writePkgsMD5(QFile &dest, const QString &dir,
-                        const QString &filter) {
-  QDir d(dir);
-  auto entries = d.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-  const auto disabled = Pacman->getDisabledPacks();
-  static const QStringList builtinPkgs = {
-    "standard", "standard_cards", "maneuvering", "test",
+// Handle packages: scan top-level dirs under "packages", skip .disabled, disabled packs, and built-ins
+void writePkgsMD5(std::ofstream &dest, const std::string &base_dir, const std::string &filter_pattern) {
+  fs::path path(base_dir);
+  if (!fs::exists(path) || !fs::is_directory(path)) {
+    return;
+  }
+
+  auto disabled = PackMan::instance().getDisabledPacks();
+  const std::set<std::string> builtinPkgs = {
+    "standard", "standard_cards", "maneuvering", "test"
   };
-  for (QFileInfo info : entries) {
-    if (!info.isDir()) continue;
-    auto dirname = info.fileName();
-    if (info.fileName().endsWith(".disabled")) continue;
-    if (disabled.contains(info.fileName())) continue;
-    if (builtinPkgs.contains(info.fileName())) continue;
 
-    writeDirMD5(dest, info.filePath(), filter);
+  std::vector<fs::directory_entry> entries;
+  for (const auto& entry : fs::directory_iterator(path)) {
+    if (entry.is_directory()) {
+      entries.push_back(entry);
+    }
+  }
+
+  // Sort by name
+  std::sort(entries.begin(), entries.end(), [](const fs::directory_entry& a, const fs::directory_entry& b) {
+    return a.path().filename() < b.path().filename();
+  });
+
+  for (const auto& entry : entries) {
+    std::string dirname = entry.path().filename().string();
+
+    // Skip .disabled directories
+    if (dirname.ends_with(".disabled")) continue;
+    if (std::find(disabled.begin(), disabled.end(), dirname) != disabled.end()) continue;
+    if (builtinPkgs.contains(dirname)) continue;
+
+    writeDirMD5(dest, entry.path().string(), std::regex { filter_pattern });
   }
 }
 
-QString calcFileMD5() {
-  // First, generate flist.txt
-  // flist.txt is a file contains all md5sum for code files
-  QFile flist("flist.txt");
-  if (!flist.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-    qFatal("Cannot open flist.txt. Quitting.");
+// Main function: generate flist.txt, then return its MD5
+std::string calcFileMD5() {
+  const std::string flist_path = "flist.txt";
+
+  std::ofstream flist(flist_path, std::ios::out | std::ios::trunc);
+  if (!flist.is_open()) {
+    spdlog::error("Cannot open flist.txt. Quitting.");
+    std::exit(1);
   }
 
-  writePkgsMD5(flist, "packages", "*.lua");
-  writePkgsMD5(flist, "packages", "*.qml");
-  writePkgsMD5(flist, "packages", "*.js");
-
-  // then, return flist.txt's md5
-  flist.close();
-  flist.open(QIODevice::ReadOnly);
-  auto ret = QCryptographicHash::hash(flist.readAll(), QCryptographicHash::Md5);
+  writePkgsMD5(flist, "packages", "^.*\\.lua$");
+  writePkgsMD5(flist, "packages", "^.*\\.qml$");
+  writePkgsMD5(flist, "packages", "^.*\\.js$");
 
   flist.close();
-  return ret.toHex();
-}
 
-QByteArray JsonArray2Bytes(const QJsonArray &arr) {
-  auto doc = QJsonDocument(arr);
-  return doc.toJson(QJsonDocument::Compact);
-}
+  // Now compute MD5 of the generated flist.txt
+  std::ifstream input(flist_path, std::ios::binary);
+  if (!input.is_open()) {
+    spdlog::error("Cannot reopen flist.txt for hashing.");
+    std::exit(1);
+  }
 
-QJsonDocument String2Json(const QString &str) {
-  auto bytes = str.toUtf8();
-  return QJsonDocument::fromJson(bytes);
-}
+  MD5_CTX md5_ctx;
+  MD5_Init(&md5_ctx);
 
-QString GetDeviceUuid() {
-  QString ret;
-#ifdef Q_OS_ANDROID
-  QJniObject string = QJniObject::callStaticObjectMethod("org/notify/FreeKill/Helper", "GetSerial", "()Ljava/lang/String;");
-  ret = string.toString();
-#else
-  ret = QSysInfo::machineUniqueId();
-#endif
-  return ret;
-}
+  char buffer[4096];
+  while (input.read(buffer, sizeof(buffer)) || input.gcount() > 0) {
+    MD5_Update(&md5_ctx, buffer, input.gcount());
+  }
 
-QString GetDisabledPacks() {
-  return JsonArray2Bytes(QJsonArray::fromStringList(Pacman->getDisabledPacks()));
+  unsigned char digest[MD5_DIGEST_LENGTH];
+  MD5_Final(digest, &md5_ctx);
+
+  return toHex({ (char*)digest, MD5_DIGEST_LENGTH });
 }
-*/
 
 std::string Color(const std::string &raw, fkShell::TextColor color,
               fkShell::TextType type) {
@@ -109,139 +160,6 @@ std::string Color(const std::string &raw, fkShell::TextColor color,
 
   return prefix + raw + suffix;
 }
-
-/**
-QByteArray FetchFileFromHttp(const QString &addr) {
-  // 初始化网络访问管理器
-  QNetworkAccessManager manager;
-
-  // 创建GET请求
-  QNetworkRequest request;
-  request.setUrl(QUrl(addr));
-  request.setHeader(QNetworkRequest::UserAgentHeader, "Qt HTTP Client");
-
-  // 发送GET请求并获取回复
-  QNetworkReply *reply = manager.get(request);
-
-  // 设置超时时间为5秒
-  QTimer timeoutTimer;
-  timeoutTimer.singleShot(5000, [=]() {
-    if (reply && reply->isRunning()) {
-      qWarning() << "Request timed out. Aborting.";
-      reply->abort();
-    }
-  });
-
-  // 使用事件循环阻塞直到请求完成或超时
-  QEventLoop loop;
-  QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-  loop.exec();
-
-  // 检查是否有错误发生
-  if (reply->error() != QNetworkReply::NoError) {
-    qWarning() << "Network error occurred:" << reply->errorString();
-    delete reply;
-    return QByteArray();
-  }
-
-  // 检查HTTP状态码是否为成功（例如200 OK）
-  int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-  if (statusCode != 200) {
-    qWarning() << "HTTP request failed with status code:" << statusCode;
-    delete reply;
-    return QByteArray();
-  }
-
-  // 获取响应数据
-  QByteArray responseData = reply->readAll();
-
-  // 删除回复对象以释放资源
-  delete reply;
-
-  return responseData;
-}
-
-static QJsonDocument variantToJson(QVariant data) {
-  QJsonDocument jsonDoc;
-
-  switch (data.typeId()) {
-    case QMetaType::Int:
-      jsonDoc.setObject(QJsonObject{{"value", data.toInt()}});
-      break;
-    case QMetaType::Double:
-      jsonDoc.setObject(QJsonObject{{"value", data.toDouble()}});
-      break;
-    case QMetaType::Bool:
-      jsonDoc.setObject(QJsonObject{{"value", data.toBool()}});
-      break;
-    case QMetaType::QString: {
-      // 转义特殊字符并包裹在引号中
-      QString str = data.toString();
-      jsonDoc.setObject(QJsonObject{{"value", str}});
-      break;
-    }
-    case QMetaType::QVariantList: {
-      QJsonArray jsonArray;
-      QVariantList list = data.toList();
-      for (const auto &item : list) {
-        QJsonDocument itemDoc = variantToJson(item);
-        jsonArray.append(itemDoc.array()[0]); // 假设每个元素已经转换为适当的JSON类型
-      }
-      jsonDoc.setArray(jsonArray);
-      break;
-    }
-    case QMetaType::QVariantMap: {
-      QJsonObject jsonObj;
-      QVariantMap map = data.toMap();
-      for (const auto &key : map.keys()) {
-        QJsonDocument valueDoc = variantToJson(map[key]);
-        jsonObj.insert(key, valueDoc.object().value("value")); // 根据具体转换方式调整
-      }
-      jsonDoc.setObject(jsonObj);
-      break;
-    }
-    default:
-      // 处理未知类型，返回空字节数组或抛出异常
-      return QJsonDocument();
-  }
-
-  return jsonDoc;
-}
-
-QVariant AskOllama(const QString &apiEndpoint, const QVariant &body) {
-  QNetworkAccessManager manager;
-  QNetworkRequest request(apiEndpoint);
-
-  // 构造JSON请求体
-  QByteArray requestData = variantToJson(body).toJson(QJsonDocument::Compact);
-
-  request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-
-  // 发送POST请求
-  QNetworkReply *reply = manager.post(request, requestData);
-
-  // 创建事件循环，阻塞直到响应完成
-  QEventLoop loop;
-  QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-  loop.exec();
-
-  // 检查是否有错误发生
-  if (reply->error() != QNetworkReply::NoError) {
-    // 处理错误情况，例如记录日志或抛出异常
-    qWarning() << "Network error occurred: " << reply->errorString();
-    delete reply;
-    return QByteArray();
-  }
-
-  // 读取响应数据
-  QByteArray responseData = reply->readAll();
-
-  // 删除回复对象以释放资源
-  delete reply;
-
-  return QJsonDocument::fromJson(responseData).toVariant();
-}
-*/
 
 std::string toHex(std::string_view sv) {
   std::ostringstream oss;

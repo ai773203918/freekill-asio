@@ -58,6 +58,8 @@ public:
   void removeThread(int threadId);
   RoomThread *getThread(int threadId);
   RoomThread &getAvailableThread();
+  const std::unordered_map<int, std::unique_ptr<RoomThread>> &getThreads() const;
+
   std::thread::id mainThreadId() const;
 
   void broadcast(const std::string_view &command, const std::string_view &jsonData);
@@ -71,12 +73,10 @@ public:
   void beginTransaction();
   void endTransaction();
 
-  /*
-  const QString &getMd5() const;
+  const std::string &getMd5() const;
   void refreshMd5();
 
-  qint64 getUptime() const;
-  */
+  int64_t getUptime() const;
 
   bool nameIsInWhiteList(const std::string_view &name) const;
 
@@ -100,9 +100,7 @@ private:
 
   std::vector<std::string> temp_banlist;
 
-  /*
-  QString md5;
+  std::string md5;
 
-  QElapsedTimer uptime_counter;
-  */
+  int64_t start_timestamp;
 };

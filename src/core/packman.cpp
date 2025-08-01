@@ -45,54 +45,45 @@ std::vector<std::string> &PackMan::getDisabledPacks() {
 QString PackMan::getPackSummary() {
   return db->selectJson("SELECT name, url, hash FROM packages WHERE enabled = 1;");
 }
+*/
 
+/*
 void PackMan::loadSummary(const QString &jsonData, bool useThread) {
-  auto f = [=]() {
-    // First, disable all packages
-    for (auto e : db->select("SELECT name FROM packages;")) {
-      disablePack(e["name"]);
+  // First, disable all packages
+  for (auto e : db->select("SELECT name FROM packages;")) {
+    disablePack(e["name"]);
+  }
+
+  // Then read conf from string
+  auto doc = QJsonDocument::fromJson(jsonData.toUtf8());
+  auto arr = doc.array();
+  for (auto e : arr) {
+    auto obj = e.toObject();
+    auto name = obj["name"].toString();
+    auto url = obj["url"].toString();
+    int err = 0;
+
+    if (db->select(
+      QString("SELECT name FROM packages WHERE name='%1';").arg(name))
+      .isEmpty()) {
+      err = downloadNewPack(url);
+      if (err != 0) {
+        continue;
+      }
     }
 
-    // Then read conf from string
-    auto doc = QJsonDocument::fromJson(jsonData.toUtf8());
-    auto arr = doc.array();
-    for (auto e : arr) {
-      auto obj = e.toObject();
-      auto name = obj["name"].toString();
-      auto url = obj["url"].toString();
-      int err = 0;
+    enablePack(name);
 
-      if (db->select(
-              QString("SELECT name FROM packages WHERE name='%1';").arg(name))
-              .isEmpty()) {
-        err = downloadNewPack(url);
-        if (err != 0) {
-          continue;
-        }
+    if (head(name) != obj["hash"].toString()) {
+      err = updatePack(name, obj["hash"].toString());
+      if (err != 0) {
+        continue;
       }
-
-      enablePack(name);
-
-      if (head(name) != obj["hash"].toString()) {
-        err = updatePack(name, obj["hash"].toString());
-        if (err != 0) {
-          continue;
-        }
-      }
-
-      db->exec(QString("UPDATE packages SET hash='%1' WHERE name='%2'")
-                      .arg(obj["hash"].toString())
-                      .arg(name));
     }
-  };
-  if (useThread) {
-    auto thread = QThread::create(f);
-    thread->start();
-    connect(thread, &QThread::finished, [=]() {
-      thread->deleteLater();
-    });
-  } else {
-    f();
+
+    db->exec(QString("UPDATE packages SET hash='%1' WHERE name='%2'")
+             .arg(obj["hash"].toString())
+             .arg(name));
   }
 }
 */

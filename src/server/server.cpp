@@ -16,6 +16,7 @@
 #include "server/cli/shell.h"
 
 #include "core/c-wrapper.h"
+#include "core/util.h"
 
 #include <cjson/cJSON.h>
 
@@ -38,9 +39,13 @@ Server::Server() : m_socket { nullptr } {
 
   reloadConfig();
 
-  /*
   md5 = calcFileMD5();
 
+  using namespace std::chrono;
+  start_timestamp =
+    duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+
+  /*
   // 启动心跳包线程
   auto heartbeatThread = QThread::create([=]() {
     while (true) {
@@ -171,6 +176,12 @@ RoomThread &Server::getAvailableThread() {
   }
 
   return createThread();
+}
+
+const std::unordered_map<int, std::unique_ptr<RoomThread>> &
+  Server::getThreads() const
+{
+  return m_threads;
 }
 
 std::thread::id Server::mainThreadId() const {
@@ -323,42 +334,51 @@ void Server::endTransaction() {
   transaction_mutex.unlock();
 }
 
-/*
-const QString &Server::getMd5() const {
+const std::string &Server::getMd5() const {
   return md5;
 }
 
 void Server::refreshMd5() {
   md5 = calcFileMD5();
-  for (auto room : rooms) {
+
+  auto &rm = room_manager();
+  for (auto &[_, room] : rm.getRooms()) {
     if (room->isOutdated()) {
       if (!room->isStarted()) {
-        for (auto p : room->getPlayers()) {
-          p->doNotify("ErrorMsg", "room is outdated");
-          p->kicked();
+        for (auto pConnId : room->getPlayers()) {
+          auto p = m_user_manager->findPlayerByConnId(pConnId);
+          if (p) p->emitKicked();
         }
       } else {
-        room->doBroadcastNotify(room->getPlayers(), "GameLog", QCborMap {
-          { "type", "#RoomOutdated" },
-          { "toast", true },
-        }.toCborValue().toCbor());
+        // const char * 会给末尾加0 手造二进制数据的话必须考虑
+        using namespace std::string_view_literals;
+        static constexpr const auto log =
+          "\xA2"                      // map(2)
+          "\x44" "type"               // key(0) : bytes(4)
+          "\x4D" "#RoomOutdated"      // value(0) : bytes(13)
+          "\x45" "toast"              // key(1) : bytes(5)
+          "\xF5"sv;                   // value(1): true
+        room->doBroadcastNotify(room->getPlayers(), "GameLog", log);
       }
     }
   }
-  for (auto thread : findChildren<RoomThread *>()) {
-    if (thread->isOutdated() && thread->findChildren<Room *>().isEmpty())
-      thread->deleteLater();
+  for (auto &[_, thread] : m_threads) {
+    // if (thread->isOutdated() && thread->findChildren<Room *>().isEmpty())
+    //   thread->deleteLater();
   }
-  for (auto p : lobby()->getPlayers()) {
-    emit p->kicked();
+  for (auto &[pConnId, _] : rm.lobby().getPlayers()) {
+    auto p = m_user_manager->findPlayerByConnId(pConnId);
+    if (p) p->emitKicked();
   }
 }
 
-qint64 Server::getUptime() const {
-  if (!uptime_counter.isValid()) return 0;
-  return uptime_counter.elapsed();
+int64_t Server::getUptime() const {
+  using namespace std::chrono;
+  auto now =
+    duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+
+  return now - start_timestamp;
 }
-*/
 
 bool Server::nameIsInWhiteList(const std::string_view &name) const {
   // if (!hasWhitelist) return true;

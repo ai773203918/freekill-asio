@@ -21,8 +21,10 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {}, main_io_ctx { ma
 {
   static int nextThreadId = 1000;
   m_id = nextThreadId++;
-  // m_capacity = server->getConfig("roomCountPerThread").toInt(200);
-  // md5 = server->getMd5();
+
+  auto &server = Server::instance();
+  m_capacity = server.config().roomCountPerThread;
+  md5 = server.getMd5();
 
   // 在run中创建，这样就能在接下来的exec中处理事件了
   // 这集可以直接在构造函数创了 Qt故事里面是为了绑定到新线程对应的eventLoop
@@ -141,6 +143,9 @@ void RoomThread::removeObserver(int connId, int roomId) {
   emit_signal(std::bind(remove_observer_callback, connId, roomId));
 }
 
+const RpcLua &RoomThread::getLua() const {
+  return *L;
+}
 
 /*
 bool RoomThread::isFull() const {
@@ -148,14 +153,14 @@ bool RoomThread::isFull() const {
 }
 
 QString RoomThread::getMd5() const { return md5; }
+*/
 
 bool RoomThread::isOutdated() {
-  bool ret = md5 != m_server->getMd5();
+  bool ret = md5 != Server::instance().getMd5();
   if (ret) {
     // 让以后每次都outdate
     // 不然反复disable/enable的情况下会出乱子
-    md5 = QStringLiteral("");
+    md5 = "";
   }
   return ret;
 }
-*/

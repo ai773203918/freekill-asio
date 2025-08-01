@@ -147,13 +147,13 @@ const RpcLua &RoomThread::getLua() const {
   return *L;
 }
 
-/*
 bool RoomThread::isFull() const {
-  return m_capacity <= findChildren<Room *>().length();
+  return m_capacity <= m_ref_count;
 }
 
-QString RoomThread::getMd5() const { return md5; }
-*/
+int RoomThread::getCapacity() const { return m_capacity; }
+
+std::string RoomThread::getMd5() const { return md5; }
 
 bool RoomThread::isOutdated() {
   bool ret = md5 != Server::instance().getMd5();
@@ -163,4 +163,21 @@ bool RoomThread::isOutdated() {
     md5 = "";
   }
   return ret;
+}
+
+int RoomThread::getRefCount() const {
+  return m_ref_count;
+}
+
+void RoomThread::increaseRefCount() {
+  m_ref_count++;
+}
+
+void RoomThread::decreaseRefCount() {
+  m_ref_count--;
+  if (m_ref_count > 0) return;
+
+  if (isOutdated()) {
+    Server::instance().removeThread(m_id);
+  }
 }

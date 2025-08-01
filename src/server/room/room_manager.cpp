@@ -30,7 +30,7 @@ Room *RoomManager::createRoom(Player &creator, const std::string &name, int capa
   auto &r = rooms[id];
   r->setName(name);
   r->setCapacity(capacity);
-  // r->setThread(thread);
+  r->setThread(thread);
   r->setTimeout(timeout);
   r->setSettings(settings);
   return r.get();

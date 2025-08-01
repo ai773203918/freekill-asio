@@ -114,7 +114,8 @@ private:
   int timeout = 0;
   std::string md5;
 
-  int lua_ref_count = 0; // Lua引用计数，当Room被abandon时，若lua有计数就不可删除
+  // 表示此房被多少个Lua room引用，为0时才能回收
+  int lua_ref_count = 0;
   std::mutex lua_ref_mutex;
 
   std::unique_ptr<asio::steady_timer> request_timer = nullptr;

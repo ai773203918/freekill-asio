@@ -16,7 +16,6 @@ Room::Room() {
   id = nextRoomId++;
 
   m_thread_id = 1000; // TODO
-  // md5 = thread->getMd5();
 
   // connect(this, &Room::abandoned, thread, &RoomThread::onRoomAbandoned);
 
@@ -47,6 +46,8 @@ Room::~Room() {
     if (p) removeObserver(*p);
   }
 
+  auto thr = Server::instance().getThread(m_thread_id);
+  if (thr) thr->decreaseRefCount();
   rm.removeRoom(getId());
   rm.lobby().updateOnlineInfo();
 }
@@ -365,6 +366,8 @@ RoomThread *Room::thread() const {
 
 void Room::setThread(RoomThread &t) {
   m_thread_id = t.id();
+  md5 = t.getMd5();
+  t.increaseRefCount();
 }
 
 void Room::checkAbandoned() {

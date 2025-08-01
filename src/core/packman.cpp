@@ -41,11 +41,50 @@ std::vector<std::string> &PackMan::getDisabledPacks() {
   return disabled_packs;
 }
 
-/*
-QString PackMan::getPackSummary() {
-  return db->selectJson("SELECT name, url, hash FROM packages WHERE enabled = 1;");
+const std::string &PackMan::summary() const {
+  return m_summary;
 }
-*/
+
+void PackMan::refreshSummary() {
+  auto data = db->select("SELECT name, url, hash FROM packages WHERE enabled = 1;");
+  u_char buf[10]; size_t buflen;
+
+  std::string ret;
+  ret.reserve(data.size() * 100);
+
+  buflen = cbor_encode_uint(data.size(), buf, 10);
+  buf[0] += 0x80;
+  ret += std::string_view { (char*)buf, buflen };
+
+  using namespace std::string_view_literals;
+  for (const auto &mp: data) {
+    ret += '\xA3';
+
+    ret += "\x64" "name";
+    auto name = mp.at("name");
+    buflen = cbor_encode_uint(name.size(), buf, 10);
+    buf[0] += 0x60;
+    ret += std::string_view { (char*)buf, buflen };
+    ret += name;
+
+    ret += "\x64" "hash";
+    auto hash = mp.at("hash");
+    buflen = cbor_encode_uint(hash.size(), buf, 10);
+    buf[0] += 0x60;
+    ret += std::string_view { (char*)buf, buflen };
+    ret += hash;
+
+    ret += "\x63" "url";
+    auto url = mp.at("url");
+    buflen = cbor_encode_uint(url.size(), buf, 10);
+    buf[0] += 0x60;
+    ret += std::string_view { (char*)buf, buflen };
+    ret += url;
+  }
+
+  m_summary = ret;
+}
+
 
 /*
 void PackMan::loadSummary(const QString &jsonData, bool useThread) {

@@ -17,6 +17,7 @@
 
 #include "core/c-wrapper.h"
 #include "core/util.h"
+#include "core/packman.h"
 
 #include <cjson/cJSON.h>
 
@@ -38,8 +39,7 @@ Server::Server() : m_socket { nullptr } {
   db = std::make_unique<Sqlite3>();
 
   reloadConfig();
-
-  md5 = calcFileMD5();
+  refreshMd5();
 
   using namespace std::chrono;
   start_timestamp =
@@ -161,17 +161,15 @@ void Server::removeThread(int threadId) {
 }
 
 RoomThread *Server::getThread(int threadId) {
-  auto it = m_threads.find(threadId);
-  if (it != m_threads.end()) {
-    return it->second.get();
-  }
-  return nullptr;
+  if (!m_threads.contains(threadId)) return nullptr;
+  return m_threads[threadId].get();
 }
 
 RoomThread &Server::getAvailableThread() {
-  for (auto &it : m_threads) {
-    // TODO 判满
+  for (const auto &it : m_threads) {
     auto &thr = it.second;
+    if (thr->isOutdated()) continue;
+    if (thr->isFull()) continue;
     return *thr;
   }
 
@@ -341,30 +339,32 @@ const std::string &Server::getMd5() const {
 void Server::refreshMd5() {
   md5 = calcFileMD5();
 
+  PackMan::instance().refreshSummary();
+
   auto &rm = room_manager();
   for (auto &[_, room] : rm.getRooms()) {
-    if (room->isOutdated()) {
-      if (!room->isStarted()) {
-        for (auto pConnId : room->getPlayers()) {
-          auto p = m_user_manager->findPlayerByConnId(pConnId);
-          if (p) p->emitKicked();
-        }
-      } else {
-        // const char * 会给末尾加0 手造二进制数据的话必须考虑
-        using namespace std::string_view_literals;
-        static constexpr const auto log =
-          "\xA2"                      // map(2)
-          "\x44" "type"               // key(0) : bytes(4)
-          "\x4D" "#RoomOutdated"      // value(0) : bytes(13)
-          "\x45" "toast"              // key(1) : bytes(5)
-          "\xF5"sv;                   // value(1): true
-        room->doBroadcastNotify(room->getPlayers(), "GameLog", log);
+    if (!room->isOutdated()) continue;
+
+    if (!room->isStarted()) {
+      for (auto pConnId : room->getPlayers()) {
+        auto p = m_user_manager->findPlayerByConnId(pConnId);
+        if (p) p->emitKicked();
       }
+    } else {
+      // const char * 会给末尾加0 手造二进制数据的话必须考虑
+      using namespace std::string_view_literals;
+      static constexpr const auto log =
+        "\xA2"                      // map(2)
+        "\x44" "type"               // key(0) : bytes(4)
+        "\x4D" "#RoomOutdated"      // value(0) : bytes(13)
+        "\x45" "toast"              // key(1) : bytes(5)
+        "\xF5"sv;                   // value(1): true
+      room->doBroadcastNotify(room->getPlayers(), "GameLog", log);
     }
   }
-  for (auto &[_, thread] : m_threads) {
-    // if (thread->isOutdated() && thread->findChildren<Room *>().isEmpty())
-    //   thread->deleteLater();
+  for (auto &[id, thread] : m_threads) {
+    if (thread->isOutdated() && thread->getRefCount() == 0)
+      removeThread(id);
   }
   for (auto &[pConnId, _] : rm.lobby().getPlayers()) {
     auto p = m_user_manager->findPlayerByConnId(pConnId);

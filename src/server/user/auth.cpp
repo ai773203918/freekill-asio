@@ -201,26 +201,28 @@ FAIL:
 }
 
 bool AuthManager::checkVersion() {
-  /* TODO 服务端需要配置一个allowed_version的选项；目前返true了事
-  auto client_ver = QVersionNumber::fromString(p_ptr->version);
-  auto ver = QVersionNumber::fromString(FK_VERSION);
-  int cmp = QVersionNumber::compare(ver, client_ver);
-  if (cmp != 0) {
-    auto errmsg = QString();
-    if (cmp < 0) {
-      errmsg = QStringLiteral("[\"server is still on version %%2\",\"%1\"]")
-                      .arg(FK_VERSION, "1");
-    } else {
-      errmsg = QStringLiteral("[\"server is using version %%2, please update\",\"%1\"]")
-                      .arg(FK_VERSION, "1");
-    }
+  using namespace std::string_view_literals;
+  static const auto minVersion = "0.5.10"sv;
+  static const auto maxVersion = "0.7.0"sv;
 
-    server->sendEarlyPacket(p_ptr->client, "ErrorDlg", errmsg.toUtf8());
-    p_ptr->client->disconnectFromHost();
-    return false;
+  auto client = p_ptr->client.lock();
+  if (!client) return false;
+
+  std::string errmsg;
+
+  // TODO 让客户端能知道服务端具体支持的版本范围
+  auto &ver = p_ptr->version;
+  if (ver > maxVersion) {
+    errmsg = fmt::format("[\"server is still on version %1\",\"{}\"]", maxVersion);
+  } else if (ver < minVersion) {
+    errmsg = fmt::format("[\"server is using version %1, please update\",\"{}\"]", minVersion);
+  } else {
+    return true;
   }
-  */
-  return true;
+
+  Server::instance().sendEarlyPacket(*client, "ErrorDlg", errmsg);
+  client->disconnectFromHost();
+  return false;
 }
 
 
@@ -250,8 +252,7 @@ bool AuthManager::checkMd5() {
   if (server.getMd5() != md5_str) {
     if (auto client = p_ptr->client.lock()) {
       server.sendEarlyPacket(*client, "ErrorMsg", "MD5 check failed!");
-      // TODO
-      // server.sendEarlyPacket(*client, "UpdatePackage", Pacman->getPackSummary().toUtf8());
+      server.sendEarlyPacket(*client, "UpdatePackage", PackMan::instance().summary());
       client->disconnectFromHost();
     }
     return false;
@@ -418,7 +419,7 @@ std::map<std::string, std::string> AuthManager::checkPassword() {
     // 顶号机制，如果在线的话就让他变成不在线
     if (player->getState() == Player::Online || player->getState() == Player::Robot) {
       player->doNotify("ErrorDlg", "others logged in again with this name");
-      // player->emitKicked();
+      player->emitKicked();
     }
 
     if (player->getState() == Player::Offline) {

@@ -27,15 +27,20 @@ public:
   void removeObserver(int connId, int roomId);
 
   const RpcLua &getLua() const;
-  /*
+
   bool isFull() const;
 
-  int getCapacity() const { return m_capacity; }
-  QString getMd5() const;
+  int getCapacity() const;
+  std::string getMd5() const;
+  /*
   Room *getRoom(int id) const;
   */
 
   bool isOutdated();
+
+  int getRefCount() const;
+  void increaseRefCount();
+  void decreaseRefCount();
 
   /*
 
@@ -68,5 +73,7 @@ private:
   void emit_signal(std::function<void()> f);
 
   int m_capacity;
+  // 为什么不直接用智能指针呢，算了，这个值表示当前引用它的房间数量
+  int m_ref_count = 0;
   std::string md5;
 };

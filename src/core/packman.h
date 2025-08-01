@@ -14,8 +14,9 @@ public:
   ~PackMan();
 
   std::vector<std::string> &getDisabledPacks();
+  const std::string &summary() const;
+  void refreshSummary();
   /*
-  std::vector<std::string> &getPackSummary();
   // server用不到loadSummary，但还是先留着
   void loadSummary(const QString &, bool useThread = false);
   */
@@ -38,6 +39,8 @@ private:
 
   std::unique_ptr<Sqlite3> db;
   std::vector<std::string> disabled_packs;
+
+  std::string m_summary;
 
   int clone(const char *url);
   int pull(const char *name);

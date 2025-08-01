@@ -11,6 +11,8 @@ class Sqlite3 {
 public:
   Sqlite3(const char *filename = "./server/users.db",
           const char *initSql = "./server/init.sql");
+  Sqlite3(Sqlite3 &) = delete;
+  Sqlite3(Sqlite3 &&) = delete;
   ~Sqlite3();
 
   static bool checkString(const std::string_view &str);

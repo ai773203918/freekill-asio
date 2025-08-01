@@ -246,7 +246,6 @@ bool AuthManager::checkIfUuidNotBanned() {
 }
 
 bool AuthManager::checkMd5() {
-  return true;
   auto &server = Server::instance();
   auto md5_str = p_ptr->md5;
 

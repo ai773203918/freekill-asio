@@ -35,6 +35,7 @@ Sqlite3::Sqlite3(const char *filename, const char *initSql) {
 }
 
 Sqlite3::~Sqlite3() {
+  spdlog::debug("[MEMORY] sqlite3 destructed");
   sqlite3_close(db);
 }
 

@@ -60,7 +60,7 @@ public:
   std::string_view getUuid() const;
   void setUuid(const std::string &uuid);
 
-  RoomBase &getRoom() const;
+  RoomBase *getRoom() const;
   void setRoom(RoomBase &room);
 
   Router &router() const;

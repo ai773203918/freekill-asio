@@ -26,6 +26,7 @@ void Lobby::addPlayer(Player &player) {
     players[player.getConnId()] = true;
     player.setRoom(*this);
     player.doNotify("EnterLobby", "");
+    spdlog::debug("[LOBBY_ADDPLAYER] Player {} (connId={}, state={})", player.getId(), player.getConnId(), player.getStateString());
   }
 
   updateOnlineInfo();
@@ -33,6 +34,7 @@ void Lobby::addPlayer(Player &player) {
 
 void Lobby::removePlayer(Player &player) {
   auto connId = player.getConnId();
+  spdlog::debug("[LOBBY_REMOVEPLAYER] Player {} (connId={}, state={})", player.getId(), player.getConnId(), player.getStateString());
   players.erase(connId);
   updateOnlineInfo();
 }
@@ -132,7 +134,7 @@ void Lobby::createRoom(Player &sender, const Packet &packet) {
   auto room_ptr = rm.createRoom(sender, std::string(name), capacity, timeout, std::string(settings));
   if (room_ptr) {
     room_ptr->addPlayer(sender);
-    if (sender.getRoom().getId() == room_ptr->getId()) {
+    if (sender.getRoom() && sender.getRoom()->getId() == room_ptr->getId()) {
       removePlayer(sender);
     }
   }
@@ -176,7 +178,7 @@ void Lobby::joinRoom(Player &sender, const Packet &pkt, bool observe) {
           room->addObserver(sender);
         }
 
-        if (sender.getRoom().getId() == room->getId()) {
+        if (sender.getRoom() && sender.getRoom()->getId() == room->getId()) {
           removePlayer(sender);
         }
       }

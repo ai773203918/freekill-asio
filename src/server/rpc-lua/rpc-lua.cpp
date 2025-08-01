@@ -37,7 +37,8 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
 
     if (int err = ::chdir("packages/freekill-core"); err != 0) {
       std::cout << "!" << std::endl;
-      ::_exit(err);
+      throw std::runtime_error(fmt::format("Cannot chdir into packages/freekill-core: {}\n\tYou must install freekill-core before starting the server.", strerror(errno)));
+      // ::_exit(err);
     }
 
     ::setenv("FK_RPC_MODE", "cbor", 1);
@@ -62,6 +63,9 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
 #ifdef RPC_DEBUG
   spdlog::debug("Me <-- {}", toHex({ buffer, length }));
 #endif
+  if ( std::string_view { buffer, length } == "!" ) {
+    // spdlog::error("Cannot chdir into packages/freekill-core: {}\nYou must install freekill-core before starting the server.", strerror(err));
+  }
 }
 
 RpcLua::~RpcLua() {
@@ -459,7 +463,10 @@ static void readJsonRpcPacket(cbor_data &cbuf, size_t &len, JsonRpcPacket &packe
 }
 
 void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param2, JsonRpcParam param3) {
+#ifdef RPC_DEBUG
   spdlog::debug("L->call({})", func_name);
+#endif
+
   if (!alive()) {
 #ifdef RPC_DEBUG
     spdlog::debug("Me <-- <process died>");

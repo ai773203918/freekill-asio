@@ -120,19 +120,7 @@ private:
 
   std::unique_ptr<asio::steady_timer> request_timer = nullptr;
 
-  class GameSession {
-  public:
-    explicit GameSession(Room *r);
-    GameSession(GameSession &) = delete;
-    GameSession(GameSession &&) = delete;
-    ~GameSession();
-
-    void run();
-
-  private:
-    Room *room;
-  };
-  std::unique_ptr<GameSession> m_session;
+  void _gameOver();
 
   void addRunRate(int id, const std::string_view &mode);
   void updatePlayerGameData(int id, const std::string_view &mode);

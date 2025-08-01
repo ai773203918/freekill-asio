@@ -34,7 +34,7 @@ Player::Player() {
 }
 
 Player::~Player() {
-  spdlog::debug("Player {} ({}) destructed", id, getStateString());
+  spdlog::debug("[MEMORY] Player {} (connId={} state={}) destructed", id, connId, getStateString());
 }
 
 int Player::getId() const { return id; }
@@ -122,12 +122,12 @@ void Player::setDied(bool died) {
 
 int Player::getConnId() const { return connId; }
 
-RoomBase &Player::getRoom() const {
+RoomBase *Player::getRoom() const {
   auto &room_manager = Server::instance().room_manager();
   if (roomId == 0) {
-    return room_manager.lobby();
+    return &room_manager.lobby();
   }
-  return *room_manager.findRoom(roomId);
+  return room_manager.findRoom(roomId);
 }
 
 void Player::setRoom(RoomBase &room) {
@@ -176,7 +176,7 @@ void Player::doNotify(const std::string_view &command, const std::string_view &d
   if (getState() != Player::Online)
     return;
 
-  spdlog::debug("TX(Room={}): {} {}", roomId, command, toHex(data));
+  // spdlog::debug("[TX](id={} connId={} state={} Room={}): {} {}", id, connId, getStateString(), roomId, command, toHex(data));
   int type =
       Router::TYPE_NOTIFICATION | Router::SRC_SERVER | Router::DEST_CLIENT;
 
@@ -195,15 +195,14 @@ void Player::setThinking(bool t) {
 }
 
 void Player::onNotificationGot(const Packet &packet) {
-  spdlog::debug("RX(Room={}): {} {}", roomId, packet.command, toHex(packet.cborData));
+  // spdlog::debug("[RX](id={} connId={} state={} Room={}): {} {}", id, connId, getStateString(), roomId, packet.command, toHex(packet.cborData));
   if (packet.command == "Heartbeat") {
     alive = true;
     return;
   }
 
-  auto &room_manager = Server::instance().room_manager();
-  auto &room = getRoom();
-  room.handlePacket(*this, packet);
+  auto room = getRoom();
+  if (room) room->handlePacket(*this, packet);
 }
 
 void Player::onDisconnected() {
@@ -212,13 +211,15 @@ void Player::onDisconnected() {
   //     server->broadcast("ServerMessage", tr("%1 logged out").arg(getScreenName()).toUtf8());;
   // }
 
-  auto &_room = getRoom();
+  auto room_ = getRoom();
   auto &um = Server::instance().user_manager();
-  if (_room.isLobby()) {
-    _room.removePlayer(*this);
+  if (!room_) {
+    um.deletePlayer(*this);
+  } else if (room_->isLobby()) {
+    room_->removePlayer(*this);
     um.deletePlayer(*this);
   } else {
-    auto room = dynamic_cast<Room *>(&_room);
+    auto room = dynamic_cast<Room *>(room_);
     if (room->isStarted()) {
       if (room->hasObserver(*this)) {
         room->removeObserver(*this);
@@ -280,10 +281,10 @@ void Player::reconnect(ClientSocket *client) {
   m_router->setSocket(client);
   alive = true;
 
-  auto &room_ = getRoom();
-  if (!room_.isLobby()) {
+  auto room_ = getRoom();
+  if (room_ && !room_->isLobby()) {
     Server::instance().user_manager().setupPlayer(*this, true);
-    auto room = dynamic_cast<Room *>(&room_);
+    auto room = dynamic_cast<Room *>(room_);
     room->pushRequest(fmt::format("{},reconnect", id));
   } else {
     // 懒得处理掉线玩家在大厅了！踢掉得了
@@ -313,18 +314,18 @@ int Player::getGameTime() {
 
 void Player::onReplyReady() {
   setThinking(false);
-  auto &room_ = getRoom();
-  if (!room_.isLobby()) {
-    auto room = dynamic_cast<Room *>(&room_);
+  auto room_ = getRoom();
+  if (room_ && !room_->isLobby()) {
+    auto room = dynamic_cast<Room *>(room_);
     auto thread = room->thread();
-    thread->wakeUp(room_.getId(), "reply");
+    thread->wakeUp(room->getId(), "reply");
   }
 }
 
 void Player::onStateChanged() {
-  auto &_room = getRoom();
-  if (_room.isLobby()) return;
-  auto room = dynamic_cast<Room *>(&_room);
+  auto _room = getRoom();
+  if (!_room || _room->isLobby()) return;
+  auto room = dynamic_cast<Room *>(_room);
   if (room->hasObserver(*this)) return;
 
   auto thread = room->thread();
@@ -345,9 +346,9 @@ void Player::onStateChanged() {
 }
 
 void Player::onReadyChanged() {
-  auto &_room = getRoom();
-  if (_room.isLobby()) return;
-  auto room = dynamic_cast<Room *>(&_room);
+  auto _room = getRoom();
+  if (!_room || _room->isLobby()) return;
+  auto room = dynamic_cast<Room *>(_room);
   room->doBroadcastNotify(room->getPlayers(), "ReadyChanged",
                           Cbor::encodeArray({ id, ready }));
 }

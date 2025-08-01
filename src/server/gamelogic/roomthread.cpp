@@ -34,7 +34,6 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {}, main_io_ctx { ma
     L->call("HandleRequest", msg);
   };
   delay_callback = [&](int roomId, int ms) {
-    spdlog::debug("delay {} ms", ms);
     auto timer = std::make_shared<asio::steady_timer>(io_ctx, std::chrono::milliseconds(ms));
     timer->async_wait([this, roomId, timer](const asio::error_code& ec){
       if (!ec) {
@@ -45,7 +44,6 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {}, main_io_ctx { ma
     });
   };
   wake_up_callback = [&](int roomId, const char *reason) {
-    spdlog::debug("ResumeRoom {} {}", roomId, std::string_view { reason });
     L->call("ResumeRoom", roomId, std::string_view { reason });
   };
 
@@ -77,7 +75,7 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {}, main_io_ctx { ma
 RoomThread::~RoomThread() {
   io_ctx.stop();
   m_thread.join();
-  spdlog::debug("RoomThread {} destructed", m_id);
+  spdlog::debug("[MEMORY] RoomThread {} destructed", m_id);
 }
 
 int RoomThread::id() const {

@@ -16,7 +16,7 @@ PackMan &PackMan::instance() {
 }
 
 void PackMan::destroy() {
-  spdlog::debug("pacman_instance destructed");
+  spdlog::debug("[MEMORY] pacman_instance destructed");
   pacman_instance = nullptr;
 }
 

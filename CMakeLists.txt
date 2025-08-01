@@ -9,7 +9,7 @@ if (DEFINED RPC_DEBUG)
 endif()
 add_definitions(-DFK_SERVER_ONLY)
 
-# add_compile_options(-Wall)
+add_compile_options(-Wall)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
 find_package(OpenSSL REQUIRED)

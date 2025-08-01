@@ -74,7 +74,7 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {},
 RoomThread::~RoomThread() {
   io_ctx.stop();
   m_thread.join();
-  spdlog::debug("[MEMORY] RoomThread {} destructed", m_id);
+  // spdlog::debug("[MEMORY] RoomThread {} destructed", m_id);
 }
 
 int RoomThread::id() const {

@@ -9,6 +9,9 @@
 #include "network/client_socket.h"
 
 #include "core/c-wrapper.h"
+#include "core/util.h"
+
+#include <openssl/sha.h>
 
 Lobby::Lobby() {
   id = 0;
@@ -51,50 +54,85 @@ void Lobby::updateOnlineInfo() {
   }
 }
 
-/*
-void Lobby::updateAvatar(Player *sender, const QString &jsonData) {
-  auto arr = String2Json(jsonData).array();
-  auto avatar = arr[0].toString();
+void Lobby::updateAvatar(Player &sender, const Packet &packet) {
+  auto cbuf = (cbor_data)packet.cborData.data();
+  auto len = packet.cborData.size();
 
-  if (Sqlite3::checkString(avatar)) {
-    auto sql = QString("UPDATE userinfo SET avatar='%1' WHERE id=%2;")
-      .arg(avatar)
-      .arg(sender->getId());
-    ServerInstance->getDatabase()->exec(sql);
-    sender->setAvatar(avatar);
-    sender->doNotify("UpdateAvatar", avatar.toUtf8());
-  }
+  std::string_view avatar;
+
+  struct cbor_decoder_result decode_result;
+
+  decode_result = cbor_stream_decode(cbuf, len, &Cbor::stringCallbacks, &avatar);
+  if (decode_result.read == 0) return;
+  cbuf += decode_result.read; len -= decode_result.read;
+  if (avatar == "") return;
+
+  if (!Sqlite3::checkString(avatar)) return;
+  Server::instance().database().exec(
+    fmt::format(
+      "UPDATE userinfo SET avatar='{}' WHERE id={};",
+      avatar,
+      sender.getId()
+    )
+  );
+
+  sender.setAvatar(std::string(avatar));
+  sender.doNotify("UpdateAvatar", avatar);
 }
 
-void Lobby::updatePassword(Player *sender, const QString &jsonData) {
-  auto arr = String2Json(jsonData).array();
-  auto oldpw = arr[0].toString();
-  auto newpw = arr[1].toString();
-  auto sql_find =
-    QString("SELECT password, salt FROM userinfo WHERE id=%1;")
-    .arg(sender->getId());
+void Lobby::updatePassword(Player &sender, const Packet &packet) {
+  auto cbuf = (cbor_data)packet.cborData.data();
+  auto len = packet.cborData.size();
+
+  std::string_view oldpw;
+  std::string_view newpw;
+  size_t sz = 0;
+
+  struct cbor_decoder_result decode_result;
+
+  decode_result = cbor_stream_decode(cbuf, len, &Cbor::arrayCallbacks, &sz); // arr
+  if (decode_result.read == 0) return;
+  cbuf += decode_result.read; len -= decode_result.read;
+  if (sz != 2) return;
+
+  decode_result = cbor_stream_decode(cbuf, len, &Cbor::stringCallbacks, &oldpw);
+  if (decode_result.read == 0) return;
+  cbuf += decode_result.read; len -= decode_result.read;
+  if (oldpw == "") return;
+
+  decode_result = cbor_stream_decode(cbuf, len, &Cbor::stringCallbacks, &newpw);
+  if (decode_result.read == 0) return;
+  cbuf += decode_result.read; len -= decode_result.read;
+  if (newpw == "") return;
+
 
   auto passed = false;
-  auto arr2 = ServerInstance->getDatabase()->select(sql_find);
+  auto &db = Server::instance().database();
+  auto arr2 = db.select(fmt::format(
+    "SELECT password, salt FROM userinfo WHERE id={};", sender.getId()));
   auto result = arr2[0];
-  passed = (result["password"] == QCryptographicHash::hash(
-    oldpw.append(result["salt"]).toLatin1(),
-    QCryptographicHash::Sha256)
-  .toHex());
+
+  auto pw = std::string(oldpw) + result["salt"];
+  unsigned char hash[SHA256_DIGEST_LENGTH];
+  SHA256((const u_char *)pw.data(), pw.size(), hash);
+
+  passed = (result["password"] == toHex(std::string_view { (char*)hash, SHA256_DIGEST_LENGTH }));
   if (passed) {
-    auto sql_update =
-      QString("UPDATE userinfo SET password='%1' WHERE id=%2;")
-      .arg(QCryptographicHash::hash(
-            newpw.append(result["salt"]).toLatin1(),
-            QCryptographicHash::Sha256)
-          .toHex())
-      .arg(sender->getId());
-    ServerInstance->getDatabase()->exec(sql_update);
+    auto pw2 = std::string(newpw) + result["salt"];
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256((const u_char *)pw2.data(), pw2.size(), hash);
+
+    auto sql = fmt::format(
+      "UPDATE userinfo SET password='{}' WHERE id={};",
+      toHex(std::string_view { (char*)hash, SHA256_DIGEST_LENGTH }),
+      sender.getId()
+    );
+
+    db.exec(sql);
   }
 
-  sender->doNotify("UpdatePassword", passed ? "1" : "0");
+  sender.doNotify("UpdatePassword", passed ? "1" : "0");
 }
-*/
 
 void Lobby::createRoom(Player &sender, const Packet &packet) {
   auto cbuf = (cbor_data)packet.cborData.data();
@@ -244,8 +282,8 @@ typedef void (Lobby::*room_cb)(Player &, const Packet &);
 
 void Lobby::handlePacket(Player &sender, const Packet &packet) {
   static const std::unordered_map<std::string_view, room_cb> lobby_actions = {
-    // {"UpdateAvatar", &Lobby::updateAvatar},
-    // {"UpdatePassword", &Lobby::updatePassword},
+    {"UpdateAvatar", &Lobby::updateAvatar},
+    {"UpdatePassword", &Lobby::updatePassword},
     {"CreateRoom", &Lobby::createRoom},
     {"EnterRoom", &Lobby::enterRoom},
     {"ObserveRoom", &Lobby::observeRoom},

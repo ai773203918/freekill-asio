@@ -32,21 +32,12 @@ public:
 
   int getCapacity() const;
   std::string getMd5() const;
-  /*
-  Room *getRoom(int id) const;
-  */
 
   bool isOutdated();
 
   int getRefCount() const;
   void increaseRefCount();
   void decreaseRefCount();
-
-  /*
-
- public slots:
-  void onRoomAbandoned();
-  */
 
 private:
   int m_id = 0;

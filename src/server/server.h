@@ -56,9 +56,9 @@ public:
 
   RoomThread &createThread();
   void removeThread(int threadId);
-  RoomThread *getThread(int threadId);
+  std::shared_ptr<RoomThread> getThread(int threadId);
   RoomThread &getAvailableThread();
-  const std::unordered_map<int, std::unique_ptr<RoomThread>> &getThreads() const;
+  const std::unordered_map<int, std::shared_ptr<RoomThread>> &getThreads() const;
 
   std::thread::id mainThreadId() const;
 
@@ -87,7 +87,7 @@ private:
 
   std::unique_ptr<UserManager> m_user_manager;
   std::unique_ptr<RoomManager> m_room_manager;
-  std::unordered_map<int, std::unique_ptr<RoomThread>> m_threads;
+  std::unordered_map<int, std::shared_ptr<RoomThread>> m_threads;
 
   std::unique_ptr<Sqlite3> db;
   std::mutex transaction_mutex;

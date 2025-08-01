@@ -110,8 +110,8 @@ void Shell::lsrCommand(StringList &list) {
       } else {
         spdlog::info("You are viewing lobby, players in lobby are:");
 
-        auto &lobby = room_manager.lobby();
-        for (auto &[pid, _] : lobby.getPlayers()) {
+        auto lobby = room_manager.lobby();
+        for (auto &[pid, _] : lobby->getPlayers()) {
           auto p = user_manager.findPlayerByConnId(pid);
           if (p) spdlog::info("{}, {}", p->getId(), p->getScreenName());
         }

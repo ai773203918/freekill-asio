@@ -10,11 +10,11 @@
 #include <spdlog/spdlog.h>
 
 RoomManager::RoomManager() {
-  m_lobby = std::make_unique<Lobby>();
+  m_lobby = std::make_shared<Lobby>();
 }
 
-Room *RoomManager::createRoom(Player &creator, const std::string &name, int capacity,
-                int timeout, const std::string &settings)
+std::shared_ptr<Room> RoomManager::createRoom(Player &creator, const std::string &name, int capacity,
+                                              int timeout, const std::string &settings)
 {
   auto &server = Server::instance();
   if (!server.checkBanWord(name)) {
@@ -24,17 +24,16 @@ Room *RoomManager::createRoom(Player &creator, const std::string &name, int capa
 
   auto &thread = server.getAvailableThread();
 
-  auto room = std::make_unique<Room>();
+  auto room = std::make_shared<Room>();
   auto id = room->getId();
 
-  rooms[id] = std::move(room);
-  auto &r = rooms[id];
-  r->setName(name);
-  r->setCapacity(capacity);
-  r->setThread(thread);
-  r->setTimeout(timeout);
-  r->setSettings(settings);
-  return r.get();
+  rooms[id] = room;
+  room->setName(name);
+  room->setCapacity(capacity);
+  room->setThread(thread);
+  room->setTimeout(timeout);
+  room->setSettings(settings);
+  return room;
 }
 
 void RoomManager::removeRoom(int id) {
@@ -43,18 +42,17 @@ void RoomManager::removeRoom(int id) {
   }
 }
 
-Room *RoomManager::findRoom(int id) const {
-  Room *ret = nullptr;
+std::shared_ptr<Room> RoomManager::findRoom(int id) const {
   if (rooms.contains(id))
-    ret = rooms.at(id).get();
+    return rooms.at(id);
 
-  return ret;
+  return nullptr;
 }
 
-Lobby &RoomManager::lobby() const {
-  return *m_lobby;
+std::shared_ptr<Lobby> RoomManager::lobby() const {
+  return m_lobby;
 }
 
-const std::map<int, std::unique_ptr<Room>> &RoomManager::getRooms() const {
+const std::map<int, std::shared_ptr<Room>> &RoomManager::getRooms() const {
   return rooms;
 }

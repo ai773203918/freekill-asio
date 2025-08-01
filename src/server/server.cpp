@@ -115,9 +115,9 @@ void Server::removeThread(int threadId) {
   }
 }
 
-RoomThread *Server::getThread(int threadId) {
+std::shared_ptr<RoomThread> Server::getThread(int threadId) {
   if (!m_threads.contains(threadId)) return nullptr;
-  return m_threads[threadId].get();
+  return m_threads[threadId];
 }
 
 RoomThread &Server::getAvailableThread() {
@@ -131,7 +131,7 @@ RoomThread &Server::getAvailableThread() {
   return createThread();
 }
 
-const std::unordered_map<int, std::unique_ptr<RoomThread>> &
+const std::unordered_map<int, std::shared_ptr<RoomThread>> &
   Server::getThreads() const
 {
   return m_threads;
@@ -325,7 +325,7 @@ void Server::refreshMd5() {
     if (thread->isOutdated() && thread->getRefCount() == 0)
       removeThread(id);
   }
-  for (auto &[pConnId, _] : rm.lobby().getPlayers()) {
+  for (auto &[pConnId, _] : rm.lobby()->getPlayers()) {
     auto p = m_user_manager->findPlayerByConnId(pConnId);
     if (p) p->emitKicked();
   }

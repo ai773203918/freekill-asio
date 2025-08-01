@@ -14,27 +14,24 @@ UserManager::UserManager() {
   m_auth = std::make_unique<AuthManager>();
 }
 
-Player *UserManager::findPlayer(int id) const {
+std::shared_ptr<Player> UserManager::findPlayer(int id) const {
   if (id < 0) return findRobot(id);
-  auto it = online_players_map.find(id);
-  if (it != online_players_map.end()) {
-    return it->second.get();
+  if (online_players_map.contains(id)) {
+    return online_players_map.at(id);
   }
   return nullptr;
 }
 
-Player *UserManager::findRobot(int id) const {
-  auto it = robots_map.find(id);
-  if (it != robots_map.end()) {
-    return it->second.get();
+std::shared_ptr<Player> UserManager::findRobot(int id) const {
+  if (robots_map.contains(id)) {
+    return robots_map.at(id);
   }
   return nullptr;
 }
 
-Player *UserManager::findPlayerByConnId(int connId) const {
-  auto it = players_map.find(connId);
-  if (it != players_map.end()) {
-    return it->second.get();
+std::shared_ptr<Player> UserManager::findPlayerByConnId(int connId) const {
+  if (players_map.contains(connId)) {
+    return players_map.at(connId);
   }
   return nullptr;
 }
@@ -143,8 +140,8 @@ void UserManager::createNewPlayer(std::shared_ptr<ClientSocket> client, std::str
   player->addTotalGameTime(time);
   player->doNotify("AddTotalGameTime", Cbor::encodeArray({ id, time }));
 
-  auto &lobby = Server::instance().room_manager().lobby();
-  lobby.addPlayer(*player);
+  auto lobby = Server::instance().room_manager().lobby();
+  lobby->addPlayer(*player);
 }
 
 Player &UserManager::createRobot() {

@@ -37,7 +37,7 @@ public:
   void setSettings(const std::string_view &settings);
   bool isAbandoned() const;
 
-  Player *getOwner() const;
+  std::shared_ptr<Player> getOwner() const;
   void setOwner(Player &owner);
 
   void addRobot(Player &player);
@@ -55,7 +55,7 @@ public:
 
   bool isStarted() const;
 
-  RoomThread *thread() const;
+  std::shared_ptr<RoomThread> thread() const;
   void setThread(RoomThread &);
 
   void checkAbandoned();
@@ -81,13 +81,6 @@ public:
   int getRefCount();
   void increaseRefCount();
   void decreaseRefCount();
-
-  /*
- signals:
-
-  void playerAdded(Player *player);
-  void playerRemoved(Player *player);
-  */
 
 private:
   int m_thread_id = 0;

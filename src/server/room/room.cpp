@@ -43,7 +43,7 @@ Room::~Room() {
   auto thr = Server::instance().getThread(m_thread_id);
   if (thr) thr->decreaseRefCount();
 
-  rm.lobby().updateOnlineInfo();
+  rm.lobby()->updateOnlineInfo();
 
   // spdlog::debug("[MEMORY] Room {} destructed", id);
 }
@@ -122,7 +122,7 @@ bool Room::isAbandoned() const {
   return true;
 }
 
-Player *Room::getOwner() const {
+std::shared_ptr<Player> Room::getOwner() const {
   return Server::instance().user_manager().findPlayerByConnId(m_owner_conn_id);
 }
 
@@ -276,7 +276,7 @@ void Room::removePlayer(Player &player) {
     // 原先的跑路机器人会在游戏结束后自动销毁掉
     um.addPlayer(runner);
 
-    Server::instance().room_manager().lobby().addPlayer(*runner);
+    Server::instance().room_manager().lobby()->addPlayer(*runner);
 
     // FIX 控制bug
     u_char buf[10];
@@ -358,7 +358,7 @@ bool Room::isOutdated() {
 
 bool Room::isStarted() const { return gameStarted; }
 
-RoomThread *Room::thread() const {
+std::shared_ptr<RoomThread> Room::thread() const {
   return Server::instance().getThread(m_thread_id);
 }
 
@@ -513,7 +513,7 @@ void Room::updatePlayerGameData(int id, const std::string_view &mode) {
   auto player = um.findPlayer(id);
   if (!player) return;
 
-  auto room = dynamic_cast<Room *>(player->getRoom());
+  auto room = dynamic_pointer_cast<Room>(player->getRoom());
   if (player->getState() == Player::Robot || !room) {
     return;
   }
@@ -723,7 +723,7 @@ void Room::quitRoom(Player &player, const Packet &) {
   removePlayer(player);
   auto &rm = Server::instance().room_manager();
   if (player.getState() == Player::Online)
-    rm.lobby().addPlayer(player);
+    rm.lobby()->addPlayer(player);
 
   if (isOutdated()) {
     auto &um = Server::instance().user_manager();
@@ -750,8 +750,8 @@ void Room::kickPlayer(Player &player, const Packet &pkt) {
   if (isStarted()) return;
   if (!p->getRoom() || p->getRoom()->getId() != id) return;
 
-    removePlayer(*p);
-  rm.lobby().addPlayer(*p);
+  removePlayer(*p);
+  rm.lobby()->addPlayer(*p);
 
   addRejectId(i);
 

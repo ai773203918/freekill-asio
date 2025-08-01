@@ -14,11 +14,12 @@ ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
 }
 
 void ClientSocket::start() {
-  auto self { shared_from_this() };
+  // 内存由player他们管理
+  auto self { weak_from_this() };
   m_socket.async_read_some(
     asio::buffer(m_data, max_length),
     [this, self](asio::error_code err, std::size_t length) {
-      if (!err) {
+      if (!err && self.lock()) {
         if (handleBuffer(length)) {
           // 再次read_some
           start();

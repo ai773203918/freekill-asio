@@ -283,7 +283,7 @@ void Player::emitKicked() {
   }
 }
 
-void Player::reconnect(ClientSocket *client) {
+void Player::reconnect(std::shared_ptr<ClientSocket> client) {
   auto &server = Server::instance();
   if (server.user_manager().getPlayers().size() <= 10) {
     server.broadcast("ServerMessage", fmt::format("{} backed", screenName));

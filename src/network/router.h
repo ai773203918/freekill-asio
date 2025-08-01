@@ -26,11 +26,11 @@ public:
   };
 
   Router() = delete;
-  Router(Player *player, ClientSocket *socket, RouterType type);
+  Router(Player *player, std::shared_ptr<ClientSocket> socket, RouterType type);
   ~Router();
 
-  ClientSocket *getSocket() const;
-  void setSocket(ClientSocket *socket);
+  std::shared_ptr<ClientSocket> getSocket() const;
+  void setSocket(std::shared_ptr<ClientSocket> socket);
 
   // signal connectors
   void set_reply_ready_callback(std::function<void()> callback);
@@ -47,7 +47,7 @@ protected:
   void handlePacket(const Packet &packet);
 
 private:
-  ClientSocket *socket;
+  std::shared_ptr<ClientSocket> socket;
   Player *player = nullptr;
 
   RouterType type;

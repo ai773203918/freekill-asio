@@ -6,7 +6,7 @@
 #include "server/server.h"
 #include "core/c-wrapper.h"
 
-Router::Router(Player *player, ClientSocket *socket, RouterType type) {
+Router::Router(Player *player, std::shared_ptr<ClientSocket> socket, RouterType type) {
   this->type = type;
   this->player = player;
   this->socket = nullptr;
@@ -20,9 +20,9 @@ Router::~Router() {
   abortRequest();
 }
 
-ClientSocket *Router::getSocket() const { return socket; }
+std::shared_ptr<ClientSocket> Router::getSocket() const { return socket; }
 
-void Router::setSocket(ClientSocket *socket) {
+void Router::setSocket(std::shared_ptr<ClientSocket> socket) {
   if (this->socket != nullptr) {
     this->socket->set_message_got_callback([](Packet&){});
     this->socket->set_disconnected_callback([](){});

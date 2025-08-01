@@ -424,7 +424,7 @@ std::map<std::string, std::string> AuthManager::checkPassword() {
 
     if (player->getState() == Player::Offline) {
       updateUserLoginData(player->getId());
-      player->reconnect(client.get());
+      player->reconnect(client);
       passed = true;
       return {};
     } else {

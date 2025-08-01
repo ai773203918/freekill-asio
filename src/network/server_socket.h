@@ -29,7 +29,4 @@ private:
 
   // signals
   std::function<void(std::shared_ptr<ClientSocket>)> new_connection_callback;
-
-  // void processDatagram(const QByteArray &msg, const QHostAddress &addr, uint port);
-  // void readPendingDatagrams();
 };

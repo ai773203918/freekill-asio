@@ -5,7 +5,7 @@
 class Room;
 class RpcLua;
 
-class RoomThread {
+class RoomThread : public std::enable_shared_from_this<RoomThread> {
 public:
   explicit RoomThread(asio::io_context &main_ctx);
   RoomThread(RoomThread &) = delete;

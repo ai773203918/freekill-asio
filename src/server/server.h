@@ -83,21 +83,21 @@ public:
 
 private:
   explicit Server();
+  std::unique_ptr<ServerConfig> m_config;
   std::unique_ptr<ServerSocket> m_socket;
-
-  std::unique_ptr<UserManager> m_user_manager;
-  std::unique_ptr<RoomManager> m_room_manager;
-  std::unordered_map<int, std::shared_ptr<RoomThread>> m_threads;
 
   std::unique_ptr<Sqlite3> db;
   std::mutex transaction_mutex;
+
+  std::unordered_map<int, std::shared_ptr<RoomThread>> m_threads;
+
+  std::unique_ptr<UserManager> m_user_manager;
+  std::unique_ptr<RoomManager> m_room_manager;
 
   std::unique_ptr<Shell> m_shell;
 
   asio::io_context *main_io_ctx = nullptr;
   std::thread::id main_thread_id;
-
-  std::unique_ptr<ServerConfig> m_config;
 
   std::vector<std::string> temp_banlist;
 

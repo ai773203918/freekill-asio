@@ -83,7 +83,7 @@ public:
 
   Router &getRouter();
   void emitKicked();
-  void reconnect(ClientSocket *socket);
+  void reconnect(std::shared_ptr<ClientSocket> socket);
 
   void startGameTimer();
   void pauseGameTimer();

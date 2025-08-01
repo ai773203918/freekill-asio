@@ -247,7 +247,7 @@ void Room::removePlayer(Player &player) {
     // 否则给跑路玩家召唤个AI代打
 
     // 首先拿到跑路玩家的socket，然后把玩家的状态设为逃跑，这样自动被机器人接管
-    ClientSocket *socket = player.getRouter().getSocket();
+    auto socket = player.getRouter().getSocket();
     player.setState(Player::Run);
     player.getRouter().setSocket(nullptr);
 
@@ -817,9 +817,12 @@ void Room::setRequestTimer(int ms) {
   request_timer = std::make_unique<asio::steady_timer>(
     ctx, std::chrono::milliseconds(ms));
 
-  request_timer->async_wait([&, thread](const asio::error_code& ec){
+  // 不能让即将运行在thread中的lambda捕获到shared_ptr，否则可能会线程内析构自身导致死锁
+  auto weak_thr = std::weak_ptr(thread);
+  request_timer->async_wait([this, weak_thr](const asio::error_code& ec){
     if (!ec) {
-      thread->wakeUp(id, "request_timer");
+      auto thread = weak_thr.lock();
+      if (thread) thread->wakeUp(id, "request_timer");
     } else {
       // 我们本来就会调cancel()并销毁requestTimer，所以aborted的情况很多很多
       if (ec != asio::error::operation_aborted) {

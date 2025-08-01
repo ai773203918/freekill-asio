@@ -11,6 +11,7 @@
 #include "server/rpc-lua/rpc-lua.h"
 
 #include <sys/eventfd.h>
+#include <thread>
 #include <unistd.h>
 
 using namespace std::literals;
@@ -34,9 +35,12 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {},
   };
   delay_callback = [&](int roomId, int ms) {
     auto timer = std::make_shared<asio::steady_timer>(io_ctx, std::chrono::milliseconds(ms));
-    timer->async_wait([this, roomId, timer](const asio::error_code& ec){
+    auto weak = weak_from_this();
+    timer->async_wait([this, weak, roomId, timer](const asio::error_code& ec){
       if (!ec) {
-        L->call("ResumeRoom", roomId, "delay_done"sv);
+        auto t = weak.lock();
+        if (!t) return;
+        this->L->call("ResumeRoom", roomId, "delay_done"sv);
       } else {
         spdlog::error("error in delay(): {}", ec.message());
       }
@@ -105,6 +109,7 @@ void RoomThread::start() {
 }
 
 void RoomThread::quit() {
+  if (fcntl(evt_fd, F_GETFD) == -1) return;
   uint64_t value = 1;
   ::write(evt_fd, &value, sizeof(value));
 }

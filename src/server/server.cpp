@@ -67,7 +67,7 @@ void Server::stop() {
 }
 
 void Server::destroy() {
-  spdlog::debug("server_instance destructed");
+  // spdlog::debug("[MEMORY] server_instance destructed");
   server_instance = nullptr;
 }
 

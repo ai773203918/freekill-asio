@@ -7,6 +7,7 @@
 #include "server/user/player.h"
 #include "server/gamelogic/roomthread.h"
 #include "server/server.h"
+#include <spdlog/spdlog.h>
 
 RoomManager::RoomManager() {
   m_lobby = std::make_unique<Lobby>();
@@ -37,18 +38,17 @@ Room *RoomManager::createRoom(Player &creator, const std::string &name, int capa
 }
 
 void RoomManager::removeRoom(int id) {
-  if (auto it = rooms.find(id); it != rooms.end()) {
-    rooms.erase(it);
+  if (rooms.contains(id)) {
+    rooms.erase(id);
   }
 }
 
 Room *RoomManager::findRoom(int id) const {
-  auto it = rooms.find(id);
-  if (it != rooms.end()) {
-    return it->second.get();
-  } else {
-    return nullptr;
-  }
+  Room *ret = nullptr;
+  if (rooms.contains(id))
+    ret = rooms.at(id).get();
+
+  return ret;
 }
 
 Lobby &RoomManager::lobby() const {

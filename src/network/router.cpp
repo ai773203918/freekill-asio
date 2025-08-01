@@ -97,7 +97,6 @@ void Router::abortRequest() {
 void Router::handlePacket(const Packet &packet) {
   int requestId = packet.requestId;
   int type = packet.type;
-  auto command = packet.command;
   auto cborData = packet.cborData;
 
   if (type & TYPE_NOTIFICATION) {

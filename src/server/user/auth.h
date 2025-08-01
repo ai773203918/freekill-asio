@@ -5,7 +5,8 @@
 class Server;
 class Sqlite3;
 class ClientSocket;
-class AuthManagerPrivate;
+
+struct AuthManagerPrivate;
 
 struct Packet;
 

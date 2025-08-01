@@ -8,7 +8,7 @@ class Server;
 class Player;
 class RoomThread;
 
-class Room : public RoomBase {
+class Room final : public RoomBase {
 public:
   explicit Room();
   Room(Room &) = delete;
@@ -103,7 +103,6 @@ private:
   std::string settings;
   std::string gameMode;
   std::string password;
-  bool m_abandoned;     // If room is empty, delete it
 
   // id[]
   std::vector<int> runned_players;
@@ -121,6 +120,7 @@ private:
   std::unique_ptr<asio::steady_timer> request_timer = nullptr;
 
   void _gameOver();
+  void _checkAbandoned();
 
   void addRunRate(int id, const std::string_view &mode);
   void updatePlayerGameData(int id, const std::string_view &mode);

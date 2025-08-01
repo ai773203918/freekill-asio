@@ -10,6 +10,12 @@ endif()
 add_definitions(-DFK_SERVER_ONLY)
 
 add_compile_options(-Wall)
+if (${CMAKE_BUILD_TYPE}0 STREQUAL "Debug0")
+  # 多么残酷的调试
+  # add_compile_options(-fsanitize=address -fsanitize=leak -fsanitize=undefined)
+  # add_link_options(-fsanitize=address -fsanitize=leak -fsanitize=undefined)
+endif ()
+
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
 find_package(OpenSSL REQUIRED)

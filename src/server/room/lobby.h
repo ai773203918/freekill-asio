@@ -7,7 +7,7 @@
 struct Packet;
 class Player;
 
-class Lobby : public RoomBase {
+class Lobby final : public RoomBase {
 public:
   Lobby();
   Lobby(Lobby &) = delete;
@@ -15,9 +15,9 @@ public:
 
   const std::unordered_map<int, bool> &getPlayers() const;
 
-  void addPlayer(Player &player);
-  void removePlayer(Player &player);
-  void handlePacket(Player &sender, const Packet &packet);
+  void addPlayer(Player &player) final;
+  void removePlayer(Player &player) final;
+  void handlePacket(Player &sender, const Packet &packet) final;
 
   void updateOnlineInfo();
 

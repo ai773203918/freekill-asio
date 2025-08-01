@@ -46,10 +46,10 @@ Room::~Room() {
 
   auto thr = Server::instance().getThread(m_thread_id);
   if (thr) thr->decreaseRefCount();
-  rm.removeRoom(getId());
+
   rm.lobby().updateOnlineInfo();
 
-  spdlog::debug("[MEMORY] Room {} destructed", id);
+  // spdlog::debug("[MEMORY] Room {} destructed", id);
 }
 
 std::string &Room::getName() { return name; }
@@ -163,7 +163,7 @@ void Room::addPlayer(Player &player) {
 
   players.push_back(player.getConnId());
   player.setRoom(*this);
-  spdlog::debug("[ROOM_ADDPLAYER] Player {} (connId={}, state={}) added to room {}", player.getId(), player.getConnId(), player.getStateString(), id);
+  // spdlog::debug("[ROOM_ADDPLAYER] Player {} (connId={}, state={}) added to room {}", player.getId(), player.getConnId(), player.getStateString(), id);
 
   // 这集不用信号；这个信号是把玩家从大厅删除的
   // if (pid > 0)
@@ -228,7 +228,6 @@ void Room::addRobot(Player &player) {
 }
 
 void Room::removePlayer(Player &player) {
-  auto pid = player.getId();
   // 如果是旁观者的话，就清旁观者
   if (hasObserver(player)) {
     removeObserver(player);
@@ -242,7 +241,7 @@ void Room::removePlayer(Player &player) {
       player.setReady(false);
       players.erase(it);
 
-      spdlog::debug("[ROOM_REMOVEPLAYER] Player {} (connId={}, state={}) removed from room {}", player.getId(), player.getConnId(), player.getStateString(), id);
+      // spdlog::debug("[ROOM_REMOVEPLAYER] Player {} (connId={}, state={}) removed from room {}", player.getId(), player.getConnId(), player.getStateString(), id);
     }
     // 这集必须手动加入到大厅
     // emit playerRemoved(player);
@@ -374,6 +373,10 @@ void Room::setThread(RoomThread &t) {
 }
 
 void Room::checkAbandoned() {
+  asio::post(Server::instance().context(), std::bind(&Room::_checkAbandoned, this));
+}
+
+void Room::_checkAbandoned() {
   if (!isAbandoned()) return;
   if (getRefCount() > 0) {
     auto thr = thread();
@@ -424,7 +427,6 @@ void Room::updatePlayerWinRate(int id, const std::string_view &mode, const std::
   int win = 0;
   int lose = 0;
   int draw = 0;
-  int run = 0;
 
   switch (game_result) {
   case 1: win++; break;
@@ -467,7 +469,6 @@ void Room::updateGeneralWinRate(const std::string_view &general, const std::stri
   int win = 0;
   int lose = 0;
   int draw = 0;
-  int run = 0;
 
   switch (game_result) {
   case 1: win++; break;

@@ -34,7 +34,7 @@ Player::Player() {
 }
 
 Player::~Player() {
-  spdlog::debug("[MEMORY] Player {} (connId={} state={}) destructed", id, connId, getStateString());
+  // spdlog::debug("[MEMORY] Player {} (connId={} state={}) destructed", id, connId, getStateString());
 }
 
 int Player::getId() const { return id; }
@@ -333,11 +333,11 @@ void Player::onStateChanged() {
 
   if (room->isAbandoned()) return;
 
-  auto state = getState();
   room->doBroadcastNotify(room->getPlayers(), "NetStateChanged",
                           Cbor::encodeArray({ id, getStateString() }));
 
   // TODO
+  // auto state = getState();
   // if (state == Player::Online) {
   //   resumeGameTimer();
   // } else {

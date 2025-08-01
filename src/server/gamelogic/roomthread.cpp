@@ -15,8 +15,7 @@
 
 using namespace std::literals;
 
-
-RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {}, main_io_ctx { main_ctx },
+RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {},
   m_thread {} // 调用start后才有效
 {
   static int nextThreadId = 1000;
@@ -181,6 +180,8 @@ void RoomThread::decreaseRefCount() {
   if (m_ref_count > 0) return;
 
   if (isOutdated()) {
-    Server::instance().removeThread(m_id);
+    asio::post(Server::instance().context(), [this](){
+      Server::instance().removeThread(m_id);
+    });
   }
 }

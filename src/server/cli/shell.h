@@ -14,11 +14,10 @@ public:
   void start();
   void handleLine(char *);
 
-protected:
-  virtual void run();
-
 private:
   std::thread m_thread;
+
+  void run();
 
   bool done = false;
   std::unordered_map<std::string_view, void (Shell::*)(StringList &)> handler_map;

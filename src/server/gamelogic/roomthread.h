@@ -53,7 +53,6 @@ private:
 
   int evt_fd;
   asio::io_context io_ctx;
-  asio::io_context &main_io_ctx;
   std::thread m_thread;
 
   std::vector<int> m_rooms;

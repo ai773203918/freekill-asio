@@ -21,7 +21,6 @@ public:
   void set_new_connection_callback(std::function<void(std::shared_ptr<ClientSocket>)>);
 
 private:
-  asio::io_context &io_ctx;
   tcp::acceptor m_acceptor;
   udp::socket m_udp_socket;
 

@@ -26,7 +26,7 @@ void Lobby::addPlayer(Player &player) {
     players[player.getConnId()] = true;
     player.setRoom(*this);
     player.doNotify("EnterLobby", "");
-    spdlog::debug("[LOBBY_ADDPLAYER] Player {} (connId={}, state={})", player.getId(), player.getConnId(), player.getStateString());
+    // spdlog::debug("[LOBBY_ADDPLAYER] Player {} (connId={}, state={})", player.getId(), player.getConnId(), player.getStateString());
   }
 
   updateOnlineInfo();
@@ -34,7 +34,7 @@ void Lobby::addPlayer(Player &player) {
 
 void Lobby::removePlayer(Player &player) {
   auto connId = player.getConnId();
-  spdlog::debug("[LOBBY_REMOVEPLAYER] Player {} (connId={}, state={})", player.getId(), player.getConnId(), player.getStateString());
+  // spdlog::debug("[LOBBY_REMOVEPLAYER] Player {} (connId={}, state={})", player.getId(), player.getConnId(), player.getStateString());
   players.erase(connId);
   updateOnlineInfo();
 }

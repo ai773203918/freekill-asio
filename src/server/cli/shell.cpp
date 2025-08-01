@@ -225,10 +225,7 @@ void Shell::kickCommand(StringList &list) {
   }
 
   auto pid = list[0];
-  bool ok;
   int id = std::stoi(pid);
-  if (!ok)
-    return;
 
   auto p = Server::instance().user_manager().findPlayer(id);
   if (p) {
@@ -514,7 +511,6 @@ void Shell::killRoomCommand(StringList &list) {
   }
 
   auto pid = list[0];
-  bool ok;
   int id = stoi(pid);
 
   auto &um = Server::instance().user_manager();

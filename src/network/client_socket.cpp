@@ -43,11 +43,6 @@ std::string_view ClientSocket::peerAddress() const {
 
 void ClientSocket::disconnectFromHost() {
   m_socket.close();
-  // asio::post(m_socket.get_executor(), [this]() {
-  //   asio::error_code ec;
-  //   m_socket.shutdown(tcp::socket::shutdown_both, ec);
-  //   m_socket.close(ec);
-  // });
 }
 
 void ClientSocket::send(const asio::const_buffer &msg) {

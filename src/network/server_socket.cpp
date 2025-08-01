@@ -9,7 +9,7 @@
 #include <cjson/cJSON.h>
 
 ServerSocket::ServerSocket(asio::io_context &io_ctx, tcp::endpoint end, udp::endpoint udpEnd):
-  io_ctx { io_ctx }, m_acceptor { io_ctx, end }, m_udp_socket { io_ctx, udpEnd }
+  m_acceptor { io_ctx, end }, m_udp_socket { io_ctx, udpEnd }
 {
   spdlog::info("server is ready to listen on {}", end.port());
 }
@@ -36,7 +36,7 @@ void ServerSocket::listen_udp() {
     asio::buffer(udp_recv_buffer), udp_remote_end,
     [this](const asio::error_code &ec, size_t len) {
       auto sv = std::string_view { udp_recv_buffer.data(), len };
-      spdlog::debug("RX (udp [{}]:{}): {}", udp_remote_end.address().to_string(), udp_remote_end.port(), sv);
+      // spdlog::debug("RX (udp [{}]:{}): {}", udp_remote_end.address().to_string(), udp_remote_end.port(), sv);
       if (sv == "fkDetectServer") {
         m_udp_socket.async_send_to(
           asio::const_buffer("me", 2),
@@ -60,7 +60,7 @@ void ServerSocket::listen_udp() {
           udp_remote_end,
           [](const asio::error_code &ec, size_t){});
 
-        spdlog::debug("TX (udp [{}]:{}): {}", udp_remote_end.address().to_string(), udp_remote_end.port(), json);
+        // spdlog::debug("TX (udp [{}]:{}): {}", udp_remote_end.address().to_string(), udp_remote_end.port(), json);
         cJSON_Delete(jsonArray);
         free(json);
       }

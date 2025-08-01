@@ -20,14 +20,14 @@ Sqlite3::Sqlite3(const char *filename, const char *initSql) {
 
   rc = sqlite3_open(filename, &db);
   if (rc != SQLITE_OK) {
-    spdlog::critical("Cannot open database: {}", sqlite3_errmsg(db));
+    spdlog::error("Cannot open database: {}", sqlite3_errmsg(db));
     sqlite3_close(db);
     std::exit(1);
   }
 
   rc = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &err_msg);
   if (rc != SQLITE_OK) {
-    spdlog::critical("sqlite error: {}", err_msg);
+    spdlog::error("sqlite error: {}", err_msg);
     sqlite3_free(err_msg);
     sqlite3_close(db);
     std::exit(1);
@@ -35,7 +35,7 @@ Sqlite3::Sqlite3(const char *filename, const char *initSql) {
 }
 
 Sqlite3::~Sqlite3() {
-  spdlog::debug("[MEMORY] sqlite3 destructed");
+  // spdlog::debug("[MEMORY] sqlite3 destructed");
   sqlite3_close(db);
 }
 
@@ -67,6 +67,7 @@ Sqlite3::QueryResult Sqlite3::select(const std::string &sql) {
 }
 
 void Sqlite3::exec(const std::string &sql) {
+  std::lock_guard<std::mutex> locker { select_lock };
   auto bytes = sql.c_str();
   sqlite3_exec(db, bytes, nullptr, nullptr, nullptr);
 }
@@ -147,7 +148,6 @@ std::string Cbor::encodeArray(std::initializer_list<std::variant<
   buf[0] += 0x80;
   ret += std::string_view { (char*)buf, buflen };
 
-  size_t i = 0;
   for (const auto& item : items) {
     std::visit([&](auto&& arg) {
       using T = std::decay_t<decltype(arg)>;

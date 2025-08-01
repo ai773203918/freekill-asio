@@ -16,7 +16,7 @@ PackMan &PackMan::instance() {
 }
 
 void PackMan::destroy() {
-  spdlog::debug("[MEMORY] pacman_instance destructed");
+  // spdlog::debug("[MEMORY] pacman_instance destructed");
   pacman_instance = nullptr;
 }
 
@@ -222,7 +222,6 @@ void PackMan::removePack(const char *pack) {
   if (result.empty())
     return;
 
-  bool enabled = result[0]["enabled"] == "1";
   db->exec(fmt::format("DELETE FROM packages WHERE name = '{}';", pack));
 
   std::error_code ec;
@@ -250,7 +249,7 @@ void PackMan::syncCommitHashToDatabase() {
 
 #define GIT_FAIL                                                               \
   const git_error *e = git_error_last();                                       \
-  spdlog::critical("Error {}/{}: {}", err, e->klass, e->message)
+  spdlog::error("Error {}/{}: {}", err, e->klass, e->message)
 
 #define GIT_CHK_CLEAN  \
   if (err < 0) {     \
@@ -448,7 +447,7 @@ int PackMan::status(const char *name) {
     if (s->status != GIT_STATUS_CURRENT && s->status != GIT_STATUS_IGNORED) {
       git_status_list_free(status_list);
       git_repository_free(repo);
-      spdlog::critical("Workspace is dirty.");
+      spdlog::error("Workspace is dirty.");
       return 100;
     }
   }

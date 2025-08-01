@@ -11,7 +11,6 @@
 #include "network/client_socket.h"
 #include "network/router.h"
 #include "server/gamelogic/roomthread.h"
-#include "server/rpc-lua/rpc-lua.h"
 
 #include "server/cli/shell.h"
 
@@ -44,53 +43,9 @@ Server::Server() : m_socket { nullptr } {
   using namespace std::chrono;
   start_timestamp =
     duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-
-  /*
-  // 启动心跳包线程
-  auto heartbeatThread = QThread::create([=]() {
-    while (true) {
-      for (auto p : this->players.values()) {
-        if (p->getState() == Player::Online) {
-          p->alive = false;
-          p->doNotify("Heartbeat", "");
-        }
-      }
-
-      for (int i = 0; i < 30; i++) {
-        if (!this->isListening) {
-          return;
-        }
-        QThread::sleep(1);
-      }
-
-      for (auto p : this->players.values()) {
-        if (p->getState() == Player::Online && !p->alive) {
-          emit p->kicked();
-        }
-      }
-    }
-  });
-  heartbeatThread->setParent(this);
-  heartbeatThread->setObjectName("Heartbeat");
-  heartbeatThread->start();
-  */
 }
 
 Server::~Server() {
-  /*
-  isListening = false;
-  // 虽然都是子对象 但析构顺序要抠一下
-  for (auto p : findChildren<Player *>()) {
-    delete p;
-  }
-  // 得先清理threads及其Rooms 因为其中某些析构函数要调用sql
-  for (auto thr : findChildren<RoomThread *>()) {
-    delete thr;
-  }
-  delete db;
-
-  */
-  // server_instance = nullptr;
 }
 
 void Server::listen(asio::io_context &io_ctx, asio::ip::tcp::endpoint end, asio::ip::udp::endpoint uend) {
@@ -100,7 +55,6 @@ void Server::listen(asio::io_context &io_ctx, asio::ip::tcp::endpoint end, asio:
   m_shell = std::make_unique<Shell>();
   m_shell->start();
 
-  // connect(m_socket, SIGNAL(new_connection), user_manager, SLOT(processNewConnection))
   m_socket->set_new_connection_callback(
     std::bind(&UserManager::processNewConnection, m_user_manager.get(), std::placeholders::_1));
 
@@ -113,6 +67,7 @@ void Server::stop() {
 }
 
 void Server::destroy() {
+  spdlog::debug("server_instance destructed");
   server_instance = nullptr;
 }
 

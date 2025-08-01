@@ -36,13 +36,14 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
     sigprocmask(SIG_BLOCK, &newmask, &oldmask);
 
     if (int err = ::chdir("packages/freekill-core"); err != 0) {
-      std::exit(err);
+      std::cout << "!" << std::endl;
+      ::_exit(err);
     }
 
     ::setenv("FK_RPC_MODE", "cbor", 1);
     ::execlp("lua5.4", "lua5.4", "lua/server/rpc/entry.lua", nullptr);
 
-    std::exit(EXIT_FAILURE);
+    ::_exit(EXIT_FAILURE);
   } else if (pid > 0) { // 父进程
     child_pid = pid;
     // 转下文
@@ -54,26 +55,17 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
   close(stdin_pipe[0]);   // 关闭子进程的读取端（父进程只写 stdin）
   close(stdout_pipe[1]);  // 关闭子进程的写入端（父进程只读 stdout）
 
-  // 使用 asio 包装 pipe
   child_stdin = { io_ctx, stdin_pipe[1] };
   child_stdout = { io_ctx, stdout_pipe[0] };
 
-  // asio::posix::stream_descriptor child_stdout;  // 父进程读取子进程 stdout
   size_t length = child_stdout.read_some(asio::buffer(buffer, max_length));
-  if (true) {
 #ifdef RPC_DEBUG
-    spdlog::debug("Me <-- {}", toHex({ buffer, length }));
+  spdlog::debug("Me <-- {}", toHex({ buffer, length }));
 #endif
-  } else {
-    // TODO: throw, then retry
-    spdlog::critical("Lua5.4 closed too early.");
-    // spdlog::critical("  stderr: %s", qUtf8Printable(process->readAllStandardError()));
-    // spdlog::critical("  stdout: %s", qUtf8Printable(process->readAllStandardOutput()));
-  }
 }
 
 RpcLua::~RpcLua() {
-  call("bye");
+  if (alive()) call("bye");
 }
 
 // 传过去的算上call和返回值只有int bytes和null... 毁灭吧
@@ -468,6 +460,12 @@ static void readJsonRpcPacket(cbor_data &cbuf, size_t &len, JsonRpcPacket &packe
 
 void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param2, JsonRpcParam param3) {
   spdlog::debug("L->call({})", func_name);
+  if (!alive()) {
+#ifdef RPC_DEBUG
+    spdlog::debug("Me <-- <process died>");
+#endif
+    return;
+  }
 
   auto req = JsonRpc::request(func_name, param1, param2, param3);
   auto id = req.id;
@@ -475,7 +473,7 @@ void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param
 
   JsonRpcPacket received_pkt;
 
-  while (child_stdout.is_open()) {
+  while (child_stdout.is_open() && alive()) {
     received_pkt.reset();
     auto read_sz = child_stdout.read_some(asio::buffer(buffer, max_length));
     cbor_data cbuf = (cbor_data)buffer; size_t len = read_sz;
@@ -521,7 +519,7 @@ void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param
 
 std::string RpcLua::getConnectionInfo() const {
   auto ret = fmt::format("PID {}", child_pid);
-  if (kill(child_pid, 0) == 0) {
+  if (alive()) {
     std::ifstream f { fmt::format("/proc/{}/statm", child_pid) };
     if (f.is_open()) {
       std::string line;
@@ -545,4 +543,9 @@ std::string RpcLua::getConnectionInfo() const {
   }
 
   return ret;
+}
+
+bool RpcLua::alive() const {
+  auto procDir = fmt::format("/proc/{}/exe", child_pid);
+  return std::filesystem::exists(procDir);
 }

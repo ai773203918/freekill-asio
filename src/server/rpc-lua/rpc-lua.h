@@ -17,6 +17,8 @@ public:
 
   std::string getConnectionInfo() const;
 
+  bool alive() const;
+
 private:
   asio::io_context &io_ctx;
 

@@ -557,25 +557,34 @@ void Room::gameOver() {
   }
 }
 
-Room::GameSession::GameSession(Room &r) : room { r } {
-  room.gameStarted = true;
+Room::GameSession::GameSession(Room *r) : room { r } {
+  spdlog::debug("Game session of room {} created", r->id);
+}
 
-  auto thread = room.thread();
-  if (thread) thread->pushRequest(fmt::format("-1,{},newroom", room.id));
+void Room::GameSession::run() {
+  room->gameStarted = true;
+
+  auto thread = room->thread();
+  if (!thread) {
+    room->gameOver();
+    return;
+  }
+
+  thread->pushRequest(fmt::format("-1,{},newroom", room->id));
 }
 
 Room::GameSession::~GameSession() {
-  room.gameStarted = false;
-  room.runned_players.clear();
+  room->gameStarted = false;
+  room->runned_players.clear();
 
   auto &server = Server::instance();
   auto &um = server.user_manager();
-  const auto &mode = room.gameMode;
+  const auto &mode = room->gameMode;
   std::vector<int> to_delete;
 
   // 首先只写数据库，这个过程不能向主线程提交申请(doNotify) 否则会死锁
   server.beginTransaction();
-  for (auto pConnId : room.players) {
+  for (auto pConnId : room->players) {
     auto p = um.findPlayerByConnId(pConnId);
     if (!p) continue;
     auto pid = p->getId();
@@ -591,12 +600,12 @@ Room::GameSession::~GameSession() {
     }
 
     if (p->getState() == Player::Offline) {
-      room.addRunRate(pid, mode);
+      room->addRunRate(pid, mode);
     }
   }
   server.endTransaction();
 
-  for (auto pConnId : room.players) {
+  for (auto pConnId : room->players) {
     auto p = um.findPlayerByConnId(pConnId);
     if (!p) continue;
 
@@ -617,7 +626,7 @@ Room::GameSession::~GameSession() {
 
     if (p->getState() != Player::Online) {
       if (p->getState() == Player::Offline) {
-        if (!room.isOutdated()) {
+        if (!room->isOutdated()) {
           server.temporarilyBan(p->getId());
         } else {
           p->emitKicked();
@@ -628,14 +637,17 @@ Room::GameSession::~GameSession() {
     }
   }
 
-  room.players.erase(std::remove_if(room.players.begin(), room.players.end(), [&](int x) {
+  room->players.erase(std::remove_if(room->players.begin(), room->players.end(), [&](int x) {
     return std::find(to_delete.begin(),to_delete.end(), x) != to_delete.end();
-  }), room.players.end());
+  }), room->players.end());
+
+  spdlog::debug("Game session of room {} destructed", room->id);
 }
 
 void Room::manuallyStart() {
   if (isFull() && !gameStarted) {
     spdlog::info("[GameStart] Room {} started", getId());
+
     /* TODO 多开警告 我感觉单独拿个函数吧
     QMap<QString, QStringList> uuidList, ipList;
     for (auto p : players) {
@@ -672,7 +684,26 @@ void Room::manuallyStart() {
     }
     */
 
-    m_session = std::make_unique<Room::GameSession>(*this);
+    m_session = std::make_unique<Room::GameSession>(this);
+    m_session->run();
+
+    // newroom请求后得有返回
+    // TODO FIXME 此处有巨大bug 用无core和老版本core都测测
+    using namespace std::chrono;
+    auto alive_check_timer = std::make_shared<asio::steady_timer>(Server::instance().context(), seconds(2));
+    alive_check_timer->async_wait([this, alive_check_timer](const asio::error_code& ec){
+      if (!ec) {
+        if (getRefCount() > 0) return;
+        spdlog::error("Room start failed (subprocess died). Check if you have installed freekill-core package.");
+        doBroadcastNotify(players, "ErrorDlg", "#ServerFailed");
+        gameOver();
+      } else {
+        if (ec != asio::error::operation_aborted) {
+        spdlog::error("error in game session check alive timer: {}", ec.message());
+      }
+    }
+  });
+
   }
 }
 

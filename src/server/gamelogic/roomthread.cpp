@@ -77,6 +77,7 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {}, main_io_ctx { ma
 RoomThread::~RoomThread() {
   io_ctx.stop();
   m_thread.join();
+  spdlog::debug("RoomThread {} destructed", m_id);
 }
 
 int RoomThread::id() const {
@@ -112,6 +113,10 @@ void RoomThread::quit() {
 }
 
 void RoomThread::emit_signal(std::function<void()> f) {
+  if (!L->alive()) {
+    md5 = ""; // outdated = true;
+    return;
+  }
   if (std::this_thread::get_id() == m_thread.get_id()) {
     f();
   } else {

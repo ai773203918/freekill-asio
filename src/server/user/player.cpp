@@ -253,6 +253,8 @@ void Player::kick() {
 }
 
 void Player::emitKicked() {
+  return; // TODO 排查bug中
+
   auto &s = Server::instance();
   if (std::this_thread::get_id() != s.mainThreadId()) {
     auto &ctx = Server::instance().context();

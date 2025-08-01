@@ -122,13 +122,15 @@ private:
 
   class GameSession {
   public:
-    explicit GameSession(Room &r);
+    explicit GameSession(Room *r);
     GameSession(GameSession &) = delete;
     GameSession(GameSession &&) = delete;
     ~GameSession();
 
+    void run();
+
   private:
-    Room &room;
+    Room *room;
   };
   std::unique_ptr<GameSession> m_session;
 

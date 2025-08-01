@@ -277,6 +277,10 @@ void Server::temporarilyBan(int playerId) {
   player->emitKicked();
 }
 
+bool Server::isTempBanned(const std::string_view &addr) const {
+  return (std::find(temp_banlist.begin(), temp_banlist.end(), addr) != temp_banlist.end());
+}
+
 void Server::beginTransaction() {
   transaction_mutex.lock();
   db->exec("BEGIN;");

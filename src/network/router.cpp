@@ -16,6 +16,7 @@ Router::Router(Player *player, ClientSocket *socket, RouterType type) {
 }
 
 Router::~Router() {
+  setSocket(nullptr);
   abortRequest();
 }
 

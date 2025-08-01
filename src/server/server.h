@@ -69,6 +69,7 @@ public:
   bool checkBanWord(const std::string_view &str);
 
   void temporarilyBan(int playerId);
+  bool isTempBanned(const std::string_view &addr) const;
 
   void beginTransaction();
   void endTransaction();

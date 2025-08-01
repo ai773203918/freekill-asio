@@ -14,6 +14,8 @@
 #include "core/c-wrapper.h"
 #include "core/util.h"
 
+using namespace std::chrono;
+
 static int nextConnId = 1000;
 
 Player::Player() {
@@ -31,6 +33,10 @@ Player::Player() {
 
   alive = true;
   m_thinking = false;
+
+  gameTime = 0;
+  auto now = system_clock::now();
+  gameTimerStartTimestamp = duration_cast<seconds>(now.time_since_epoch()).count();
 }
 
 Player::~Player() {
@@ -206,10 +212,13 @@ void Player::onNotificationGot(const Packet &packet) {
 }
 
 void Player::onDisconnected() {
-  spdlog::info("Player {} disconnected", id);
-  // if (server->getPlayers().count() <= 10) {
-  //     server->broadcast("ServerMessage", tr("%1 logged out").arg(getScreenName()).toUtf8());;
-  // }
+  spdlog::info("Player {} disconnected{}", id,
+               m_router->getSocket() != nullptr ? "" : " (pseudo)");
+
+  auto &server = Server::instance();
+  if (server.user_manager().getPlayers().size() <= 10) {
+    server.broadcast("ServerMessage", fmt::format("{} logged out", screenName));
+  }
 
   auto room_ = getRoom();
   auto &um = Server::instance().user_manager();
@@ -244,18 +253,20 @@ Router &Player::getRouter() { return *m_router; }
 
 void Player::kick() {
   setState(Player::Offline);
+  auto id = getId();
   if (m_router->getSocket() != nullptr) {
     m_router->getSocket()->disconnectFromHost();
   } else {
     // 还是得走一遍这个流程才行
     onDisconnected();
   }
-  m_router->setSocket(nullptr);
+
+  // 走到这里可能被析构了 重新找this
+  auto p = Server::instance().user_manager().findPlayer(id);
+  if (p) p->getRouter().setSocket(nullptr);
 }
 
 void Player::emitKicked() {
-  return; // TODO 排查bug中
-
   auto &s = Server::instance();
   if (std::this_thread::get_id() != s.mainThreadId()) {
     auto &ctx = Server::instance().context();
@@ -273,9 +284,10 @@ void Player::emitKicked() {
 }
 
 void Player::reconnect(ClientSocket *client) {
-  // if (server->getPlayers().count() <= 10) {
-  //   server->broadcast("ServerMessage", tr("%1 backed").arg(getScreenName()).toUtf8());
-  // }
+  auto &server = Server::instance();
+  if (server.user_manager().getPlayers().size() <= 10) {
+    server.broadcast("ServerMessage", fmt::format("{} backed", screenName));
+  }
 
   setState(Player::Online);
   m_router->setSocket(client);
@@ -293,24 +305,28 @@ void Player::reconnect(ClientSocket *client) {
   }
 }
 
-/*
 void Player::startGameTimer() {
   gameTime = 0;
-  gameTimer.start();
+  auto now = system_clock::now();
+  gameTimerStartTimestamp = duration_cast<seconds>(now.time_since_epoch()).count();
 }
 
 void Player::pauseGameTimer() {
-  gameTime += gameTimer.elapsed() / 1000;
+  auto now = system_clock::now();
+  auto timestamp = duration_cast<seconds>(now.time_since_epoch()).count();
+  gameTime += (timestamp - gameTimerStartTimestamp);
 }
 
 void Player::resumeGameTimer() {
-  gameTimer.start();
+  auto now = system_clock::now();
+  gameTimerStartTimestamp = duration_cast<seconds>(now.time_since_epoch()).count();
 }
 
 int Player::getGameTime() {
-  return gameTime + (getState() == Player::Online ? gameTimer.elapsed() / 1000 : 0);
+  auto now = system_clock::now();
+  auto timestamp = duration_cast<seconds>(now.time_since_epoch()).count();
+  return gameTime + (getState() == Player::Online ? (timestamp - gameTimerStartTimestamp) : 0);
 }
-*/
 
 void Player::onReplyReady() {
   setThinking(false);
@@ -336,13 +352,12 @@ void Player::onStateChanged() {
   room->doBroadcastNotify(room->getPlayers(), "NetStateChanged",
                           Cbor::encodeArray({ id, getStateString() }));
 
-  // TODO
-  // auto state = getState();
-  // if (state == Player::Online) {
-  //   resumeGameTimer();
-  // } else {
-  //   pauseGameTimer();
-  // }
+  auto state = getState();
+  if (state == Player::Online) {
+    resumeGameTimer();
+  } else {
+    pauseGameTimer();
+  }
 }
 
 void Player::onReadyChanged() {

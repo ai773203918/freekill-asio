@@ -15,14 +15,10 @@ Room::Room() {
   static int nextRoomId = 1;
   id = nextRoomId++;
 
-  m_thread_id = 1000; // TODO
+  m_thread_id = 1000;
 
-  // connect(this, &Room::abandoned, thread, &RoomThread::onRoomAbandoned);
-
-  // m_abandoned = false;
-  // gameStarted = false;
-  // robot_id = -2; // -1 is reserved in UI logic
-  // timeout = 15;
+  gameStarted = false;
+  timeout = 15;
 }
 
 Room::~Room() {
@@ -441,9 +437,9 @@ void Room::updatePlayerWinRate(int id, const std::string_view &mode, const std::
     db.exec(fmt::format(insertPWinRate, id, mode, role, win, lose, draw));
   } else {
     auto obj = result[0];
-    win += std::stoi(obj["win"]);
-    lose += std::stoi(obj["lose"]);
-    draw += std::stoi(obj["draw"]);
+    win += atoi(obj["win"].c_str());
+    lose += atoi(obj["lose"].c_str());
+    draw += atoi(obj["draw"].c_str());
     db.exec(fmt::format(updatePWinRate, win, lose, draw, id, mode, role));
   }
 
@@ -483,9 +479,9 @@ void Room::updateGeneralWinRate(const std::string_view &general, const std::stri
     db.exec(fmt::format(insertGWinRate, general, mode, role, win, lose, draw));
   } else {
     auto obj = result[0];
-    win += std::stoi(obj["win"]);
-    lose += std::stoi(obj["lose"]);
-    draw += std::stoi(obj["draw"]);
+    win += atoi(obj["win"].c_str());
+    lose += atoi(obj["lose"].c_str());
+    draw += atoi(obj["draw"].c_str());
     db.exec(fmt::format(updateGWinRate, win, lose, draw, general, mode, role));
   }
 }
@@ -499,7 +495,7 @@ void Room::addRunRate(int id, const std::string_view &mode) {
     db.exec(fmt::format(insertRunRate, id, mode, run));
   } else {
     auto obj = result[0];
-    run += std::stoi(obj["run"]);
+    run += atoi(obj["run"].c_str());
     db.exec(fmt::format(updateRunRate, run, id, mode));
   }
 }
@@ -529,14 +525,14 @@ void Room::updatePlayerGameData(int id, const std::string_view &mode) {
   auto result = db.select(fmt::format(findRunRate, id, mode));
 
   if (!result.empty()) {
-    run = stoi(result[0]["run"]);
+    run = atoi(result[0]["run"].c_str());
   }
 
   result = db.select(fmt::format(findModeRate, id, mode));
 
   if (!result.empty()) {
-    total = stoi(result[0]["total"]);
-    win = stoi(result[0]["win"]);
+    total = atoi(result[0]["total"].c_str());
+    win = atoi(result[0]["win"].c_str());
   }
 
   player->setGameData(total, win, run);
@@ -579,13 +575,14 @@ void Room::_gameOver() {
     auto pid = p->getId();
 
     if (pid > 0) {
-      // TODO 游玩时长统计
-      // int time = p->getGameTime();
+      int time = p->getGameTime();
 
-      // // 将游戏时间更新到数据库中
-      // auto info_update = QString("UPDATE usergameinfo SET totalGameTime = "
-      // "IIF(totalGameTime IS NULL, {}, totalGameTime + {}) WHERE id = {};").arg(pid).arg(time);
-      // server->database()->exec(info_update);
+      auto info_update = fmt::format(
+        "UPDATE usergameinfo SET totalGameTime = "
+        "IIF(totalGameTime IS NULL, {}, totalGameTime + {}) WHERE id = {};",
+        time, time, pid
+      );
+      server.database().exec(info_update);
     }
 
     if (p->getState() == Player::Offline) {
@@ -598,20 +595,22 @@ void Room::_gameOver() {
     auto p = um.findPlayerByConnId(pConnId);
     if (!p) continue;
 
-    /* 计时相关 再说
-    if (pid > 0) {
+    if (p->getId() > 0) {
       int time = p->getGameTime();
-      auto bytes = QCborArray { pid, time }.toCborValue().toCbor();
-      doBroadcastNotify(getOtherPlayers(p), "AddTotalGameTime", bytes);
+      auto bytes = Cbor::encodeArray( { p->getId(), time } );
+      for (auto connId : players) {
+        if (connId == pConnId) continue;
+        auto p2 = um.findPlayerByConnId(connId);
+        if (p2) p2->doNotify("AddTotalGameTime", bytes);
+      }
 
       // 考虑到阵亡已离开啥的，时间得给真实玩家增加
-      auto realPlayer = server->findPlayer(pid);
+      auto realPlayer = um.findPlayer(p->getId());
       if (realPlayer) {
         realPlayer->addTotalGameTime(time);
         realPlayer->doNotify("AddTotalGameTime", bytes);
       }
     }
-    */
 
     if (p->getState() != Player::Online) {
       if (p->getState() == Player::Offline) {
@@ -622,7 +621,10 @@ void Room::_gameOver() {
         }
       }
       to_delete.push_back(pConnId);
-      um.deletePlayer(*p);
+
+      // Offline段中player可能已经delete了，但是保险一下
+      auto p2 = um.findPlayerByConnId(pConnId);
+      if (p2) um.deletePlayer(*p2);
     }
   }
 
@@ -636,41 +638,49 @@ void Room::manuallyStart() {
 
   spdlog::info("[GameStart] Room {} started", getId());
 
-  /* TODO 多开警告 我感觉单独拿个函数吧
-    QMap<QString, QStringList> uuidList, ipList;
-    for (auto p : players) {
-      p->setReady(false);
-      p->setDied(false);
-      p->startGameTimer();
+  auto &um = Server::instance().user_manager();
+  std::unordered_map<std::string_view, std::vector<std::string_view>> uuidList, ipList;
+  for (auto pConnId : players) {
+    auto p = um.findPlayerByConnId(pConnId);
+    if (!p) continue;
+    p->setReady(false);
+    p->setDied(false);
+    p->startGameTimer();
 
-      if (p->getId() < 0) continue;
-      auto uuid = p->getUuid();
-      auto ip = p->getPeerAddress();
-      auto pname = p->getScreenName();
-      if (!uuid.isEmpty()) {
-        uuidList[uuid].append(pname);
-      }
-      if (!ip.isEmpty()) {
-        ipList[ip].append(pname);
-      }
+    if (p->getId() < 0) continue;
+    auto uuid = p->getUuid();
+    auto ip = p->getRouter().getSocket()->peerAddress();
+    auto pname = p->getScreenName();
+    if (!uuid.empty()) {
+      uuidList[uuid].push_back(pname);
     }
+    if (!ip.empty()) {
+      ipList[ip].push_back(pname);
+    }
+  }
 
-    for (auto i = ipList.cbegin(); i != ipList.cend(); i++) {
-      if (i.value().length() <= 1) continue;
-      auto warn = QString("*WARN* Same IP address: [{}]").arg(i.value().join(", "));
-      auto warnUtf8 = warn.toUtf8();
-      doBroadcastNotify(getPlayers(), "ServerMessage", warnUtf8);
-      qInfo("%s", warnUtf8.constData());
+  static auto join = [](const std::vector<std::string_view>& vec, const std::string_view &spliter) {
+    std::string result;
+    for (size_t i = 0; i < vec.size(); ++i) {
+      if (i != 0) result += spliter;
+      result += vec[i];
     }
+    return result;
+  };
 
-    for (auto i = uuidList.cbegin(); i != uuidList.cend(); i++) {
-      if (i.value().length() <= 1) continue;
-      auto warn = QString("*WARN* Same device id: [{}]").arg(i.value().join(", "));
-      auto warnUtf8 = warn.toUtf8();
-      doBroadcastNotify(getPlayers(), "ServerMessage", warnUtf8);
-      qInfo("%s", warnUtf8.constData());
-    }
-    */
+  for (const auto& [ip, names] : ipList) {
+    if (names.size() <= 1) continue;
+    auto warn = fmt::format("*WARN* Same IP address: [{}]", join(names, ", "));
+    doBroadcastNotify(getPlayers(), "ServerMessage", warn);
+    spdlog::info("{}", warn);
+  }
+
+  for (const auto& [uuid, names] : uuidList) {
+    if (names.size() <= 1) continue;
+    auto warn = fmt::format("*WARN* Same device id: [{}]", join(names, ", "));
+    doBroadcastNotify(getPlayers(), "ServerMessage", warn);
+    spdlog::info("{}", warn);
+  }
 
   gameStarted = true;
 
@@ -807,7 +817,7 @@ void Room::setRequestTimer(int ms) {
   request_timer = std::make_unique<asio::steady_timer>(
     ctx, std::chrono::milliseconds(ms));
 
-  request_timer->async_wait([&](const asio::error_code& ec){
+  request_timer->async_wait([&, thread](const asio::error_code& ec){
     if (!ec) {
       thread->wakeUp(id, "request_timer");
     } else {

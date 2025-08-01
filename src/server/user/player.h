@@ -85,12 +85,10 @@ public:
   void emitKicked();
   void reconnect(ClientSocket *socket);
 
-  /*
   void startGameTimer();
   void pauseGameTimer();
   void resumeGameTimer();
   int getGameTime();
-  */
 
 private:
   int id = 0;
@@ -118,8 +116,6 @@ private:
 
   void kick();
 
-  /*
-  int gameTime = 0; // 在这个房间的有效游戏时长(秒)
-  QElapsedTimer gameTimer;
-  */
+  int64_t gameTime = 0; // 在这个房间的有效游戏时长(秒)
+  int64_t gameTimerStartTimestamp;
 };

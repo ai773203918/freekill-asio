@@ -140,7 +140,7 @@ void AuthManager::processNewConnection(std::shared_ptr<ClientSocket> conn, Packe
   auto obj = checkPassword();
   if (obj.empty()) return;
 
-  int id = std::stoi(obj["id"]);
+  int id = atoi(obj["id"].c_str());
   updateUserLoginData(id);
   user_manager.createNewPlayer(conn, p_ptr->name, obj["avatar"], id, p_ptr->uuid);
 }
@@ -275,7 +275,7 @@ std::map<std::string, std::string> AuthManager::queryUserInfo(const std::string_
   // 以下为注册流程
 
   auto result2 = db.select(sql_count_uuid);
-  auto num = std::stoi(result2[0]["cnt"]);
+  auto num = atoi(result2[0]["cnt"].c_str());
   if (num >= server.config().maxPlayersPerDevice) {
     return {};
   }
@@ -415,7 +415,7 @@ std::map<std::string, std::string> AuthManager::checkPassword() {
     goto FAIL;
   }
 
-  if (auto player = um.findPlayer(std::stoi(obj["id"])); player) {
+  if (auto player = um.findPlayer(atoi(obj["id"].c_str())); player) {
     // 顶号机制，如果在线的话就让他变成不在线
     if (player->getState() == Player::Online || player->getState() == Player::Robot) {
       player->doNotify("ErrorDlg", "others logged in again with this name");

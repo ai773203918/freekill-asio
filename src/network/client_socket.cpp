@@ -42,7 +42,9 @@ std::string_view ClientSocket::peerAddress() const {
 }
 
 void ClientSocket::disconnectFromHost() {
+  m_socket.shutdown(tcp::socket::shutdown_both);
   m_socket.close();
+  disconnected_callback();
 }
 
 void ClientSocket::send(const asio::const_buffer &msg) {

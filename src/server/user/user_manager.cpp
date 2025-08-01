@@ -83,31 +83,31 @@ const std::unordered_map<int, std::shared_ptr<Player>> &UserManager::getPlayers(
 }
 
 void UserManager::processNewConnection(std::shared_ptr<ClientSocket> client) {
-  spdlog::info("client {} connected", client->peerAddress());
+  auto addr = client->peerAddress();
+  spdlog::info("client {} connected", addr);
 
   auto &server = Server::instance();
+  auto &db = server.database();
 
-  /*
   // check ban ip
-  auto result = db->select(QString("SELECT * FROM banip WHERE ip='%1';").arg(addr));
+  auto result = db.select(fmt::format("SELECT * FROM banip WHERE ip='{}';", addr));
 
   const char *errmsg = nullptr;
 
-  if (!result.isEmpty()) {
+  if (!result.empty()) {
     errmsg = "you have been banned!";
-  } else if (temp_banlist.contains(addr)) {
+  } else if (server.isTempBanned(addr)) {
     errmsg = "you have been temporarily banned!";
-  } else if (players.count() >= getConfig("capacity").toInt()) {
+  } else if (online_players_map.size() >= server.config().capacity) {
     errmsg = "server is full!";
   }
 
   if (errmsg) {
-    sendEarlyPacket(client, "ErrorDlg", errmsg);
-    qInfo() << "Refused banned IP:" << addr;
+    server.sendEarlyPacket(*client, "ErrorDlg", errmsg);
+    spdlog::info("Refused banned IP: {}", addr);
     client->disconnectFromHost();
     return;
   }
-  */
 
   // network delay test
   server.sendEarlyPacket(*client, "NetworkDelayTest", m_auth->getPublicKeyCbor());
@@ -126,18 +126,22 @@ void UserManager::createNewPlayer(std::shared_ptr<ClientSocket> client, std::str
   player->setAvatar(std::string(avatar));
   player->setId(id);
   player->setUuid(std::string(uuid_str));
-  // if (players.count() <= 10) {
-  //   broadcast("ServerMessage", tr("%1 logged in").arg(player->getScreenName()).toUtf8());
-  // }
+
+  auto &server = Server::instance();
+  if (online_players_map.size() <= 10) {
+    server.broadcast("ServerMessage", fmt::format("{} logged in", player->getScreenName()));
+  }
 
   addPlayer(player);
 
   setupPlayer(*player);
 
-  // auto result = db->select(QString("SELECT totalGameTime FROM usergameinfo WHERE id=%1;").arg(id));
-  // auto time = result[0]["totalGameTime"].toInt();
-  // player->addTotalGameTime(time);
-  // player->doNotify("AddTotalGameTime", QCborArray{ id, time }.toCborValue().toCbor());
+  auto result = server.database().select(fmt::format(
+    "SELECT totalGameTime FROM usergameinfo WHERE id={};", id
+  ));
+  auto time = atoi(result[0]["totalGameTime"].c_str());
+  player->addTotalGameTime(time);
+  player->doNotify("AddTotalGameTime", Cbor::encodeArray({ id, time }));
 
   auto &lobby = Server::instance().room_manager().lobby();
   lobby.addPlayer(*player);

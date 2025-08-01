@@ -225,7 +225,7 @@ void Shell::kickCommand(StringList &list) {
   }
 
   auto pid = list[0];
-  int id = std::stoi(pid);
+  int id = std::atoi(pid.c_str());
 
   auto p = Server::instance().user_manager().findPlayer(id);
   if (p) {
@@ -253,7 +253,7 @@ void Shell::msgRoomCommand(StringList &list) {
     return;
   }
 
-  auto roomId = stoi(list[0]);
+  auto roomId = atoi(list[0].c_str());
   auto room = Server::instance().room_manager().findRoom(roomId);
   if (!room) {
     spdlog::info("No such room.");
@@ -276,7 +276,7 @@ static void banAccount(Sqlite3 &db, const std::string_view &name, bool banned) {
   if (result.empty())
     return;
   auto obj = result[0];
-  int id = stoi(obj["id"]);
+  int id = atoi(obj["id"].c_str());
   db.exec(fmt::format("UPDATE userinfo SET banned={} WHERE id={};",
                   banned ? 1 : 0, id));
 
@@ -330,7 +330,7 @@ static void banIPByName(Sqlite3 &db, const std::string_view &name, bool banned) 
   if (result.empty())
     return;
   auto obj = result[0];
-  int id = stoi(obj["id"]);
+  int id = atoi(obj["id"].c_str());
   auto addr = obj["lastLoginIp"];
 
   if (banned) {
@@ -382,7 +382,7 @@ static void banUuidByName(Sqlite3 &db, const std::string_view &name, bool banned
   if (result.empty())
     return;
   auto obj = result[0];
-  int id = stoi(obj["id"]);
+  int id = atoi(obj["id"].c_str());
 
   auto result2 = db.select(fmt::format("SELECT * FROM uuidinfo WHERE id={};", id));
   if (result2.empty())
@@ -450,36 +450,35 @@ void Shell::resetPasswordCommand(StringList &list) {
   }
 }
 
-/*
-static QString formatMsDuration(qint64 time) {
-  QString ret;
+static std::string formatMsDuration(int64_t time) {
+  std::string ret;
+  ret.reserve(32);
 
   auto ms = time % 1000;
   time /= 1000;
   auto sec = time % 60;
-  ret = QString("{}.{} seconds").arg(sec).arg(ms) + ret;
+  ret = fmt::format("{}.{} seconds", sec, ms) + ret;
   time /= 60;
   if (time == 0) return ret;
 
   auto min = time % 60;
-  ret = QString("{} minutes, ").arg(min) + ret;
+  ret = fmt::format("{} minutes, ", min) + ret;
   time /= 60;
   if (time == 0) return ret;
 
   auto hour = time % 24;
-  ret = QString("{} hours, ").arg(hour) + ret;
+  ret = fmt::format("{} hours, ", hour) + ret;
   time /= 24;
   if (time == 0) return ret;
 
-  ret = QString("{} days, ").arg(time) + ret;
+  ret = fmt::format("{} days, ", time) + ret;
   return ret;
 }
-*/
 
 void Shell::statCommand(StringList &) {
   auto &server = Server::instance();
-  // auto uptime_ms = server->getUptime();
-  // spdlog::info("uptime: {}", formatMsDuration(uptime_ms).toUtf8().constData());
+  auto uptime_ms = server.getUptime();
+  spdlog::info("uptime: {}", formatMsDuration(uptime_ms));
 
   auto players = server.user_manager().getPlayers();
   spdlog::info("Player(s) logged in: {}", players.size());
@@ -487,17 +486,17 @@ void Shell::statCommand(StringList &) {
 
   auto &threads = server.getThreads();
   for (auto &[id, thr] : threads) {
-    // auto rooms = thr->findChildren<Room *>();
+    auto roomsCount = thr->getRefCount();
     auto &L = thr->getLua();
 
     auto stat_str = L.getConnectionInfo();
     auto outdated = thr->isOutdated();
-    // if (rooms.count() == 0 && outdated) {
-      // thr->deleteLater();
-    // } else {
-      spdlog::info("RoomThread {} | {} | {} room(s) {}", id, stat_str, '?', //rooms.count(),
+    if (roomsCount == 0 && outdated) {
+      server.removeThread(thr->id());
+    } else {
+      spdlog::info("RoomThread {} | {} | {} room(s) {}", id, stat_str, roomsCount,
             outdated ? "| Outdated" : "");
-    // }
+    }
   }
 
   spdlog::info("Database memory usage: {:.2f} MiB",
@@ -511,7 +510,7 @@ void Shell::killRoomCommand(StringList &list) {
   }
 
   auto pid = list[0];
-  int id = stoi(pid);
+  int id = atoi(pid.c_str());
 
   auto &um = Server::instance().user_manager();
   auto &rm = Server::instance().room_manager();

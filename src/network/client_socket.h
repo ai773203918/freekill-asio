@@ -62,7 +62,7 @@ private:
 
   std::vector<unsigned char> cborBuffer;
 
-  bool handleBuffer(size_t length);
+  cbor_decoder_status handleBuffer(size_t length);
 
   // signals
   std::function<void()> disconnected_callback = 0;

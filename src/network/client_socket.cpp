@@ -20,7 +20,8 @@ void ClientSocket::start() {
     asio::buffer(m_data, max_length),
     [this, self](asio::error_code err, std::size_t length) {
       if (!err && self.lock()) {
-        if (handleBuffer(length)) {
+        auto stat = handleBuffer(length);
+        if (stat != CBOR_DECODER_ERROR) {
           // 再次read_some
           start();
         } else {
@@ -181,12 +182,14 @@ static void init_callbacks() {
   };
 }
 
-bool ClientSocket::handleBuffer(size_t length) {
+cbor_decoder_status ClientSocket::handleBuffer(size_t length) {
   cborBuffer.insert(cborBuffer.end(), m_data, m_data + length);
 
   auto cbuf = (unsigned char *)cborBuffer.data();
   auto len = cborBuffer.size();
   size_t total_consumed = 0;
+
+  size_t real_consumed = 0;
   // spdlog::debug("client socket buffer: {}", std::string_view{ (char*)cborBuffer.data(), cborBuffer.size() });
 
   std::call_once(callbacks_flag, init_callbacks);
@@ -194,14 +197,18 @@ bool ClientSocket::handleBuffer(size_t length) {
   struct cbor_decoder_result decode_result;
   Packet pkt;
   PacketBuilder builder { pkt };
+  int handled = 0;
   builder.message_got_callback = message_got_callback;
+
+  cbor_decoder_status lastStat;
 
   while (true) {
     // 基于callbacks，边读缓冲区边构造packet并进一步调用回调处理packet
     // 下面这个函数一次只读一个item
     decode_result = cbor_stream_decode(cbuf, len, &callbacks, &builder);
+    lastStat = decode_result.status;
     if (decode_result.status == CBOR_DECODER_ERROR) {
-      return false;
+      return lastStat;
     } else if (decode_result.status == CBOR_DECODER_NEDATA) {
       break;
     }
@@ -213,22 +220,26 @@ bool ClientSocket::handleBuffer(size_t length) {
     } else {
       break;
     }
+
+    if (builder.handled != handled) {
+      real_consumed = total_consumed;
+    }
   }
 
   if (builder.handled == 0 && !builder.valid_packet) {
-    return false;
+    return lastStat;
   }
 
   // 对剩余的不全数据深拷贝 重新造bytes
-  if (total_consumed < len) {
+  if (real_consumed < len) {
     std::vector<unsigned char> remaining_buffer;
-    remaining_buffer.assign(cborBuffer.begin() + total_consumed, cborBuffer.end());
+    remaining_buffer.assign(cborBuffer.begin() + real_consumed, cborBuffer.end());
     cborBuffer = remaining_buffer;
   } else {
     cborBuffer.clear();
   }
 
-  return true;
+  return lastStat;
 }
 
 

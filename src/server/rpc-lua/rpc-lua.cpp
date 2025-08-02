@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "server/rpc-lua/rpc-lua.h"
+#include "core/packman.h"
 #include "server/rpc-lua/jsonrpc.h"
 
 #include "server/gamelogic/rpc-dispatchers.h"
@@ -8,6 +9,7 @@
 #include "core/util.h"
 
 #include <unistd.h>
+#include <cjson/cJSON.h>
 
 RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
   child_stdin { ctx }, child_stdout { ctx }
@@ -40,6 +42,16 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
       throw std::runtime_error(fmt::format("Cannot chdir into packages/freekill-core: {}\n\tYou must install freekill-core before starting the server.", strerror(errno)));
       // ::_exit(err);
     }
+
+    auto disabled_packs = PackMan::instance().getDisabledPacks();
+    cJSON *json_array = cJSON_CreateArray();
+    for (const auto& pack : disabled_packs) {
+      cJSON_AddItemToArray(json_array, cJSON_CreateString(pack.c_str()));
+    }
+    char *json_string = cJSON_PrintUnformatted(json_array);
+    ::setenv("FK_DISABLED_PACKS", json_string, 1);
+    free(json_string);
+    cJSON_Delete(json_array);
 
     ::setenv("FK_RPC_MODE", "cbor", 1);
     ::execlp("lua5.4", "lua5.4", "lua/server/rpc/entry.lua", nullptr);

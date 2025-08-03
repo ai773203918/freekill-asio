@@ -31,15 +31,24 @@ void Shell::helpCommand(StringList &) {
 #define HELP_MSG(a, b)                                                         \
   spdlog::info((a), Color((b), fkShell::Cyan));
 
+  spdlog::info("===== General commands =====");
   HELP_MSG("{}: Display this help message.", "help");
   HELP_MSG("{}: Shut down the server.", "quit");
   HELP_MSG("{}: Crash the server. Useful when encounter dead loop.", "crash");
+  HELP_MSG("{}: View status of server.", "stat/gc");
+  HELP_MSG("{}: Reload server config file.", "reloadconf/r");
+
+  spdlog::info("");
+  spdlog::info("===== Inspect commands =====");
   HELP_MSG("{}: List all online players.", "lsplayer");
   HELP_MSG("{}: List all running rooms, or show player of room by an <id>.", "lsroom");
-  HELP_MSG("{}: Reload server config file.", "reloadconf/r");
-  HELP_MSG("{}: Kick a player by his <id>.", "kick");
   HELP_MSG("{}: Broadcast message.", "msg/m");
   HELP_MSG("{}: Broadcast message to a room.", "msgroom/mr");
+  HELP_MSG("{}: Kick a player by his <id>.", "kick");
+  HELP_MSG("{}: Kick all players in a room, then abandon it.", "killroom");
+
+  spdlog::info("");
+  spdlog::info("===== Account commands =====");
   HELP_MSG("{}: Ban 1 or more accounts, IP, UUID by their <name>.", "ban");
   HELP_MSG("{}: Unban 1 or more accounts by their <name>.", "unban");
   HELP_MSG(
@@ -61,9 +70,7 @@ void Shell::helpCommand(StringList &) {
   HELP_MSG("{}: Ban an accounts by his <name> and <duration> (??m/??h/??d/??mo).", "tempban");
   HELP_MSG("{}: Add or remove a name from whitelist.", "whitelist");
   HELP_MSG("{}: reset <name>'s password to 1234.", "resetpassword/rp");
-  HELP_MSG("{}: View status of server.", "stat/gc");
-  HELP_MSG("{}: View detail information (Lua) of room by an id.", "dumproom");
-  HELP_MSG("{}: Kick all players in a room, then abandon it.", "killroom");
+
   spdlog::info("");
   spdlog::info("===== Package commands =====");
   HELP_MSG("{}: Install a new package from <url>.", "install");

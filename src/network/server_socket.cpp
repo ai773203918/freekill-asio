@@ -47,7 +47,7 @@ void ServerSocket::listen_udp() {
         auto &um = Server::instance().user_manager();
 
         cJSON *jsonArray = cJSON_CreateArray();
-        cJSON_AddItemToArray(jsonArray, cJSON_CreateString("0.1-asio"));
+        cJSON_AddItemToArray(jsonArray, cJSON_CreateString("0.5.11+"));
         cJSON_AddItemToArray(jsonArray, cJSON_CreateString(conf.iconUrl.c_str()));
         cJSON_AddItemToArray(jsonArray, cJSON_CreateString(conf.description.c_str()));
         cJSON_AddItemToArray(jsonArray, cJSON_CreateNumber(conf.capacity));

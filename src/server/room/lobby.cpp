@@ -210,7 +210,7 @@ void Lobby::joinRoom(Player &sender, const Packet &pkt, bool observe) {
       if (room->isOutdated()) {
         sender.doNotify("ErrorMsg", "room is outdated");
       } else {
-        if (observe) {
+        if (!observe) {
           room->addPlayer(sender);
         } else {
           room->addObserver(sender);

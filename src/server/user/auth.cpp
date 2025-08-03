@@ -15,6 +15,10 @@
 #include <openssl/sha.h>
 #include <openssl/md5.h>
 
+#include <fmt/chrono.h>
+
+#include "3rdparty/semver.hpp"
+
 struct AuthManagerPrivate {
   AuthManagerPrivate();
   ~AuthManagerPrivate() {
@@ -201,23 +205,20 @@ FAIL:
 }
 
 bool AuthManager::checkVersion() {
-  using namespace std::string_view_literals;
-  static const auto minVersion = "0.5.10"sv;
-  static const auto maxVersion = "0.7.0"sv;
+  semver::range_set range;
+  semver::parse(">=0.5.11", range);
 
   auto client = p_ptr->client.lock();
   if (!client) return false;
 
-  std::string errmsg;
+  const char *errmsg;
 
-  // TODO 让客户端能知道服务端具体支持的版本范围
   auto &ver = p_ptr->version;
-  if (ver > maxVersion) {
-    errmsg = fmt::format("[\"server is still on version %1\",\"{}\"]", maxVersion);
-  } else if (ver < minVersion) {
-    errmsg = fmt::format("[\"server is using version %1, please update\",\"{}\"]", minVersion);
-  } else {
+  semver::version version;
+  if (semver::parse(ver, version) && range.contains(version)) {
     return true;
+  } else {
+    errmsg = R"(["server supports version %1, please update","0.5.11+"])";
   }
 
   Server::instance().sendEarlyPacket(*client, "ErrorDlg", errmsg);
@@ -330,11 +331,43 @@ std::map<std::string, std::string> AuthManager::queryUserInfo(const std::string_
   return result[0];
 }
 
+std::string AuthManager::getBanExpire(std::map<std::string, std::string> &info) {
+  auto &server = Server::instance();
+  auto &db = server.database();
+
+  auto result = db.select(fmt::format(
+    "SELECT uid, expireAt FROM tempban WHERE uid={};",
+    info["id"]
+  ));
+  if (result.empty()) return "forever";
+
+  using namespace std::chrono;
+  int64_t expire = atoll(result[0]["expireAt"].c_str());
+  auto tp = system_clock::time_point(seconds(expire));
+
+  if (tp <= system_clock::now()) {
+    db.exec(fmt::format(
+      "DELETE FROM tempban WHERE uid={};",
+      info["id"]
+    ));
+    db.exec(fmt::format(
+      "UPDATE userinfo SET banned=0 WHERE id={};",
+      info["id"]
+    ));
+    return "expired";
+  }
+
+  std::time_t now_time_t = system_clock::to_time_t(tp);
+  std::tm local_tm = *std::localtime(&now_time_t);
+
+  return fmt::format("{:%Y-%m-%d %H:%M:%S}", local_tm);
+}
+
 std::map<std::string, std::string> AuthManager::checkPassword() {
   auto &server = Server::instance();
   auto &um = server.user_manager();
   bool passed = false;
-  const char *error_msg = "";
+  std::string error_msg = "";
 
   // p_ptr的数据
   auto client = p_ptr->client.lock();
@@ -392,10 +425,19 @@ std::map<std::string, std::string> AuthManager::checkPassword() {
   }
 
   // check ban account
-  passed = obj["banned"] == "0";
-  if (!passed) {
-    error_msg = "you have been banned!";
-    goto FAIL;
+  if (obj["banned"] != "0") {
+    auto expiry = getBanExpire(obj);
+    if (expiry == "expired") {
+      // 无事发生
+    } else if (expiry == "forever") {
+      passed = false;
+      error_msg = "you have been banned!";
+      goto FAIL;
+    } else {
+      passed = false;
+      error_msg = fmt::format("[\"you have been banned! expire at %1\", \"{}\"]", expiry);
+      goto FAIL;
+    }
   }
 
   // check if password is the same

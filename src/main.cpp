@@ -14,7 +14,7 @@
 static bool shellAlive = false;
 
 static void initLogger() {
-  auto logger_file = "freekill.server.log";
+  auto logger_file = "freekill.log";
 
   std::vector<spdlog::sink_ptr> sinks;
   auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();

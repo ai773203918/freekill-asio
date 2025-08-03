@@ -25,6 +25,15 @@ CREATE TABLE IF NOT EXISTS banuuid (
   uuid VARCHAR(32)
 );
 
+CREATE TABLE IF NOT EXISTS tempban (
+  uid INTEGER PRIMARY KEY,
+  expireAt INTEGER  -- 时间戳
+);
+
+CREATE TABLE IF NOT EXISTS whitelist (
+  name VARCHAR(64) PRIMARY KEY
+);
+
 CREATE TABLE IF NOT EXISTS usergameinfo (
   id INTEGER PRIMARY KEY,
   registerTime INTEGER,  -- 时间戳

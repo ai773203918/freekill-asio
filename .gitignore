@@ -20,5 +20,6 @@
 !/server/init.sql
 /freekill.server.config.json
 /freekill.server.*log
+/freekill.*log
 /flist.txt
 /server-list.json

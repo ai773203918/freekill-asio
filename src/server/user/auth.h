@@ -31,6 +31,8 @@ private:
   bool checkIfUuidNotBanned();
   bool checkMd5();
 
+  std::string getBanExpire(std::map<std::string, std::string> &info);
+
   std::map<std::string, std::string> checkPassword();
   std::map<std::string, std::string> queryUserInfo(const std::string_view &decrypted_pw);
 

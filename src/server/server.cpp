@@ -202,6 +202,10 @@ void ServerConfig::loadConf(const char* jsonStr) {
     enableBots = cJSON_IsTrue(item);
   }
 
+  if ((item = cJSON_GetObjectItem(root, "enableWhitelist")) && cJSON_IsBool(item)) {
+    enableWhitelist = cJSON_IsTrue(item);
+  }
+
   if ((item = cJSON_GetObjectItem(root, "roomCountPerThread")) && cJSON_IsNumber(item)) {
     roomCountPerThread = static_cast<int>(item->valuedouble);
   }
@@ -341,7 +345,8 @@ int64_t Server::getUptime() const {
 }
 
 bool Server::nameIsInWhiteList(const std::string_view &name) const {
-  // if (!hasWhitelist) return true;
-  // return whitelist.length() > 0 && whitelist.contains(name);
-  return true;
+  if (!m_config->enableWhitelist) return true;
+  auto obj = db->select(fmt::format(
+    "SELECT name FROM whitelist WHERE name='{}';", name));
+  return !obj.empty();
 }

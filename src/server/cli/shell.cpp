@@ -22,6 +22,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include <fmt/chrono.h>
+
 static constexpr const char *prompt = "fk-asio> ";
 
 void Shell::helpCommand(StringList &) {
@@ -56,6 +58,8 @@ void Shell::helpCommand(StringList &) {
       "{}: Unban 1 or more UUID. "
       "At least 1 <name> required.",
       "unbanuuid");
+  HELP_MSG("{}: Ban an accounts by his <name> and <duration> (??m/??h/??d/??mo).", "tempban");
+  HELP_MSG("{}: Add or remove a name from whitelist.", "whitelist");
   HELP_MSG("{}: reset <name>'s password to 1234.", "resetpassword/rp");
   HELP_MSG("{}: View status of server.", "stat/gc");
   HELP_MSG("{}: View detail information (Lua) of room by an id.", "dumproom");
@@ -430,6 +434,100 @@ void Shell::unbanUuidCommand(StringList &list) {
   }
 }
 
+void Shell::tempbanCommand(StringList &list) {
+  if (list.size() != 2) {
+    spdlog::warn("usage: tempban <name> <duration>");
+    return;
+  }
+
+  auto &db = Server::instance().database();
+  auto name = list[0];
+  auto duration_str = list[1];
+  static const char *invalid_dur = "Invalid duration value. "
+    "Possible choices: ??m (minute), ??h (hour), ??d (day) and ??mo (month, 30 days).";
+  size_t pos;
+  long value;
+  try {
+    value = std::stol(duration_str, &pos);
+  } catch (const std::exception& e) {
+    spdlog::warn(invalid_dur);
+    return;
+  }
+
+  if (value < 0) {
+    spdlog::warn(invalid_dur);
+    return;
+  }
+
+  using namespace std::chrono;
+  std::string unit = duration_str.substr(pos);
+
+  seconds duration;
+
+  if (unit == "m") {
+    duration = value * 60s;
+  } else if (unit == "h") {
+    duration = value * 3600s;
+  } else if (unit == "d") {
+    duration = value * 86400s;
+  } else if (unit == "mo") {
+    duration = value * 2592000s;
+  } else {
+    spdlog::warn(invalid_dur);
+    return;
+  }
+
+  auto end_tp = system_clock::now() + duration;
+  auto expireTimestamp = duration_cast<seconds>(end_tp.time_since_epoch()).count();
+
+  if (!Sqlite3::checkString(name))
+    return;
+
+  static constexpr const char *sql_find =
+    "SELECT id FROM userinfo WHERE name='{}';";
+  auto result = db.select(fmt::format(sql_find, name));
+  if (result.empty())
+    return;
+
+  auto obj = result[0];
+  int id = atoi(obj["id"].c_str());
+  db.exec(fmt::format("UPDATE userinfo SET banned=1 WHERE id={};", id));
+  db.exec(fmt::format(
+    "REPLACE INTO tempban (uid, expireAt) VALUES ({}, {});", id, expireTimestamp));
+
+  auto p = Server::instance().user_manager().findPlayer(id);
+  if (p) {
+    p->emitKicked();
+  }
+
+  std::time_t now_time_t = system_clock::to_time_t(end_tp);
+  std::tm local_tm = *std::localtime(&now_time_t);
+  spdlog::info("Banned {} until {:%Y-%m-%d %H:%M:%S}.", name, local_tm);
+}
+
+void Shell::whitelistCommand(StringList &list) {
+  if (list.size() != 2) {
+    spdlog::warn("usage: whitelist add/rm <name>");
+    return;
+  }
+
+  auto op = list[0];
+  auto name = list[1];
+  if (!Sqlite3::checkString(name))
+    return;
+
+  auto &db = Server::instance().database();
+
+  if (op == "add") {
+    db.exec(fmt::format("INSERT INTO whitelist VALUES ('{}');", name));
+  } else if (op == "rm") {
+    db.exec(fmt::format("DELETE FROM whitelist WHERE name='{}';", name));
+  } else {
+    spdlog::warn("usage: whitelist add/rm <name>");
+    return;
+  }
+}
+
 void Shell::reloadConfCommand(StringList &) {
   Server::instance().reloadConfig();
   spdlog::info("Reloaded server config file.");
@@ -575,6 +673,8 @@ Shell::Shell() {
     {"unbanip", &Shell::unbanipCommand},
     {"banuuid", &Shell::banUuidCommand},
     {"unbanuuid", &Shell::unbanUuidCommand},
+    {"tempban", &Shell::tempbanCommand},
+    {"whitelist", &Shell::whitelistCommand},
     {"reloadconf", &Shell::reloadConfCommand},
     {"r", &Shell::reloadConfCommand},
     {"resetpassword", &Shell::resetPasswordCommand},

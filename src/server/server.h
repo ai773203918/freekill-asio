@@ -23,6 +23,7 @@ struct ServerConfig {
   std::string motd = "Welcome!";
   std::vector<std::string> hiddenPacks;
   bool enableBots = true;
+  bool enableWhitelist = false;
   int roomCountPerThread = 2000;
   int maxPlayersPerDevice = 1000;
 

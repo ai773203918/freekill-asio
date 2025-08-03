@@ -25,7 +25,7 @@ void ClientSocket::start() {
           // 再次read_some
           start();
         } else {
-          spdlog::warn("Malfromed data from client {}", peerAddress());
+          spdlog::warn("Malformed data from client {}", peerAddress());
           disconnected_callback();
         }
       } else {
@@ -47,6 +47,10 @@ void ClientSocket::disconnectFromHost() {
   m_socket.shutdown(tcp::socket::shutdown_both);
   m_socket.close();
   disconnected_callback();
+
+  // 连接建立阶段绑的callback中可能拷贝了自身的shared
+  set_message_got_callback([](Packet &){});
+  set_disconnected_callback([](){});
 }
 
 void ClientSocket::send(const asio::const_buffer &msg) {

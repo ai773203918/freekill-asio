@@ -27,9 +27,11 @@ void ClientSocket::start() {
         } else {
           spdlog::warn("Malformed data from client {}", peerAddress());
           disconnected_callback();
+          set_disconnected_callback([](){});
         }
       } else {
         disconnected_callback();
+        set_disconnected_callback([](){});
       }
     }
   );

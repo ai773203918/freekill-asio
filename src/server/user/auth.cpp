@@ -15,8 +15,6 @@
 #include <openssl/sha.h>
 #include <openssl/md5.h>
 
-#include <fmt/chrono.h>
-
 #include "3rdparty/semver.hpp"
 
 struct AuthManagerPrivate {
@@ -360,7 +358,10 @@ std::string AuthManager::getBanExpire(std::map<std::string, std::string> &info) 
   std::time_t now_time_t = system_clock::to_time_t(tp);
   std::tm local_tm = *std::localtime(&now_time_t);
 
-  return fmt::format("{:%Y-%m-%d %H:%M:%S}", local_tm);
+  return fmt::format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.",
+               local_tm.tm_year + 1900, local_tm.tm_mon + 1, local_tm.tm_mday,
+               local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
+
 }
 
 std::map<std::string, std::string> AuthManager::checkPassword() {

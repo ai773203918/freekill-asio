@@ -22,8 +22,6 @@
 #include <cstdio>
 #include <cstring>
 
-#include <fmt/chrono.h>
-
 static constexpr const char *prompt = "fk-asio> ";
 
 void Shell::helpCommand(StringList &) {
@@ -509,7 +507,9 @@ void Shell::tempbanCommand(StringList &list) {
 
   std::time_t now_time_t = system_clock::to_time_t(end_tp);
   std::tm local_tm = *std::localtime(&now_time_t);
-  spdlog::info("Banned {} until {:%Y-%m-%d %H:%M:%S}.", name, local_tm);
+  spdlog::info("Banned {} until {:04}-{:02}-{:02} {:02}:{:02}:{:02}.", name.c_str(),
+               local_tm.tm_year + 1900, local_tm.tm_mon + 1, local_tm.tm_mday,
+               local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
 }
 
 void Shell::whitelistCommand(StringList &list) {

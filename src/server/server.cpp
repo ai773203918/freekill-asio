@@ -301,6 +301,14 @@ const std::string &Server::getMd5() const {
 }
 
 void Server::refreshMd5() {
+  if (std::this_thread::get_id() == mainThreadId()) {
+    _refreshMd5();
+  } else {
+    asio::post(*main_io_ctx, std::bind(&Server::_refreshMd5, this));
+  }
+}
+
+void Server::_refreshMd5() {
   md5 = calcFileMD5();
 
   PackMan::instance().refreshSummary();

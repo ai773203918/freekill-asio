@@ -104,7 +104,7 @@ void PackMan::loadSummary(const QString &jsonData, bool useThread) {
     int err = 0;
 
     if (db->select(
-      QString("SELECT name FROM packages WHERE name='%1';").arg(name))
+      QString("SELECT name FROM packages WHERE name='{}';").arg(name))
       .isEmpty()) {
       err = downloadNewPack(url);
       if (err != 0) {
@@ -121,7 +121,7 @@ void PackMan::loadSummary(const QString &jsonData, bool useThread) {
       }
     }
 
-    db->exec(QString("UPDATE packages SET hash='%1' WHERE name='%2'")
+    db->exec(QString("UPDATE packages SET hash='{}' WHERE name='{}'")
              .arg(obj["hash"].toString())
              .arg(name));
   }
@@ -211,7 +211,7 @@ int PackMan::upgradePack(const char *pack) {
   if (err < 0)
     return err;
 
-  db->exec(fmt::format("UPDATE packages SET hash = '%1' WHERE name = '%2';",
+  db->exec(fmt::format("UPDATE packages SET hash = '{}' WHERE name = '{}';",
                   head(pack), pack));
   return 0;
 }

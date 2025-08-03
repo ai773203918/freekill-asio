@@ -105,4 +105,6 @@ private:
   std::string md5;
 
   int64_t start_timestamp;
+
+  void _refreshMd5();
 };

@@ -10,6 +10,7 @@
 #include "server/user/player.h"
 #include "server/user/user_manager.h"
 #include "core/c-wrapper.h"
+#include "core/util.h"
 
 Room::Room() {
   static int nextRoomId = 1;
@@ -802,7 +803,13 @@ void Room::handlePacket(Player &sender, const Packet &packet) {
   };
 
   if (packet.command == "PushRequest") {
-    pushRequest(fmt::format("{},{}", sender.getId(), packet.cborData));
+    std::string_view sv;
+    auto ret = cbor_stream_decode(
+      (cbor_data)packet.cborData.data(), packet.cborData.size(),
+      &Cbor::stringCallbacks, &sv
+    );
+    if (ret.read == 0) return;
+    pushRequest(fmt::format("{},{}", sender.getId(), sv));
     return;
   }
 

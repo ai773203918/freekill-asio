@@ -265,6 +265,7 @@ void Server::temporarilyBan(int playerId) {
   auto time = m_config->tempBanTime;
   using namespace std::chrono;
   auto timer = std::make_shared<asio::steady_timer>(*main_io_ctx, seconds(time * 60));
+  // Server不会析构，先不weak
   timer->async_wait([this, addr, timer](const asio::error_code& ec){
     if (!ec) {
       auto it = std::find(temp_banlist.begin(), temp_banlist.end(), addr);

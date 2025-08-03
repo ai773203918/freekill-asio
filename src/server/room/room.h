@@ -8,7 +8,7 @@ class Server;
 class Player;
 class RoomThread;
 
-class Room final : public RoomBase {
+class Room final : public RoomBase, public std::enable_shared_from_this<Room> {
 public:
   explicit Room();
   Room(Room &) = delete;

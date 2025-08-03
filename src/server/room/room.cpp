@@ -760,9 +760,11 @@ void Room::kickPlayer(Player &player, const Packet &pkt) {
 
   using namespace std::chrono_literals;
   auto timer = std::make_shared<asio::steady_timer>(Server::instance().context(), 30000ms);
-  timer->async_wait([this, i, timer](const asio::error_code &ec) {
+  auto weak = weak_from_this();
+  timer->async_wait([this, weak, i, timer](const asio::error_code &ec) {
     if (!ec) {
-      removeRejectId(i);
+      if (weak.lock())
+        removeRejectId(i);
     } else {
       spdlog::error(ec.message());
     }

@@ -37,7 +37,10 @@ Room::~Room() {
   }
   for (auto pConnId : observers) {
     auto p = um.findPlayerByConnId(pConnId);
-    if (p) removeObserver(*p);
+    if (p) {
+      removeObserver(*p);
+      rm.lobby()->addPlayer(*p);
+    }
   }
 
   auto thr = Server::instance().getThread(m_thread_id);
@@ -320,7 +323,7 @@ void Room::addObserver(Player &player) {
 }
 
 void Room::removeObserver(Player &player) {
-  if (auto it = std::find(observers.begin(), observers.end(), player.getId()); it != observers.end()) {
+  if (auto it = std::find(observers.begin(), observers.end(), player.getConnId()); it != observers.end()) {
     observers.erase(it);
   }
 
@@ -338,7 +341,7 @@ void Room::removeObserver(Player &player) {
 }
 
 bool Room::hasObserver(Player &player) const {
-  return std::find(observers.begin(), observers.end(), player.getId()) != observers.end();
+  return std::find(observers.begin(), observers.end(), player.getConnId()) != observers.end();
 }
 
 int Room::getTimeout() const { return timeout; }

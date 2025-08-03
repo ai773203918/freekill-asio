@@ -26,6 +26,7 @@ private:
   asio::posix::stream_descriptor child_stdin;   // 父进程写入子进程 stdin
   asio::posix::stream_descriptor child_stdout;  // 父进程读取子进程 stdout
 
-  enum { max_length = 131072 };
+  enum { max_length = 32768 };
   char buffer[max_length];
+  std::vector<unsigned char> cborBuffer;
 };

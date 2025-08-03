@@ -453,9 +453,11 @@ static void init_callbacks() {
   };
 }
 
-static void readJsonRpcPacket(cbor_data &cbuf, size_t &len, JsonRpcPacket &packet) {
+static cbor_decoder_status readJsonRpcPacket(cbor_data &cbuf, size_t &len, JsonRpcPacket &packet) {
   std::call_once(callbacks_flag, init_callbacks);
   RpcPacketBuilder builder { packet };
+  auto cbufsave = cbuf;
+  auto lensave = len;
 
   while (true) {
     // 基于callbacks，边读缓冲区边构造packet并进一步调用回调处理packet
@@ -467,10 +469,12 @@ static void readJsonRpcPacket(cbor_data &cbuf, size_t &len, JsonRpcPacket &packe
       len -= decode_result.read;
     } else {
       // NEDATA or ERROR
-      break;
+      cbuf = cbufsave;
+      len = lensave;
+      return decode_result.status;
     }
 
-    if (builder.state == RpcPacketBuilder::FIN) return;
+    if (builder.state == RpcPacketBuilder::FIN) return CBOR_DECODER_FINISHED;
   }
 }
 
@@ -495,11 +499,19 @@ void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param
   while (child_stdout.is_open() && alive()) {
     received_pkt.reset();
     auto read_sz = child_stdout.read_some(asio::buffer(buffer, max_length));
-    cbor_data cbuf = (cbor_data)buffer; size_t len = read_sz;
+    cborBuffer.insert(cborBuffer.end(), buffer, buffer + read_sz);
+    cbor_data cbuf = (cbor_data)cborBuffer.data(); size_t len = cborBuffer.size();
 
-    // TODO 从<buffer, read_sz>中通过cbor_stream_decode方式将数据读入received_pkt
-    // TODO 应当读取到一个map
-    readJsonRpcPacket(cbuf, len, received_pkt);
+    auto stat = readJsonRpcPacket(cbuf, len, received_pkt);
+
+    if (stat == CBOR_DECODER_ERROR) {
+      cborBuffer.clear();
+      break;
+    } else {
+      cborBuffer.clear();
+      cborBuffer.insert(cborBuffer.end(), cbuf, cbuf + len);
+      if (stat == CBOR_DECODER_NEDATA) continue;
+    }
 
     if (received_pkt.id == id && received_pkt.method == "") {
 #ifdef RPC_DEBUG

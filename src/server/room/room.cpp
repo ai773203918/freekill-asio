@@ -373,7 +373,10 @@ void Room::setThread(RoomThread &t) {
 }
 
 void Room::checkAbandoned() {
-  asio::post(Server::instance().context(), std::bind(&Room::_checkAbandoned, this));
+  asio::post(Server::instance().context(), [this, weak = weak_from_this()](){
+    if (weak.lock())
+      _checkAbandoned();
+  });
 }
 
 void Room::_checkAbandoned() {

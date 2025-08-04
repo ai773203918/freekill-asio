@@ -9,7 +9,7 @@ class Server;
 class Room;
 class RoomBase;
 
-class Player {
+class Player : public std::enable_shared_from_this<Player> {
 public:
   enum State {
     Invalid,

@@ -273,6 +273,7 @@ void Player::emitKicked() {
 
     auto p = std::promise<bool>();
     auto f = p.get_future();
+    auto self = shared_from_this(); // 续命
     asio::post(ctx, [this, &p](){
       kick();
       p.set_value(true);

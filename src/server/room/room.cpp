@@ -33,7 +33,7 @@ Room::~Room() {
     auto p = um.findPlayerByConnId(pConnId);
     if (!p) continue;
 
-    if (p->getId() > 0) removePlayer(*p);
+    if (p->getId() > 0) p->emitKicked();
     else um.deletePlayer(*p);
   }
   for (auto pConnId : observers) {

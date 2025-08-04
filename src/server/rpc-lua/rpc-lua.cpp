@@ -296,7 +296,7 @@ struct RpcPacketBuilder {
     } else if (state == READING_PARAMS) {
       readParam(std::string_view { (char *)data, len });
     } else if (state == READING_ERROR_V) {
-      if (current_err_key == ErrorMessage) {
+      if (current_err_key == ErrorMessage || current_err_key == ErrorData) {
         ; // no-op
       } else {
         checkState(ERROR);

@@ -321,6 +321,7 @@ void Server::_refreshMd5() {
       for (auto pConnId : room->getPlayers()) {
         auto p = m_user_manager->findPlayerByConnId(pConnId).lock();
         if (p) p->emitKicked();
+        // _checkAbandon无论如何都会通过asio::post延迟进行的
       }
     } else {
       // const char * 会给末尾加0 手造二进制数据的话必须考虑
@@ -334,11 +335,21 @@ void Server::_refreshMd5() {
       room->doBroadcastNotify(room->getPlayers(), "GameLog", log);
     }
   }
+
+  std::vector<int> to_rm;
   for (auto &[id, thread] : m_threads) {
     if (thread->isOutdated() && thread->getRefCount() == 0)
-      removeThread(id);
+      to_rm.push_back(id);
   }
+  for (auto id : to_rm) {
+    removeThread(id);
+  }
+
+  std::vector<int> to_kick;
   for (auto &[pConnId, _] : rm.lobby().lock()->getPlayers()) {
+    to_kick.push_back(pConnId);
+  }
+  for (auto pConnId : to_kick) {
     auto p = m_user_manager->findPlayerByConnId(pConnId).lock();
     if (p) p->emitKicked();
   }

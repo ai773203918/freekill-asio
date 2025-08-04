@@ -115,8 +115,8 @@ void Server::removeThread(int threadId) {
   }
 }
 
-std::shared_ptr<RoomThread> Server::getThread(int threadId) {
-  if (!m_threads.contains(threadId)) return nullptr;
+std::weak_ptr<RoomThread> Server::getThread(int threadId) {
+  if (!m_threads.contains(threadId)) return {};
   return m_threads[threadId];
 }
 
@@ -247,7 +247,7 @@ bool Server::checkBanWord(const std::string_view &str) {
 }
 
 void Server::temporarilyBan(int playerId) {
-  auto player = m_user_manager->findPlayer(playerId);
+  auto player = m_user_manager->findPlayer(playerId).lock();
   if (!player) return;
 
   auto socket = player->getRouter().getSocket();
@@ -319,7 +319,7 @@ void Server::_refreshMd5() {
 
     if (!room->isStarted()) {
       for (auto pConnId : room->getPlayers()) {
-        auto p = m_user_manager->findPlayerByConnId(pConnId);
+        auto p = m_user_manager->findPlayerByConnId(pConnId).lock();
         if (p) p->emitKicked();
       }
     } else {
@@ -338,8 +338,8 @@ void Server::_refreshMd5() {
     if (thread->isOutdated() && thread->getRefCount() == 0)
       removeThread(id);
   }
-  for (auto &[pConnId, _] : rm.lobby()->getPlayers()) {
-    auto p = m_user_manager->findPlayerByConnId(pConnId);
+  for (auto &[pConnId, _] : rm.lobby().lock()->getPlayers()) {
+    auto p = m_user_manager->findPlayerByConnId(pConnId).lock();
     if (p) p->emitKicked();
   }
 }

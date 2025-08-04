@@ -60,7 +60,7 @@ public:
   std::string_view getUuid() const;
   void setUuid(const std::string &uuid);
 
-  std::shared_ptr<RoomBase> getRoom() const;
+  std::weak_ptr<RoomBase> getRoom() const;
   void setRoom(RoomBase &room);
 
   Router &router() const;

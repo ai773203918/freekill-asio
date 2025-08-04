@@ -96,7 +96,7 @@ static _rpcRet _rpc_Player_doRequest(const JsonRpcPacket &packet) {
   auto timeout = std::get<int>(packet.param4);
   int64_t timestamp = std::get<int64_t>(packet.param5);
 
-  auto player = Server::instance().user_manager().findPlayerByConnId(connId);
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
   if (!player) {
     return { false, "Player not found"sv };
   }
@@ -117,7 +117,7 @@ static _rpcRet _rpc_Player_waitForReply(const JsonRpcPacket &packet) {
   auto connId = std::get<int>(packet.param1);
   auto timeout = std::get<int>(packet.param2);
 
-  auto player = Server::instance().user_manager().findPlayerByConnId(connId);
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
   if (!player) {
     return { false, "Player not found"sv };
   }
@@ -139,7 +139,7 @@ static _rpcRet _rpc_Player_doNotify(const JsonRpcPacket &packet) {
   auto command = std::get<std::string_view>(packet.param2);
   auto jsonData = std::get<std::string_view>(packet.param3);
 
-  auto player = Server::instance().user_manager().findPlayerByConnId(connId);
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
   if (!player) {
     return { false, "Player not found"sv };
   }
@@ -157,7 +157,7 @@ static _rpcRet _rpc_Player_thinking(const JsonRpcPacket &packet) {
   }
 
   auto connId = std::get<int>(packet.param1);
-  auto player = Server::instance().user_manager().findPlayerByConnId(connId);
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
   if (!player) {
     return { false, "Player not found"sv };
   }
@@ -177,7 +177,7 @@ static _rpcRet _rpc_Player_setThinking(const JsonRpcPacket &packet) {
   auto connId = std::get<int>(packet.param1);
   bool thinking = std::get<bool>(packet.param2);
 
-  auto player = Server::instance().user_manager().findPlayerByConnId(connId);
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
   if (!player) {
     return { false, "Player not found"sv };
   }
@@ -197,7 +197,7 @@ static _rpcRet _rpc_Player_setDied(const JsonRpcPacket &packet) {
   auto connId = std::get<int>(packet.param1);
   bool died = std::get<bool>(packet.param2);
 
-  auto player = Server::instance().user_manager().findPlayerByConnId(connId);
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
   if (!player) {
     return { false, "Player not found"sv };
   }
@@ -214,7 +214,7 @@ static _rpcRet _rpc_Player_emitKick(const JsonRpcPacket &packet) {
   }
 
   auto connId = std::get<int>(packet.param1);
-  auto player = Server::instance().user_manager().findPlayerByConnId(connId);
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
   if (!player) {
     return { false, "Player not found"sv };
   }
@@ -237,7 +237,7 @@ static _rpcRet _rpc_Room_delay(const JsonRpcPacket &packet) {
   if (ms <= 0) {
     return { false, nullVal };
   }
-  auto room = Server::instance().room_manager().findRoom(id);
+  auto room = Server::instance().room_manager().findRoom(id).lock();
   if (!room) {
     return { false, "Room not found"sv };
   }
@@ -264,7 +264,7 @@ static _rpcRet _rpc_Room_updatePlayerWinRate(const JsonRpcPacket &packet) {
   auto role = std::get<std::string_view>(packet.param4);
   int result = std::get<int>(packet.param5);
 
-  auto room = Server::instance().room_manager().findRoom(roomId);
+  auto room = Server::instance().room_manager().findRoom(roomId).lock();
   if (!room) {
     return { false, "Room not found"sv };
   }
@@ -291,7 +291,7 @@ static _rpcRet _rpc_Room_updateGeneralWinRate(const JsonRpcPacket &packet) {
   auto role = std::get<std::string_view>(packet.param4);
   int result = std::get<int>(packet.param5);
 
-  auto room = Server::instance().room_manager().findRoom(roomId);
+  auto room = Server::instance().room_manager().findRoom(roomId).lock();
   if (!room) {
     return { false, "Room not found"sv };
   }
@@ -309,7 +309,7 @@ static _rpcRet _rpc_Room_gameOver(const JsonRpcPacket &packet) {
   }
 
   int roomId = std::get<int>(packet.param1);
-  auto room = Server::instance().room_manager().findRoom(roomId);
+  auto room = Server::instance().room_manager().findRoom(roomId).lock();
   if (!room) {
     return { false, "Room not found"sv };
   }
@@ -333,7 +333,7 @@ static _rpcRet _rpc_Room_setRequestTimer(const JsonRpcPacket &packet) {
     return { false, nullVal };
   }
 
-  auto room = Server::instance().room_manager().findRoom(id);
+  auto room = Server::instance().room_manager().findRoom(id).lock();
   if (!room) {
     return { false, "Room not found"sv };
   }
@@ -351,7 +351,7 @@ static _rpcRet _rpc_Room_destroyRequestTimer(const JsonRpcPacket &packet) {
   }
 
   int roomId = std::get<int>(packet.param1);
-  auto room = Server::instance().room_manager().findRoom(roomId);
+  auto room = Server::instance().room_manager().findRoom(roomId).lock();
   if (!room) {
     return { false, "Room not found"sv };
   }
@@ -369,7 +369,7 @@ static _rpcRet _rpc_Room_increaseRefCount(const JsonRpcPacket &packet) {
   }
 
   int roomId = std::get<int>(packet.param1);
-  auto room = Server::instance().room_manager().findRoom(roomId);
+  auto room = Server::instance().room_manager().findRoom(roomId).lock();
   if (!room) {
     return { false, "Room not found"sv };
   }
@@ -387,7 +387,7 @@ static _rpcRet _rpc_Room_decreaseRefCount(const JsonRpcPacket &packet) {
   }
 
   int roomId = std::get<int>(packet.param1);
-  auto room = Server::instance().room_manager().findRoom(roomId);
+  auto room = Server::instance().room_manager().findRoom(roomId).lock();
   if (!room) {
     return { false, "Room not found"sv };
   }
@@ -459,7 +459,7 @@ static _rpcRet _rpc_RoomThread_getRoom(const JsonRpcPacket &packet) {
     return { false, nullVal };
   }
 
-  auto room = Server::instance().room_manager().findRoom(id);
+  auto room = Server::instance().room_manager().findRoom(id).lock();
   if (!room) {
     return { false, "Room not found"sv };
   }
@@ -481,12 +481,12 @@ static _rpcRet _rpc_RoomThread_getRoom(const JsonRpcPacket &packet) {
   ret += std::string_view { (char *)buf, buflen };
   auto &um = Server::instance().user_manager();
   for (auto pid : pids) {
-    auto p = um.findPlayerByConnId(pid);
+    auto p = um.findPlayerByConnId(pid).lock();
     if (p) ret += RpcDispatchers::getPlayerObject(*p);
   }
 
   ret += "\x47ownerId";
-  auto owner = room->getOwner();
+  auto owner = room->getOwner().lock();
   buflen = cbor_encode_uint(owner ? owner->getId() : 0, buf, 10);
   ret += std::string_view { (char *)buf, buflen };
 

@@ -18,8 +18,8 @@ public:
 
   void removeRoom(int id);
 
-  std::shared_ptr<Room> findRoom(int id) const;
-  std::shared_ptr<Lobby> lobby() const;
+  std::weak_ptr<Room> findRoom(int id) const;
+  std::weak_ptr<Lobby> lobby() const;
   const std::map<int, std::shared_ptr<Room>> &getRooms() const;
 
 private:

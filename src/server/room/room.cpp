@@ -30,24 +30,24 @@ Room::~Room() {
   auto &rm = Server::instance().room_manager();
 
   for (auto pConnId : players) {
-    auto p = um.findPlayerByConnId(pConnId);
+    auto p = um.findPlayerByConnId(pConnId).lock();
     if (!p) continue;
 
     if (p->getId() > 0) p->emitKicked();
     else um.deletePlayer(*p);
   }
   for (auto pConnId : observers) {
-    auto p = um.findPlayerByConnId(pConnId);
+    auto p = um.findPlayerByConnId(pConnId).lock();
     if (p) {
       removeObserver(*p);
-      rm.lobby()->addPlayer(*p);
+      rm.lobby().lock()->addPlayer(*p);
     }
   }
 
-  auto thr = Server::instance().getThread(m_thread_id);
+  auto thr = Server::instance().getThread(m_thread_id).lock();
   if (thr) thr->decreaseRefCount();
 
-  rm.lobby()->updateOnlineInfo();
+  rm.lobby().lock()->updateOnlineInfo();
 
   // spdlog::debug("[MEMORY] Room {} destructed", id);
 }
@@ -119,14 +119,14 @@ bool Room::isAbandoned() const {
 
   auto &um = Server::instance().user_manager();
   for (auto connId : players) {
-    auto p = um.findPlayerByConnId(connId);
+    auto p = um.findPlayerByConnId(connId).lock();
     if (p && p->getState() == Player::Online)
       return false;
   }
   return true;
 }
 
-std::shared_ptr<Player> Room::getOwner() const {
+std::weak_ptr<Player> Room::getOwner() const {
   return Server::instance().user_manager().findPlayerByConnId(m_owner_conn_id);
 }
 
@@ -177,7 +177,7 @@ void Room::addPlayer(Player &player) {
   auto &um = Server::instance().user_manager();
   for (auto connId : players) {
     if (connId == player.getConnId()) continue;
-    auto p = um.findPlayerByConnId(connId);
+    auto p = um.findPlayerByConnId(connId).lock();
     if (!p) continue; // FIXME: 应当是出大问题了
     player.doNotify("AddPlayer", Cbor::encodeArray({
       p->getId(),
@@ -199,7 +199,7 @@ void Room::addPlayer(Player &player) {
   if (m_owner_conn_id == 0) {
     setOwner(player);
   }
-  auto owner = um.findPlayerByConnId(m_owner_conn_id);
+  auto owner = um.findPlayerByConnId(m_owner_conn_id).lock();
   if (owner)
     player.doNotify("RoomOwner", Cbor::encodeArray({ owner->getId() }));
 
@@ -257,7 +257,7 @@ void Room::removePlayer(Player &player) {
 
     // 设完state后把房间叫起来
     if (player.thinking()) {
-      auto thread = this->thread();
+      auto thread = this->thread().lock();
       if (thread) thread->wakeUp(id, "player_disconnect");
     }
 
@@ -280,7 +280,7 @@ void Room::removePlayer(Player &player) {
     // 原先的跑路机器人会在游戏结束后自动销毁掉
     um.addPlayer(runner);
 
-    Server::instance().room_manager().lobby()->addPlayer(*runner);
+    Server::instance().room_manager().lobby().lock()->addPlayer(*runner);
 
     // FIX 控制bug
     u_char buf[10];
@@ -297,7 +297,7 @@ void Room::removePlayer(Player &player) {
     m_owner_conn_id = 0;
     checkAbandoned();
   } else if (player.getConnId() == m_owner_conn_id) {
-    auto new_owner = um.findPlayerByConnId(players[0]);
+    auto new_owner = um.findPlayerByConnId(players[0]).lock();
     if (new_owner) setOwner(*new_owner);
   }
 }
@@ -318,7 +318,7 @@ void Room::addObserver(Player &player) {
   observers.push_back(player.getConnId());
   player.setRoom(*this);
 
-  auto thread = this->thread();
+  auto thread = this->thread().lock();
   thread->addObserver(player.getConnId(), id);
   pushRequest(fmt::format("{},observe", player.getId()));
 }
@@ -336,7 +336,7 @@ void Room::removeObserver(Player &player) {
     }));
   }
 
-  auto thread = this->thread();
+  auto thread = this->thread().lock();
   if (thread) thread->removeObserver(player.getConnId(), id);
   pushRequest(fmt::format("{},leave", player.getId()));
 }
@@ -350,7 +350,7 @@ int Room::getTimeout() const { return timeout; }
 void Room::setTimeout(int timeout) { this->timeout = timeout; }
 
 void Room::delay(int ms) {
-  auto thread = this->thread();
+  auto thread = this->thread().lock();
   if (thread) thread->delay(id, ms);
 }
 
@@ -362,7 +362,7 @@ bool Room::isOutdated() {
 
 bool Room::isStarted() const { return gameStarted; }
 
-std::shared_ptr<RoomThread> Room::thread() const {
+std::weak_ptr<RoomThread> Room::thread() const {
   return Server::instance().getThread(m_thread_id);
 }
 
@@ -382,7 +382,7 @@ void Room::checkAbandoned() {
 void Room::_checkAbandoned() {
   if (!isAbandoned()) return;
   if (getRefCount() > 0) {
-    auto thr = thread();
+    auto thr = thread().lock();
     if (thr) thr->wakeUp(id, "abandon");
     return;
   }
@@ -455,7 +455,7 @@ void Room::updatePlayerWinRate(int id, const std::string_view &mode, const std::
   }
 
   auto &um = Server::instance().user_manager();
-  auto player = um.findPlayer(id);
+  auto player = um.findPlayer(id).lock();
   if (player && std::find(players.begin(), players.end(), player->getConnId()) != players.end()) {
     player->setLastGameMode(std::string(mode));
     updatePlayerGameData(id, mode);
@@ -517,10 +517,10 @@ void Room::updatePlayerGameData(int id, const std::string_view &mode) {
   auto &um = server.user_manager();
   auto &db = server.database();
 
-  auto player = um.findPlayer(id);
+  auto player = um.findPlayer(id).lock();
   if (!player) return;
 
-  auto room = dynamic_pointer_cast<Room>(player->getRoom());
+  auto room = dynamic_pointer_cast<Room>(player->getRoom().lock());
   if (player->getState() == Player::Robot || !room) {
     return;
   }
@@ -577,7 +577,7 @@ void Room::_gameOver() {
   // 首先只写数据库，这个过程不能向主线程提交申请(doNotify) 否则会死锁
   server.beginTransaction();
   for (auto pConnId : players) {
-    auto p = um.findPlayerByConnId(pConnId);
+    auto p = um.findPlayerByConnId(pConnId).lock();
     if (!p) continue;
     auto pid = p->getId();
 
@@ -599,7 +599,7 @@ void Room::_gameOver() {
   server.endTransaction();
 
   for (auto pConnId : players) {
-    auto p = um.findPlayerByConnId(pConnId);
+    auto p = um.findPlayerByConnId(pConnId).lock();
     if (!p) continue;
 
     if (p->getId() > 0) {
@@ -607,12 +607,12 @@ void Room::_gameOver() {
       auto bytes = Cbor::encodeArray( { p->getId(), time } );
       for (auto connId : players) {
         if (connId == pConnId) continue;
-        auto p2 = um.findPlayerByConnId(connId);
+        auto p2 = um.findPlayerByConnId(connId).lock();
         if (p2) p2->doNotify("AddTotalGameTime", bytes);
       }
 
       // 考虑到阵亡已离开啥的，时间得给真实玩家增加
-      auto realPlayer = um.findPlayer(p->getId());
+      auto realPlayer = um.findPlayer(p->getId()).lock();
       if (realPlayer) {
         realPlayer->addTotalGameTime(time);
         realPlayer->doNotify("AddTotalGameTime", bytes);
@@ -630,7 +630,7 @@ void Room::_gameOver() {
       to_delete.push_back(pConnId);
 
       // Offline段中player可能已经delete了，但是保险一下
-      auto p2 = um.findPlayerByConnId(pConnId);
+      auto p2 = um.findPlayerByConnId(pConnId).lock();
       if (p2) um.deletePlayer(*p2);
     }
   }
@@ -648,7 +648,7 @@ void Room::manuallyStart() {
   auto &um = Server::instance().user_manager();
   std::unordered_map<std::string_view, std::vector<std::string_view>> uuidList, ipList;
   for (auto pConnId : players) {
-    auto p = um.findPlayerByConnId(pConnId);
+    auto p = um.findPlayerByConnId(pConnId).lock();
     if (!p) continue;
     p->setReady(false);
     p->setDied(false);
@@ -691,7 +691,7 @@ void Room::manuallyStart() {
 
   gameStarted = true;
 
-  auto thr = thread();
+  auto thr = thread().lock();
   if (!thr) {
     gameOver();
     return;
@@ -701,7 +701,7 @@ void Room::manuallyStart() {
 }
 
 void Room::pushRequest(const std::string &req) {
-  auto thread = this->thread();
+  auto thread = this->thread().lock();
   if (thread) thread->pushRequest(fmt::format("{},{}", id, req));
 }
 
@@ -730,11 +730,11 @@ void Room::quitRoom(Player &player, const Packet &) {
   removePlayer(player);
   auto &rm = Server::instance().room_manager();
   if (player.getState() == Player::Online)
-    rm.lobby()->addPlayer(player);
+    rm.lobby().lock()->addPlayer(player);
 
   if (isOutdated()) {
     auto &um = Server::instance().user_manager();
-    auto p = um.findPlayer(player.getId());
+    auto p = um.findPlayer(player.getId()).lock();
     if (p) p->emitKicked();
   }
 }
@@ -752,13 +752,14 @@ void Room::kickPlayer(Player &player, const Packet &pkt) {
 
   auto &um = Server::instance().user_manager();
   auto &rm = Server::instance().room_manager();
-  auto p = um.findPlayer(i);
+  auto p = um.findPlayer(i).lock();
   if (!p) return;
   if (isStarted()) return;
-  if (!p->getRoom() || p->getRoom()->getId() != id) return;
+  auto room = p->getRoom().lock();
+  if (!room || room->getId() != id) return;
 
   removePlayer(*p);
-  rm.lobby()->addPlayer(*p);
+  rm.lobby().lock()->addPlayer(*p);
 
   addRejectId(i);
 
@@ -783,7 +784,7 @@ void Room::startGame(Player &player, const Packet &) {
   if (isOutdated()) {
     auto &um = Server::instance().user_manager();
     for (auto pid : getPlayers()) {
-      auto p = um.findPlayerByConnId(pid);
+      auto p = um.findPlayerByConnId(pid).lock();
       if (!p) continue;
       p->doNotify("ErrorMsg", "room is outdated");
       p->emitKicked();
@@ -825,7 +826,7 @@ void Room::handlePacket(Player &sender, const Packet &packet) {
 
 // Lua用：request之前设置计时器防止等到死。
 void Room::setRequestTimer(int ms) {
-  auto thread = this->thread();
+  auto thread = this->thread().lock();
   if (!thread) return;
   auto &ctx = thread->context();
 

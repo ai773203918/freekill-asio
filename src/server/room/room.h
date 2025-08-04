@@ -37,7 +37,7 @@ public:
   void setSettings(const std::string_view &settings);
   bool isAbandoned() const;
 
-  std::shared_ptr<Player> getOwner() const;
+  std::weak_ptr<Player> getOwner() const;
   void setOwner(Player &owner);
 
   void addRobot(Player &player);
@@ -55,7 +55,7 @@ public:
 
   bool isStarted() const;
 
-  std::shared_ptr<RoomThread> thread() const;
+  std::weak_ptr<RoomThread> thread() const;
   void setThread(RoomThread &);
 
   void checkAbandoned();

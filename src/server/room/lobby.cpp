@@ -49,7 +49,7 @@ void Lobby::updateOnlineInfo() {
     um.getPlayers().size(),
   });
   for (auto &[pid, _] : players) {
-    auto p = um.findPlayerByConnId(pid);
+    auto p = um.findPlayerByConnId(pid).lock();
     if (p) p->doNotify("UpdatePlayerNum", arr);
   }
 }
@@ -172,7 +172,8 @@ void Lobby::createRoom(Player &sender, const Packet &packet) {
   auto room_ptr = rm.createRoom(sender, std::string(name), capacity, timeout, std::string(settings));
   if (room_ptr) {
     room_ptr->addPlayer(sender);
-    if (sender.getRoom() && sender.getRoom()->getId() == room_ptr->getId()) {
+    auto room = sender.getRoom().lock();
+    if (room && room->getId() == room_ptr->getId()) {
       removePlayer(sender);
     }
   }
@@ -203,7 +204,7 @@ void Lobby::joinRoom(Player &sender, const Packet &pkt, bool observe) {
   if (result.read == 0) return;
   cbuf += result.read; len -= result.read;
 
-  auto room = rm.findRoom(roomId);
+  auto room = rm.findRoom(roomId).lock();
   if (room) {
     auto password = room->getPassword();
     if (password.empty() || pw == password) {
@@ -216,7 +217,8 @@ void Lobby::joinRoom(Player &sender, const Packet &pkt, bool observe) {
           room->addObserver(sender);
         }
 
-        if (sender.getRoom() && sender.getRoom()->getId() == room->getId()) {
+        auto sroom = sender.getRoom().lock();
+        if (sroom && sroom->getId() == room->getId()) {
           removePlayer(sender);
         }
       }

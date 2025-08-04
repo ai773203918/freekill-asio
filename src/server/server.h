@@ -57,7 +57,7 @@ public:
 
   RoomThread &createThread();
   void removeThread(int threadId);
-  std::shared_ptr<RoomThread> getThread(int threadId);
+  std::weak_ptr<RoomThread> getThread(int threadId);
   RoomThread &getAvailableThread();
   const std::unordered_map<int, std::shared_ptr<RoomThread>> &getThreads() const;
 

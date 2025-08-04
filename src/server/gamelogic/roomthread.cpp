@@ -52,21 +52,21 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {},
 
   set_player_state_callback = [&](int connId, int roomId) {
     auto &um = Server::instance().user_manager();
-    auto p = um.findPlayerByConnId(connId);
+    auto p = um.findPlayerByConnId(connId).lock();
     if (!p) return;
 
     L->call("SetPlayerState", roomId, p->getId(), p->getState());
   };
   add_observer_callback = [&](int connId, int roomId) {
     auto &um = Server::instance().user_manager();
-    auto p = um.findPlayerByConnId(connId);
+    auto p = um.findPlayerByConnId(connId).lock();
     if (!p) return;
 
     L->call("AddObserver", roomId, RpcDispatchers::getPlayerObject(*p));
   };
   remove_observer_callback = [&](int connId, int roomId) {
     auto &um = Server::instance().user_manager();
-    auto p = um.findPlayerByConnId(connId);
+    auto p = um.findPlayerByConnId(connId).lock();
     if (!p) return;
 
     L->call("RemoveObserver", roomId, p->getId());

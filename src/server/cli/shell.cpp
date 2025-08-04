@@ -112,16 +112,16 @@ void Shell::lsrCommand(StringList &list) {
     auto pid = list[0];
     int id = std::atoi(pid.c_str());
 
-    auto room = room_manager.findRoom(id);
+    auto room = room_manager.findRoom(id).lock();
     if (!room) {
       if (id != 0) {
         spdlog::info("No such room.");
       } else {
         spdlog::info("You are viewing lobby, players in lobby are:");
 
-        auto lobby = room_manager.lobby();
+        auto lobby = room_manager.lobby().lock();
         for (auto &[pid, _] : lobby->getPlayers()) {
-          auto p = user_manager.findPlayerByConnId(pid);
+          auto p = user_manager.findPlayerByConnId(pid).lock();
           if (p) spdlog::info("{}, {}", p->getId(), p->getScreenName());
         }
       }
@@ -132,7 +132,7 @@ void Shell::lsrCommand(StringList &list) {
       spdlog::info("Players in this room:");
 
       for (auto pid : room->getPlayers()) {
-        auto p = user_manager.findPlayerByConnId(pid);
+        auto p = user_manager.findPlayerByConnId(pid).lock();
         if (p) spdlog::info("{}, {}", p->getId(), p->getScreenName());
       }
     }
@@ -236,7 +236,7 @@ void Shell::kickCommand(StringList &list) {
   auto pid = list[0];
   int id = std::atoi(pid.c_str());
 
-  auto p = Server::instance().user_manager().findPlayer(id);
+  auto p = Server::instance().user_manager().findPlayer(id).lock();
   if (p) {
     p->emitKicked();
   }
@@ -263,7 +263,7 @@ void Shell::msgRoomCommand(StringList &list) {
   }
 
   auto roomId = atoi(list[0].c_str());
-  auto room = Server::instance().room_manager().findRoom(roomId);
+  auto room = Server::instance().room_manager().findRoom(roomId).lock();
   if (!room) {
     spdlog::info("No such room.");
     return;
@@ -290,7 +290,7 @@ static void banAccount(Sqlite3 &db, const std::string_view &name, bool banned) {
                   banned ? 1 : 0, id));
 
   if (banned) {
-    auto p = Server::instance().user_manager().findPlayer(id);
+    auto p = Server::instance().user_manager().findPlayer(id).lock();
     if (p) {
       p->emitKicked();
     }
@@ -345,7 +345,7 @@ static void banIPByName(Sqlite3 &db, const std::string_view &name, bool banned) 
   if (banned) {
     db.exec(fmt::format("INSERT INTO banip VALUES('{}');", addr));
 
-    auto p = Server::instance().user_manager().findPlayer(id);
+    auto p = Server::instance().user_manager().findPlayer(id).lock();
     if (p) {
       p->emitKicked();
     }
@@ -402,7 +402,7 @@ static void banUuidByName(Sqlite3 &db, const std::string_view &name, bool banned
   if (banned) {
     db.exec(fmt::format("INSERT INTO banuuid VALUES('{}');", uuid));
 
-    auto p = Server::instance().user_manager().findPlayer(id);
+    auto p = Server::instance().user_manager().findPlayer(id).lock();
     if (p) {
       p->emitKicked();
     }
@@ -500,7 +500,7 @@ void Shell::tempbanCommand(StringList &list) {
   db.exec(fmt::format(
     "REPLACE INTO tempban (uid, expireAt) VALUES ({}, {});", id, expireTimestamp));
 
-  auto p = Server::instance().user_manager().findPlayer(id);
+  auto p = Server::instance().user_manager().findPlayer(id).lock();
   if (p) {
     p->emitKicked();
   }
@@ -619,14 +619,14 @@ void Shell::killRoomCommand(StringList &list) {
 
   auto &um = Server::instance().user_manager();
   auto &rm = Server::instance().room_manager();
-  auto room = rm.findRoom(id);
+  auto room = rm.findRoom(id).lock();
   if (!room) {
     spdlog::info("No such room.");
   } else {
     spdlog::info("Killing room {}", id);
 
     for (auto pConnId : room->getPlayers()) {
-      auto player = um.findPlayerByConnId(pConnId);
+      auto player = um.findPlayerByConnId(pConnId).lock();
       if (player && player->getId() > 0)
         player->emitKicked();
     }

@@ -12,8 +12,8 @@ public:
   UserManager(UserManager &) = delete;
   UserManager(UserManager &&) = delete;
 
-  std::shared_ptr<Player> findPlayer(int id) const;
-  std::shared_ptr<Player> findPlayerByConnId(int connId) const;
+  std::weak_ptr<Player> findPlayer(int id) const;
+  std::weak_ptr<Player> findPlayerByConnId(int connId) const;
   void addPlayer(std::shared_ptr<Player> player);
   void deletePlayer(Player &p);
   void removePlayer(Player &p, int id);
@@ -37,5 +37,5 @@ private:
   std::unordered_map<int, std::shared_ptr<Player>> robots_map;
   std::unordered_map<int, std::shared_ptr<Player>> online_players_map;
 
-  std::shared_ptr<Player> findRobot(int id) const;
+  std::weak_ptr<Player> findRobot(int id) const;
 };

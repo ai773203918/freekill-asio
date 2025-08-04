@@ -19,7 +19,7 @@ void RoomBase::doBroadcastNotify(const std::vector<int> targets,
                                  const std::string_view &command, const std::string_view &cborData) {
   auto &um = Server::instance().user_manager();
   for (auto connId : targets) {
-    auto p = um.findPlayerByConnId(connId);
+    auto p = um.findPlayerByConnId(connId).lock();
     if (p) p->doNotify(command, cborData);
   }
 }
@@ -91,7 +91,7 @@ void RoomBase::chat(Player &sender, const Packet &packet) {
 
     auto lobby = dynamic_cast<Lobby *>(this);
     for (auto &[pid, _] : lobby->getPlayers()) {
-      auto p = um.findPlayerByConnId(pid);
+      auto p = um.findPlayerByConnId(pid).lock();
       if (p) p->doNotify("Chat", oss.str());
     }
   } else {

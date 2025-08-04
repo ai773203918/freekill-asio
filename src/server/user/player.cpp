@@ -128,7 +128,7 @@ void Player::setDied(bool died) {
 
 int Player::getConnId() const { return connId; }
 
-std::shared_ptr<RoomBase> Player::getRoom() const {
+std::weak_ptr<RoomBase> Player::getRoom() const {
   auto &room_manager = Server::instance().room_manager();
   if (roomId == 0) {
     return room_manager.lobby();
@@ -207,7 +207,7 @@ void Player::onNotificationGot(const Packet &packet) {
     return;
   }
 
-  auto room = getRoom();
+  auto room = getRoom().lock();
   if (room) room->handlePacket(*this, packet);
 }
 
@@ -220,7 +220,7 @@ void Player::onDisconnected() {
     server.broadcast("ServerMessage", fmt::format("{} logged out", screenName));
   }
 
-  auto room_ = getRoom();
+  auto room_ = getRoom().lock();
   auto &um = Server::instance().user_manager();
   if (!room_) {
     um.deletePlayer(*this);
@@ -236,7 +236,7 @@ void Player::onDisconnected() {
         return;
       }
       if (thinking()) {
-        auto thread = room->thread();
+        auto thread = room->thread().lock();
         thread->wakeUp(room->getId(), "player_disconnect");
       }
       setState(Player::Offline);
@@ -262,7 +262,7 @@ void Player::kick() {
   }
 
   // 走到这里可能被析构了 重新找this
-  auto p = Server::instance().user_manager().findPlayer(id);
+  auto p = Server::instance().user_manager().findPlayer(id).lock();
   if (p) p->getRouter().setSocket(nullptr);
 }
 
@@ -294,7 +294,7 @@ void Player::reconnect(std::shared_ptr<ClientSocket> client) {
   m_router->setSocket(client);
   alive = true;
 
-  auto room_ = getRoom();
+  auto room_ = getRoom().lock();
   if (room_ && !room_->isLobby()) {
     Server::instance().user_manager().setupPlayer(*this, true);
     auto room = dynamic_pointer_cast<Room>(room_);
@@ -331,22 +331,22 @@ int Player::getGameTime() {
 
 void Player::onReplyReady() {
   setThinking(false);
-  auto room_ = getRoom();
+  auto room_ = getRoom().lock();
   if (room_ && !room_->isLobby()) {
     auto room = dynamic_pointer_cast<Room>(room_);
-    auto thread = room->thread();
-    thread->wakeUp(room->getId(), "reply");
+    auto thread = room->thread().lock();
+    if (thread) thread->wakeUp(room->getId(), "reply");
   }
 }
 
 void Player::onStateChanged() {
-  auto _room = getRoom();
+  auto _room = getRoom().lock();
   if (!_room || _room->isLobby()) return;
   auto room = dynamic_pointer_cast<Room>(_room);
   if (room->hasObserver(*this)) return;
 
-  auto thread = room->thread();
-  thread->setPlayerState(connId, room->getId());
+  auto thread = room->thread().lock();
+  if (thread) thread->setPlayerState(connId, room->getId());
 
   if (room->isAbandoned()) return;
 
@@ -362,7 +362,7 @@ void Player::onStateChanged() {
 }
 
 void Player::onReadyChanged() {
-  auto _room = getRoom();
+  auto _room = getRoom().lock();
   if (!_room || _room->isLobby()) return;
   auto room = dynamic_pointer_cast<Room>(_room);
   room->doBroadcastNotify(room->getPlayers(), "ReadyChanged",

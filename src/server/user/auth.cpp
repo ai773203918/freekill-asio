@@ -458,7 +458,7 @@ std::map<std::string, std::string> AuthManager::checkPassword() {
     goto FAIL;
   }
 
-  if (auto player = um.findPlayer(atoi(obj["id"].c_str())); player) {
+  if (auto player = um.findPlayer(atoi(obj["id"].c_str())).lock(); player) {
     // 顶号机制，如果在线的话就让他变成不在线
     if (player->getState() == Player::Online || player->getState() == Player::Robot) {
       player->doNotify("ErrorDlg", "others logged in again with this name");

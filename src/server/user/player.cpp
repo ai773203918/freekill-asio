@@ -41,6 +41,17 @@ Player::Player() {
 
 Player::~Player() {
   // spdlog::debug("[MEMORY] Player {} (connId={} state={}) destructed", id, connId, getStateString());
+  auto room = getRoom().lock();
+  if (room) {
+    room->removePlayer(*this);
+  }
+
+  // 这段现在阶段应该必定由um.deletePlayer触发，就不管了
+  // auto &um = Server::instance().user_manager();
+  // if (um.findPlayer(getId()) == this)
+  //   um.removePlayer(getId());
+
+  // um.removePlayerByConnId(connId);
 }
 
 int Player::getId() const { return id; }

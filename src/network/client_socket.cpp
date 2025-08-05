@@ -50,8 +50,12 @@ std::string_view ClientSocket::peerAddress() const {
 }
 
 void ClientSocket::disconnectFromHost() {
-  m_socket.shutdown(tcp::socket::shutdown_both);
-  m_socket.close();
+  try {
+    m_socket.shutdown(tcp::socket::shutdown_both);
+    m_socket.close();
+  } catch (std::exception &) {
+    // ignore
+  }
   disconnected_callback();
 
   // 连接建立阶段绑的callback中可能拷贝了自身的shared

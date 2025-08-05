@@ -136,8 +136,9 @@ void Router::sendMessage(const std::string_view &msg) {
     auto &s = Server::instance().context();
     auto p = std::promise<bool>();
     auto f = p.get_future();
-    asio::post(s, [&](){
-      socket->send({ msg.data(), msg.size() });
+    asio::post(s, [&, weak = socket->weak_from_this()](){
+      if (weak.lock())
+        socket->send({ msg.data(), msg.size() });
       p.set_value(true);
     });
     f.wait();

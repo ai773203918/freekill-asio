@@ -555,8 +555,9 @@ void Room::gameOver() {
 
     auto p = std::promise<bool>();
     auto f = p.get_future();
-    asio::post(ctx, [this, &p](){
-      _gameOver();
+    asio::post(ctx, [this, weak = weak_from_this(), &p](){
+      if (weak.lock())
+        _gameOver();
       p.set_value(true);
     });
     f.wait();

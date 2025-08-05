@@ -43,10 +43,11 @@ void RoomManager::removeRoom(int id) {
 }
 
 std::weak_ptr<Room> RoomManager::findRoom(int id) const {
-  if (rooms.contains(id))
+  try {
     return rooms.at(id);
-
-  return {};
+  } catch (const std::out_of_range &) {
+    return {};
+  }
 }
 
 std::weak_ptr<Lobby> RoomManager::lobby() const {

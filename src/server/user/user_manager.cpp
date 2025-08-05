@@ -16,24 +16,27 @@ UserManager::UserManager() {
 
 std::weak_ptr<Player> UserManager::findPlayer(int id) const {
   if (id < 0) return findRobot(id);
-  if (online_players_map.contains(id)) {
+  try {
     return online_players_map.at(id);
+  } catch (const std::out_of_range &) {
+    return {};
   }
-  return {};
 }
 
 std::weak_ptr<Player> UserManager::findRobot(int id) const {
-  if (robots_map.contains(id)) {
+  try {
     return robots_map.at(id);
+  } catch (const std::out_of_range &) {
+    return {};
   }
-  return {};
 }
 
 std::weak_ptr<Player> UserManager::findPlayerByConnId(int connId) const {
-  if (players_map.contains(connId)) {
+  try {
     return players_map.at(connId);
+  } catch (const std::out_of_range &) {
+    return {};
   }
-  return {};
 }
 
 void UserManager::addPlayer(std::shared_ptr<Player> player) {

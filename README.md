@@ -11,6 +11,14 @@ freekill-asio
 
 freekill-asio是一个移除了Qt依赖的freekill服务端，力求不浪费服务器的性能。
 
+**已知问题 & TODO**
+
+- [ ] 优化`router->notify`和`router->request`，现版本相当于将消息复制了一遍，实验一下能不能直接分几段sendMessage以规避消息字符串的拷贝
+- [ ] `ClientSocket`连接建立后可能会无响应，超过时长后应当踢出，否则会有memleak（也就是复刻FreeKill的timerSignUp逻辑）
+- [ ] `RoomBase::handlePacket`里面开发频率限制功能（操作太快啦~）
+- [ ] 推敲线程安全性（大部分操作都是在主线程或者`asio::post`指明在主线程，Shell和RoomThread线程中其他操作的线程安全性需要推敲）
+- [ ] 在线程安全的前提下，考虑引入（基于asio的）http库实现某些restful API
+
 构建运行
 -----------
 

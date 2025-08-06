@@ -98,7 +98,7 @@ void UserManager::processNewConnection(std::shared_ptr<ClientSocket> client) {
     errmsg = "you have been banned!";
   } else if (server.isTempBanned(addr)) {
     errmsg = "you have been temporarily banned!";
-  } else if (online_players_map.size() >= server.config().capacity) {
+  } else if (online_players_map.size() >= (size_t)server.config().capacity) {
     errmsg = "server is full!";
   }
 

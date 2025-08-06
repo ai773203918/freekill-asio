@@ -239,7 +239,7 @@ const ServerConfig &Server::config() const { return *m_config; }
 bool Server::checkBanWord(const std::string_view &str) {
   auto arr = m_config->banWords;
   for (auto &s : arr) {
-    if (str.find(s) != -1) {
+    if (str.find(s) != std::string_view::npos) {
       return false;
     }
   }

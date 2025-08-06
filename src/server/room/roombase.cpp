@@ -39,7 +39,7 @@ void RoomBase::chat(Player &sender, const Packet &packet) {
   auto sz = cbor_map_size(mp);
   auto pairs = cbor_map_handle(mp);
 
-  int type;
+  int type = 1;
   std::string msg;
   auto senderId = sender.getId();
 

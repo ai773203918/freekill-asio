@@ -52,8 +52,6 @@ private:
 
   RouterType type;
 
-  std::thread::id m_thread_id;
-
   std::mutex replyMutex;
 
   int64_t requestStartTime;

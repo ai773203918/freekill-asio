@@ -61,7 +61,7 @@ private:
   int expectedReplyId;
   int replyTimeout;
 
-  void sendMessage(const std::string_view &msg);
+  void sendMessage(const std::string &msg);
 
   // signals
   std::function<void()> reply_ready_callback;

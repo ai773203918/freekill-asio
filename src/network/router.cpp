@@ -124,7 +124,7 @@ void Router::handlePacket(const Packet &packet) {
   }
 }
 
-void Router::sendMessage(const std::string_view &msg) {
+void Router::sendMessage(const std::string &msg) {
   if (!socket) return;
   if (std::this_thread::get_id() != m_thread_id) {
     // 将send任务交给主进程（如同Qt）并等待
@@ -136,8 +136,8 @@ void Router::sendMessage(const std::string_view &msg) {
         socket->send({ msg.data(), msg.size() });
       p.set_value(true);
     });
-    f.wait();
 
+    f.wait();
   } else {
     socket->send({ msg.data(), msg.size() });
   }

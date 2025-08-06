@@ -655,7 +655,7 @@ void Room::manuallyStart() {
     p->setDied(false);
     p->startGameTimer();
 
-    if (p->getId() < 0) continue;
+    if (p->getId() < 0 || !p->getRouter().getSocket()) continue;
     auto uuid = p->getUuid();
     auto ip = p->getRouter().getSocket()->peerAddress();
     auto pname = p->getScreenName();

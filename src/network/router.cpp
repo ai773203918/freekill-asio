@@ -133,12 +133,12 @@ void Router::sendMessage(const std::string &msg) {
     auto f = p.get_future();
     asio::post(s, [&, weak = socket->weak_from_this()](){
       if (weak.lock())
-        socket->send({ msg.data(), msg.size() });
+        socket->send(std::make_shared<std::string>(msg));
       p.set_value(true);
     });
 
     f.wait();
   } else {
-    socket->send({ msg.data(), msg.size() });
+    socket->send(std::make_shared<std::string>(msg));
   }
 }

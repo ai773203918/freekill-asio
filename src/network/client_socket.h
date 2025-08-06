@@ -39,7 +39,7 @@ public:
   std::string_view peerAddress() const;
 
   void disconnectFromHost();
-  void send(const asio::const_buffer &msg);
+  void send(const std::shared_ptr<std::string> msg);
 
   // signal connectors
   void set_disconnected_callback(std::function<void()>);

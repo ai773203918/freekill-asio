@@ -63,10 +63,15 @@ void ClientSocket::disconnectFromHost() {
   set_disconnected_callback([](){});
 }
 
-void ClientSocket::send(const asio::const_buffer &msg) {
-  asio::async_write(m_socket, msg, [](const asio::error_code &, std::size_t) {
-    // no-op
-  });
+void ClientSocket::send(const std::shared_ptr<std::string> msg) {
+  asio::async_write(
+    m_socket,
+    asio::const_buffer { msg->data(), msg->size() },
+    [msg](const asio::error_code &, std::size_t) {
+      // no-op
+      (void)msg;
+    }
+  );
 }
 
 void ClientSocket::set_disconnected_callback(std::function<void()> f) {

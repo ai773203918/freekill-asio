@@ -98,7 +98,7 @@ void Server::sendEarlyPacket(ClientSocket &client, const std::string_view &type,
     type,
     msg,
   });
-  client.send({ buf.c_str(), buf.size() });
+  client.send(std::make_shared<std::string>(buf));
 }
 
 RoomThread &Server::createThread() {

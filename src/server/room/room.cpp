@@ -242,11 +242,9 @@ void Room::removePlayer(Player &player) {
       players.erase(it);
 
       // spdlog::debug("[ROOM_REMOVEPLAYER] Player {} (connId={}, state={}) removed from room {}", player.getId(), player.getConnId(), player.getStateString(), id);
-    }
-    // 这集必须手动加入到大厅
-    // emit playerRemoved(player);
 
-    doBroadcastNotify(players, "RemovePlayer", Cbor::encodeArray({ player.getId() }));
+      doBroadcastNotify(players, "RemovePlayer", Cbor::encodeArray({ player.getId() }));
+    }
   } else {
     // 否则给跑路玩家召唤个AI代打
 

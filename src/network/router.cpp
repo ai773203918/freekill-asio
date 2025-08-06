@@ -124,19 +124,20 @@ void Router::handlePacket(const Packet &packet) {
 
 void Router::sendMessage(const std::string &msg) {
   if (!socket) return;
-  // if (std::this_thread::get_id() != Server::instance().mainThreadId()) {
-  //   // 将send任务交给主进程（如同Qt）并等待
-  //   auto &s = Server::instance().context();
-  //   auto p = std::promise<bool>();
-  //   auto f = p.get_future();
-  //   asio::post(s, [&, weak = socket->weak_from_this()](){
-  //     if (weak.lock())
-  //       socket->send(std::make_shared<std::string>(msg));
-  //     p.set_value(true);
-  //   });
+  if (std::this_thread::get_id() != Server::instance().mainThreadId()) {
+    // 将send任务交给主进程（如同Qt）并等待
+    auto &s = Server::instance().context();
+    auto p = std::promise<bool>();
+    auto f = p.get_future();
+    asio::post(s, [&, weak = socket->weak_from_this()](){
+      if (weak.lock())
+        socket->send(std::make_shared<std::string>(msg));
 
-  //   f.wait();
-  // } else {
+      p.set_value(true);
+    });
+
+    f.wait();
+  } else {
     socket->send(std::make_shared<std::string>(msg));
-  // }
+  }
 }

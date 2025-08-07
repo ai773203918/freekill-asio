@@ -58,6 +58,7 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {},
     auto p = um.findPlayerByConnId(connId).lock();
     if (!p) {
       L->call("SetPlayerState", roomId, pid, Player::Offline);
+      return;
     }
 
     // spdlog::debug("--> SetPlayerState {}, {}, {}, {}", roomId, connId, p->getId(), p->getStateString());

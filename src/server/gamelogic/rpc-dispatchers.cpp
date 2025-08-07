@@ -524,7 +524,7 @@ const JsonRpc::RpcMethodMap RpcDispatchers::ServerRpcMethods {
   { "Room_gameOver", _rpc_Room_gameOver },
   { "Room_setRequestTimer", _rpc_Room_setRequestTimer },
   { "Room_destroyRequestTimer", _rpc_Room_destroyRequestTimer },
-  { "Room_increaseRefCount", _rpc_Room_increaseRefCount },
+  // { "Room_increaseRefCount", _rpc_Room_increaseRefCount },
   { "Room_decreaseRefCount", _rpc_Room_decreaseRefCount },
 
   { "RoomThread_getRoom", _rpc_RoomThread_getRoom },

@@ -630,7 +630,7 @@ void Shell::killRoomCommand(StringList &list) {
       if (player && player->getId() > 0)
         player->emitKicked();
     }
-    room->checkAbandoned();
+    room->checkAbandoned(Room::NoHuman);
   }
 }
 

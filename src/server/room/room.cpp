@@ -34,14 +34,17 @@ Room::~Room() {
     auto p = um.findPlayerByConnId(pConnId).lock();
     if (!p) continue;
 
-    if (p->getId() > 0) p->emitKicked();
-    else um.deletePlayer(*p);
+    um.deletePlayer(*p);
   }
   for (auto pConnId : obClone) {
     auto p = um.findPlayerByConnId(pConnId).lock();
     if (p) {
-      removeObserver(*p);
-      rm.lobby().lock()->addPlayer(*p);
+      if (p->isOnline()) {
+        removeObserver(*p);
+        rm.lobby().lock()->addPlayer(*p);
+      } else {
+        um.deletePlayer(*p);
+      }
     }
   }
 
@@ -298,7 +301,7 @@ void Room::removePlayer(Player &player) {
 
   if (isAbandoned()) {
     m_owner_conn_id = 0;
-    checkAbandoned();
+    checkAbandoned(NoHuman);
   } else if (player.getConnId() == m_owner_conn_id) {
     for (auto pConnId : players) {
       auto new_owner = um.findPlayerByConnId(pConnId).lock();
@@ -380,14 +383,33 @@ void Room::setThread(RoomThread &t) {
   t.increaseRefCount();
 }
 
-void Room::checkAbandoned() {
-  asio::post(Server::instance().context(), [weak = weak_from_this()](){
+void Room::checkAbandoned(CheckAbandonReason reason) {
+  asio::post(Server::instance().context(), [reason, weak = weak_from_this()](){
     auto ptr = weak.lock();
-    if (ptr) ptr->_checkAbandoned();
+    if (ptr) ptr->_checkAbandoned(reason);
   });
 }
 
-void Room::_checkAbandoned() {
+void Room::_checkAbandoned(CheckAbandonReason reason) {
+  if (reason == NoRefCount) {
+    auto &um = Server::instance().user_manager();
+    std::vector<int> to_delete;
+
+    for (auto pConnId : players) {
+      auto p = um.findPlayerByConnId(pConnId).lock();
+      if (!p) {
+        to_delete.push_back(pConnId);
+      } else if (!p->isOnline()) {
+        to_delete.push_back(pConnId);
+        um.deletePlayer(*p);
+      }
+    }
+
+    players.erase(std::remove_if(players.begin(), players.end(), [&](int x) {
+      return std::find(to_delete.begin(), to_delete.end(), x) != to_delete.end();
+    }), players.end());
+  }
+
   if (!isAbandoned()) return;
   if (getRefCount() > 0) {
     auto thr = thread().lock();
@@ -617,7 +639,6 @@ void Room::_gameOver() {
   auto &um = server.user_manager();
   const auto &mode = gameMode;
 
-  std::vector<int> to_delete;
   for (auto pConnId : players) {
     auto p = um.findPlayerByConnId(pConnId).lock();
     if (!p) continue;
@@ -628,9 +649,8 @@ void Room::_gameOver() {
       addRunRate(p->getId(), mode);
     }
 
-    // 清理并非人类
+    // 踢了并非人类，但是注意下面的两个kick不会释放player
     if (!p->isOnline()) {
-      to_delete.push_back(pConnId);
       if (p->getState() == Player::Offline) {
         if (!isOutdated()) {
           server.temporarilyBan(p->getId());
@@ -640,10 +660,6 @@ void Room::_gameOver() {
       }
     }
   }
-
-  players.erase(std::remove_if(players.begin(), players.end(), [&](int x) {
-    return std::find(to_delete.begin(),to_delete.end(), x) != to_delete.end();
-  }), players.end());
 }
 
 void Room::detectSameIpAndDevice() {
@@ -888,5 +904,5 @@ void Room::decreaseRefCount() {
     lua_ref_count--;
     if (lua_ref_count > 0) return;
   }
-  checkAbandoned();
+  checkAbandoned(NoRefCount);
 }

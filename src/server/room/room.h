@@ -60,7 +60,12 @@ public:
   std::weak_ptr<RoomThread> thread() const;
   void setThread(RoomThread &);
 
-  void checkAbandoned();
+  enum CheckAbandonReason {
+    NoRefCount,
+    NoHuman,
+  };
+
+  void checkAbandoned(CheckAbandonReason reason);
 
   // ====================================}
 
@@ -116,7 +121,7 @@ private:
   void updatePlayerGameTime();
 
   void _gameOver();
-  void _checkAbandoned();
+  void _checkAbandoned(CheckAbandonReason reason);
 
   void addRunRate(int id, const std::string_view &mode);
   void updatePlayerGameData(int id, const std::string_view &mode);

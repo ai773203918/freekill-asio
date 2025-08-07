@@ -262,7 +262,6 @@ void Player::onDisconnected() {
   auto room_ = getRoom().lock();
 
   if (!insideGame()) {
-    if (room_) room_->removePlayer(*this);
     um.deletePlayer(*this);
   } else if (thinking()) {
     auto room = dynamic_pointer_cast<Room>(room_);
@@ -365,7 +364,7 @@ void Player::onStateChanged() {
   if (!room) return;
 
   auto thread = room->thread().lock();
-  if (thread) thread->setPlayerState(connId, room->getId());
+  if (thread) thread->setPlayerState(connId, id, room->getId());
 
   room->doBroadcastNotify(room->getPlayers(), "NetStateChanged",
                           Cbor::encodeArray({ id, getStateString() }));

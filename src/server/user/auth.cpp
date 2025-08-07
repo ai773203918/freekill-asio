@@ -459,17 +459,15 @@ std::map<std::string, std::string> AuthManager::checkPassword() {
   }
 
   if (auto player = um.findPlayer(atoi(obj["id"].c_str())).lock(); player) {
-    // 顶号机制，如果在线的话就让他变成不在线
-    if (player->isOnline()) {
-      player->doNotify("ErrorDlg", "others logged in again with this name");
-      player->emitKicked();
-    }
 
     if (player->insideGame()) {
       updateUserLoginData(player->getId());
       player->reconnect(client);
       passed = true;
       return {};
+    } else if (player->isOnline()) {
+      player->doNotify("ErrorDlg", "others logged in again with this name");
+      player->emitKicked();
     } else {
       error_msg = "others logged in with this name";
       passed = false;

@@ -10,6 +10,7 @@
 #include "server/user/user_manager.h"
 #include "server/rpc-lua/rpc-lua.h"
 
+#include <spdlog/spdlog.h>
 #include <sys/eventfd.h>
 #include <thread>
 #include <unistd.h>
@@ -31,9 +32,11 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {},
   L = std::make_unique<RpcLua>(io_ctx);
 
   push_request_callback = [&](const std::string &msg) {
+    // spdlog::debug("--> PushRequest {}" , msg);
     L->call("HandleRequest", msg);
   };
   delay_callback = [&](int roomId, int ms) {
+    // spdlog::debug("--> Delay {} {}", roomId, ms);
     auto timer = std::make_shared<asio::steady_timer>(io_ctx, std::chrono::milliseconds(ms));
     timer->async_wait([weak = weak_from_this(), roomId, timer](const asio::error_code& ec){
       if (!ec) {
@@ -46,14 +49,18 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {},
     });
   };
   wake_up_callback = [&](int roomId, const char *reason) {
+    // spdlog::debug("--> ResumeRoom {} {}", roomId, reason);
     L->call("ResumeRoom", roomId, std::string_view { reason });
   };
 
-  set_player_state_callback = [&](int connId, int roomId) {
+  set_player_state_callback = [&](int connId, int pid, int roomId) {
     auto &um = Server::instance().user_manager();
     auto p = um.findPlayerByConnId(connId).lock();
-    if (!p) return;
+    if (!p) {
+      L->call("SetPlayerState", roomId, pid, Player::Offline);
+    }
 
+    // spdlog::debug("--> SetPlayerState {}, {}, {}, {}", roomId, connId, p->getId(), p->getStateString());
     L->call("SetPlayerState", roomId, p->getId(), p->getState());
   };
   add_observer_callback = [&](int connId, int roomId) {
@@ -61,14 +68,12 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {},
     auto p = um.findPlayerByConnId(connId).lock();
     if (!p) return;
 
+    // spdlog::debug("--> AddObserver {}, {}, {}", roomId, connId, p->getId());
     L->call("AddObserver", roomId, RpcDispatchers::getPlayerObject(*p));
   };
-  remove_observer_callback = [&](int connId, int roomId) {
-    auto &um = Server::instance().user_manager();
-    auto p = um.findPlayerByConnId(connId).lock();
-    if (!p) return;
-
-    L->call("RemoveObserver", roomId, p->getId());
+  remove_observer_callback = [&](int pid, int roomId) {
+    // spdlog::debug("--> RemoveObserver {}, {}", roomId, pid);
+    L->call("RemoveObserver", roomId, pid);
   };
 
   start();
@@ -137,16 +142,16 @@ void RoomThread::wakeUp(int roomId, const char *reason) {
   emit_signal(std::bind(wake_up_callback, roomId, reason));
 }
 
-void RoomThread::setPlayerState(int connId, int roomId) {
-  emit_signal(std::bind(set_player_state_callback, connId, roomId));
+void RoomThread::setPlayerState(int connId, int pid, int roomId) {
+  emit_signal(std::bind(set_player_state_callback, connId, pid, roomId));
 }
 
 void RoomThread::addObserver(int connId, int roomId) {
   emit_signal(std::bind(add_observer_callback, connId, roomId));
 }
 
-void RoomThread::removeObserver(int connId, int roomId) {
-  emit_signal(std::bind(remove_observer_callback, connId, roomId));
+void RoomThread::removeObserver(int pid, int roomId) {
+  emit_signal(std::bind(remove_observer_callback, pid, roomId));
 }
 
 const RpcLua &RoomThread::getLua() const {

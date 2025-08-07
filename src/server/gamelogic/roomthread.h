@@ -22,9 +22,9 @@ public:
   void delay(int roomId, int ms);
   void wakeUp(int roomId, const char *reason);
 
-  void setPlayerState(int connId, int roomId);
+  void setPlayerState(int connId, int pid, int roomId);
   void addObserver(int connId, int roomId);
-  void removeObserver(int connId, int roomId);
+  void removeObserver(int pid, int roomId);
 
   const RpcLua &getLua() const;
 
@@ -56,9 +56,9 @@ private:
   std::function<void(const std::string& req)> push_request_callback = nullptr;
   std::function<void(int roomId, int ms)> delay_callback = nullptr;
   std::function<void(int roomId, const char* reason)> wake_up_callback = nullptr;
-  std::function<void(int connId, int roomId)> set_player_state_callback = nullptr;
+  std::function<void(int connId, int pid, int roomId)> set_player_state_callback = nullptr;
   std::function<void(int connId, int roomId)> add_observer_callback = nullptr;
-  std::function<void(int connId, int roomId)> remove_observer_callback = nullptr;
+  std::function<void(int pid, int roomId)> remove_observer_callback = nullptr;
 
   void emit_signal(std::function<void()> f);
 

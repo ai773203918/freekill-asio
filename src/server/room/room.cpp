@@ -268,17 +268,18 @@ void Room::removePlayer(Player &player) {
     return;
   }
 
+  auto it = std::find(players.begin(), players.end(), player.getConnId());
+  if (it == players.end()) return;
+
   auto &um = Server::instance().user_manager();
   if (!isStarted()) {
     // 游戏还没开始的话，直接删除这名玩家
-    if (auto it = std::find(players.begin(), players.end(), player.getConnId()); it != players.end()) {
-      player.setReady(false);
-      players.erase(it);
+    player.setReady(false);
+    players.erase(it);
 
-      // spdlog::debug("[ROOM_REMOVEPLAYER] Player {} (connId={}, state={}) removed from room {}", player.getId(), player.getConnId(), player.getStateString(), id);
+    // spdlog::debug("[ROOM_REMOVEPLAYER] Player {} (connId={}, state={}) removed from room {}", player.getId(), player.getConnId(), player.getStateString(), id);
 
-      doBroadcastNotify(players, "RemovePlayer", Cbor::encodeArray({ player.getId() }));
-    }
+    doBroadcastNotify(players, "RemovePlayer", Cbor::encodeArray({ player.getId() }));
   } else {
     // 首先拿到跑路玩家的socket，然后把玩家的状态设为逃跑，这样自动被机器人接管
     auto socket = player.getRouter().getSocket();
@@ -347,9 +348,10 @@ void Room::removeObserver(Player &player) {
     }));
   }
 
-  auto thread = this->thread().lock();
-  if (thread) thread->removeObserver(player.getConnId(), id);
   pushRequest(fmt::format("{},leave", player.getId()));
+
+  auto thread = this->thread().lock();
+  if (thread) thread->removeObserver(player.getId(), id);
 }
 
 bool Room::hasObserver(Player &player) const {
@@ -652,7 +654,7 @@ void Room::_gameOver() {
     // 踢了并非人类，但是注意下面的两个kick不会释放player
     if (!p->isOnline()) {
       if (p->getState() == Player::Offline) {
-        if (!isOutdated()) {
+        if (!isOutdated() && p->isRunned()) {
           server.temporarilyBan(p->getId());
         } else {
           p->emitKicked();

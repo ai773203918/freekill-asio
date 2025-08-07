@@ -66,7 +66,7 @@ void Shell::helpCommand(StringList &) {
       "At least 1 <name> required.",
       "unbanuuid");
   HELP_MSG("{}: Ban an accounts by his <name> and <duration> (??m/??h/??d/??mo).", "tempban");
-  HELP_MSG("{}: Add or remove a name from whitelist.", "whitelist");
+  HELP_MSG("{}: Add or remove names from whitelist.", "whitelist");
   HELP_MSG("{}: reset <name>'s password to 1234.", "resetpassword/rp");
 
   spdlog::info("");
@@ -513,24 +513,37 @@ void Shell::tempbanCommand(StringList &list) {
 }
 
 void Shell::whitelistCommand(StringList &list) {
-  if (list.size() != 2) {
-    spdlog::warn("usage: whitelist add/rm <name>");
+  if (list.size() < 2) {
+    spdlog::warn("usage: whitelist add/rm <names>...");
     return;
   }
 
   auto op = list[0];
-  auto name = list[1];
-  if (!Sqlite3::checkString(name))
-    return;
-
-  auto &db = Server::instance().database();
+  auto &server = Server::instance();
+  auto &db = server.database();
 
   if (op == "add") {
-    db.exec(fmt::format("INSERT INTO whitelist VALUES ('{}');", name));
+    server.beginTransaction();
+    for (int i = 1; i < list.size(); i++) {
+      auto &name = list[i];
+      if (!Sqlite3::checkString(name))
+        continue;
+
+      db.exec(fmt::format("INSERT INTO whitelist VALUES ('{}');", name));
+    }
+    server.endTransaction();
   } else if (op == "rm") {
-    db.exec(fmt::format("DELETE FROM whitelist WHERE name='{}';", name));
+    server.beginTransaction();
+    for (int i = 1; i < list.size(); i++) {
+      auto &name = list[i];
+      if (!Sqlite3::checkString(name))
+        continue;
+
+      db.exec(fmt::format("DELETE FROM whitelist WHERE name='{}';", name));
+    }
+    server.endTransaction();
   } else {
-    spdlog::warn("usage: whitelist add/rm <name>");
+    spdlog::warn("usage: whitelist add/rm <names>...");
     return;
   }
 }

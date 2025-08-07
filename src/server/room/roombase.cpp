@@ -77,6 +77,9 @@ void RoomBase::chat(Player &sender, const Packet &packet) {
   uint_len = cbor_encode_uint(senderId, (cbor_mutable_data)uint_buf, 10);
 
   if (type == 1) {
+    auto lobby = dynamic_cast<Lobby *>(this);
+    if (!lobby) return;
+
     oss << "\xA4\x64type\x01\x66sender" << std::string_view { uint_buf, uint_len }
       << "\x68userName";
 
@@ -89,12 +92,14 @@ void RoomBase::chat(Player &sender, const Packet &packet) {
     uint_buf[0] += 0x60; // uint(n) -> str(#)
     oss << std::string_view { uint_buf, uint_len } << msg;
 
-    auto lobby = dynamic_cast<Lobby *>(this);
     for (auto &[pid, _] : lobby->getPlayers()) {
       auto p = um.findPlayerByConnId(pid).lock();
       if (p) p->doNotify("Chat", oss.str());
     }
   } else {
+    auto room = dynamic_cast<Room *>(this);
+    if (!room) return;
+
     oss << "\xA3\x64type\x02\x66sender" << std::string_view { uint_buf, uint_len }
       << "\x63msg";
 
@@ -102,7 +107,6 @@ void RoomBase::chat(Player &sender, const Packet &packet) {
     uint_buf[0] += 0x60; // uint(n) -> str(#)
     oss << std::string_view { uint_buf, uint_len } << msg;
 
-    auto room = dynamic_cast<Room *>(this);
     room->doBroadcastNotify(room->getPlayers(), "Chat", oss.str());
     room->doBroadcastNotify(room->getObservers(), "Chat", oss.str());
   }

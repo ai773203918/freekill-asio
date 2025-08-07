@@ -18,7 +18,6 @@ Room::Room() {
 
   m_thread_id = 1000;
 
-  gameStarted = false;
   timeout = 15;
 }
 
@@ -29,14 +28,16 @@ Room::~Room() {
   auto &um = Server::instance().user_manager();
   auto &rm = Server::instance().room_manager();
 
-  for (auto pConnId : players) {
+  auto pClone = players;
+  auto obClone = observers;
+  for (auto pConnId : pClone) {
     auto p = um.findPlayerByConnId(pConnId).lock();
     if (!p) continue;
 
     if (p->getId() > 0) p->emitKicked();
     else um.deletePlayer(*p);
   }
-  for (auto pConnId : observers) {
+  for (auto pConnId : obClone) {
     auto p = um.findPlayerByConnId(pConnId).lock();
     if (p) {
       removeObserver(*p);
@@ -120,7 +121,7 @@ bool Room::isAbandoned() const {
   auto &um = Server::instance().user_manager();
   for (auto connId : players) {
     auto p = um.findPlayerByConnId(connId).lock();
-    if (p && p->getState() == Player::Online)
+    if (p && p->getRouter().getSocket() != nullptr)
       return false;
   }
   return true;
@@ -145,7 +146,7 @@ void Room::addPlayer(Player &player) {
   }
 
   // 如果要加入的房间满员了，或者已经开战了，就不能再加入
-  if (isFull() || gameStarted) {
+  if (isFull() || isStarted()) {
     player.doNotify("ErrorMsg", "Room is full or already started!");
     return;
   }
@@ -227,6 +228,36 @@ void Room::addRobot(Player &player) {
   addPlayer(robot);
 }
 
+void Room::createRunnedPlayer(Player &player, std::shared_ptr<ClientSocket> socket) {
+  auto &um = Server::instance().user_manager();
+
+  auto runner = std::make_shared<Player>();
+  runner->setState(Player::Online);
+  runner->getRouter().setSocket(socket);
+  runner->setScreenName(std::string(player.getScreenName()));
+  runner->setAvatar(std::string(player.getAvatar()));
+  runner->setId(player.getId());
+  auto gamedata = player.getGameData();
+  runner->setGameData(gamedata[0], gamedata[1], gamedata[2]);
+  runner->addTotalGameTime(player.getTotalGameTime());
+
+  // 最后向服务器玩家列表中增加这个人
+  // 原先的跑路机器人会在游戏结束后自动销毁掉
+  um.addPlayer(runner);
+
+  Server::instance().room_manager().lobby().lock()->addPlayer(*runner);
+
+  // FIX 控制bug
+  u_char buf[10];
+  size_t buflen = cbor_encode_uint(runner->getId(), buf, 10);
+  runner->doNotify("ChangeSelf", { (char*)buf, buflen });
+
+  // 如果走小道的人不是单机启动玩家 且房没过期 那么直接ban
+  if (!isOutdated() && !player.isDied()) {
+    Server::instance().temporarilyBan(runner->getId());
+  }
+}
+
 void Room::removePlayer(Player &player) {
   // 如果是旁观者的话，就清旁观者
   if (hasObserver(player)) {
@@ -235,7 +266,7 @@ void Room::removePlayer(Player &player) {
   }
 
   auto &um = Server::instance().user_manager();
-  if (!gameStarted) {
+  if (!isStarted()) {
     // 游戏还没开始的话，直接删除这名玩家
     if (auto it = std::find(players.begin(), players.end(), player.getConnId()); it != players.end()) {
       player.setReady(false);
@@ -246,12 +277,14 @@ void Room::removePlayer(Player &player) {
       doBroadcastNotify(players, "RemovePlayer", Cbor::encodeArray({ player.getId() }));
     }
   } else {
-    // 否则给跑路玩家召唤个AI代打
-
     // 首先拿到跑路玩家的socket，然后把玩家的状态设为逃跑，这样自动被机器人接管
     auto socket = player.getRouter().getSocket();
     player.setState(Player::Run);
     player.getRouter().setSocket(nullptr);
+
+    if (!player.isDied()) {
+      player.setRunned(true);
+    }
 
     // 设完state后把房间叫起来
     if (player.thinking()) {
@@ -259,50 +292,27 @@ void Room::removePlayer(Player &player) {
       if (thread) thread->wakeUp(id, "player_disconnect");
     }
 
-    if (!player.isDied()) {
-      runned_players.push_back(player.getId());
-    }
-
     // 然后基于跑路玩家的socket，创建一个新Player对象用来通信
-    auto runner = std::make_shared<Player>();
-    runner->setState(Player::Online);
-    runner->getRouter().setSocket(socket);
-    runner->setScreenName(std::string(player.getScreenName()));
-    runner->setAvatar(std::string(player.getAvatar()));
-    runner->setId(player.getId());
-    auto gamedata = player.getGameData();
-    runner->setGameData(gamedata[0], gamedata[1], gamedata[2]);
-    runner->addTotalGameTime(player.getTotalGameTime());
-
-    // 最后向服务器玩家列表中增加这个人
-    // 原先的跑路机器人会在游戏结束后自动销毁掉
-    um.addPlayer(runner);
-
-    Server::instance().room_manager().lobby().lock()->addPlayer(*runner);
-
-    // FIX 控制bug
-    u_char buf[10];
-    size_t buflen = cbor_encode_uint(runner->getId(), buf, 10);
-    runner->doNotify("ChangeSelf", { (char*)buf, buflen });
-
-    // 如果走小道的人不是单机启动玩家 且房没过期 那么直接ban
-    if (!isOutdated() && !player.isDied()) {
-      Server::instance().temporarilyBan(runner->getId());
-    }
+    createRunnedPlayer(player, socket);
   }
 
   if (isAbandoned()) {
     m_owner_conn_id = 0;
     checkAbandoned();
   } else if (player.getConnId() == m_owner_conn_id) {
-    auto new_owner = um.findPlayerByConnId(players[0]).lock();
-    if (new_owner) setOwner(*new_owner);
+    for (auto pConnId : players) {
+      auto new_owner = um.findPlayerByConnId(pConnId).lock();
+      if (new_owner && new_owner->isOnline()) {
+        setOwner(*new_owner);
+        break;
+      }
+    }
   }
 }
 
 void Room::addObserver(Player &player) {
   // 首先只能旁观在运行的房间，因为旁观是由Lua处理的
-  if (!gameStarted) {
+  if (!isStarted()) {
     player.doNotify("ErrorMsg", "Can only observe running room.");
     return;
   }
@@ -358,7 +368,7 @@ bool Room::isOutdated() {
   return ret;
 }
 
-bool Room::isStarted() const { return gameStarted; }
+bool Room::isStarted() { return getRefCount() > 0; }
 
 std::weak_ptr<RoomThread> Room::thread() const {
   return Server::instance().getThread(m_thread_id);
@@ -371,9 +381,9 @@ void Room::setThread(RoomThread &t) {
 }
 
 void Room::checkAbandoned() {
-  asio::post(Server::instance().context(), [this, weak = weak_from_this()](){
-    if (weak.lock())
-      _checkAbandoned();
+  asio::post(Server::instance().context(), [weak = weak_from_this()](){
+    auto ptr = weak.lock();
+    if (ptr) ptr->_checkAbandoned();
   });
 }
 
@@ -446,10 +456,6 @@ void Room::updatePlayerWinRate(int id, const std::string_view &mode, const std::
     lose += atoi(obj["lose"].c_str());
     draw += atoi(obj["draw"].c_str());
     db.exec(fmt::format(updatePWinRate, win, lose, draw, id, mode, role));
-  }
-
-  if (std::find(runned_players.begin(), runned_players.end(), id) != runned_players.end()) {
-    addRunRate(id, mode);
   }
 
   auto &um = Server::instance().user_manager();
@@ -553,9 +559,10 @@ void Room::gameOver() {
 
     auto p = std::promise<bool>();
     auto f = p.get_future();
-    asio::post(ctx, [this, weak = weak_from_this(), &p](){
-      if (weak.lock())
-        _gameOver();
+    asio::post(ctx, [weak = weak_from_this(), &p](){
+      auto ptr = weak.lock();
+      if (ptr) ptr->_gameOver();
+
       p.set_value(true);
     });
     f.wait();
@@ -564,61 +571,66 @@ void Room::gameOver() {
   }
 }
 
-void Room::_gameOver() {
-  gameStarted = false;
-  runned_players.clear();
 
+void Room::updatePlayerGameTime() {
   auto &server = Server::instance();
   auto &um = server.user_manager();
-  const auto &mode = gameMode;
-  std::vector<int> to_delete;
 
-  // 首先只写数据库，这个过程不能向主线程提交申请(doNotify) 否则会死锁
   server.beginTransaction();
   for (auto pConnId : players) {
     auto p = um.findPlayerByConnId(pConnId).lock();
     if (!p) continue;
     auto pid = p->getId();
+    if (pid <= 0) continue;
 
-    if (pid > 0) {
-      int time = p->getGameTime();
+    int time = p->getGameTime();
 
-      auto info_update = fmt::format(
-        "UPDATE usergameinfo SET totalGameTime = "
-        "IIF(totalGameTime IS NULL, {}, totalGameTime + {}) WHERE id = {};",
-        time, time, pid
-      );
-      server.database().exec(info_update);
+    auto info_update = fmt::format(
+      "UPDATE usergameinfo SET totalGameTime = "
+      "IIF(totalGameTime IS NULL, {}, totalGameTime + {}) WHERE id = {};",
+      time, time, pid
+    );
+    server.database().exec(info_update);
+
+    // 然后时间得告诉别人
+    auto bytes = Cbor::encodeArray( { pid, time } );
+    for (auto connId : players) {
+      if (connId == pConnId) continue;
+      auto p2 = um.findPlayerByConnId(connId).lock();
+      if (p2) p2->doNotify("AddTotalGameTime", bytes);
     }
 
-    if (p->getState() == Player::Offline) {
-      addRunRate(pid, mode);
+    // 考虑到阵亡已离开啥的，时间得给真实玩家增加
+    auto realPlayer = um.findPlayer(pid).lock();
+    if (realPlayer) {
+      realPlayer->addTotalGameTime(time);
+      realPlayer->doNotify("AddTotalGameTime", bytes);
     }
   }
   server.endTransaction();
+}
 
+void Room::_gameOver() {
+  updatePlayerGameTime();
+
+  auto &server = Server::instance();
+  auto &um = server.user_manager();
+  const auto &mode = gameMode;
+
+  std::vector<int> to_delete;
   for (auto pConnId : players) {
     auto p = um.findPlayerByConnId(pConnId).lock();
     if (!p) continue;
+    auto pid = p->getId();
+    if (pid <= 0) continue;
 
-    if (p->getId() > 0) {
-      int time = p->getGameTime();
-      auto bytes = Cbor::encodeArray( { p->getId(), time } );
-      for (auto connId : players) {
-        if (connId == pConnId) continue;
-        auto p2 = um.findPlayerByConnId(connId).lock();
-        if (p2) p2->doNotify("AddTotalGameTime", bytes);
-      }
-
-      // 考虑到阵亡已离开啥的，时间得给真实玩家增加
-      auto realPlayer = um.findPlayer(p->getId()).lock();
-      if (realPlayer) {
-        realPlayer->addTotalGameTime(time);
-        realPlayer->doNotify("AddTotalGameTime", bytes);
-      }
+    if (p->isRunned()) {
+      addRunRate(p->getId(), mode);
     }
 
-    if (p->getState() != Player::Online) {
+    // 清理并非人类
+    if (!p->isOnline()) {
+      to_delete.push_back(pConnId);
       if (p->getState() == Player::Offline) {
         if (!isOutdated()) {
           server.temporarilyBan(p->getId());
@@ -626,11 +638,6 @@ void Room::_gameOver() {
           p->emitKicked();
         }
       }
-      to_delete.push_back(pConnId);
-
-      // Offline段中player可能已经delete了，但是保险一下
-      auto p2 = um.findPlayerByConnId(pConnId).lock();
-      if (p2) um.deletePlayer(*p2);
     }
   }
 
@@ -639,12 +646,9 @@ void Room::_gameOver() {
   }), players.end());
 }
 
-void Room::manuallyStart() {
-  if (!isFull() || gameStarted) return;
-
-  spdlog::info("[GameStart] Room {} started", getId());
-
+void Room::detectSameIpAndDevice() {
   auto &um = Server::instance().user_manager();
+
   std::unordered_map<std::string_view, std::vector<std::string_view>> uuidList, ipList;
   for (auto pConnId : players) {
     auto p = um.findPlayerByConnId(pConnId).lock();
@@ -653,7 +657,7 @@ void Room::manuallyStart() {
     p->setDied(false);
     p->startGameTimer();
 
-    if (p->getId() < 0 || !p->getRouter().getSocket()) continue;
+    if (!p->isOnline()) continue;
     auto uuid = p->getUuid();
     auto ip = p->getRouter().getSocket()->peerAddress();
     auto pname = p->getScreenName();
@@ -678,25 +682,40 @@ void Room::manuallyStart() {
     if (names.size() <= 1) continue;
     auto warn = fmt::format("*WARN* Same IP address: [{}]", join(names, ", "));
     doBroadcastNotify(getPlayers(), "ServerMessage", warn);
-    spdlog::info("{}", warn);
+    spdlog::info(warn);
   }
 
   for (const auto& [uuid, names] : uuidList) {
     if (names.size() <= 1) continue;
     auto warn = fmt::format("*WARN* Same device id: [{}]", join(names, ", "));
     doBroadcastNotify(getPlayers(), "ServerMessage", warn);
-    spdlog::info("{}", warn);
+    spdlog::info(warn);
   }
+}
 
-  gameStarted = true;
+void Room::manuallyStart() {
+  if (!isFull() || isStarted()) return;
 
   auto thr = thread().lock();
-  if (!thr) {
-    gameOver();
-    return;
+  if (!thr) return;
+
+  spdlog::info("[GameStart] Room {} started", getId());
+
+  auto &um = Server::instance().user_manager();
+  for (auto pConnId : players) {
+    auto p = um.findPlayerByConnId(pConnId).lock();
+    if (!p) continue;
+    p->setReady(false);
+    p->setDied(false);
+    p->startGameTimer();
   }
 
+  detectSameIpAndDevice();
+
   thr->pushRequest(fmt::format("-1,{},newroom", id));
+
+  // 立刻加，但又要保证reconnect请求在newroom后面
+  increaseRefCount();
 }
 
 void Room::pushRequest(const std::string &req) {
@@ -764,11 +783,10 @@ void Room::kickPlayer(Player &player, const Packet &pkt) {
 
   using namespace std::chrono_literals;
   auto timer = std::make_shared<asio::steady_timer>(Server::instance().context(), 30000ms);
-  auto weak = weak_from_this();
-  timer->async_wait([this, weak, i, timer](const asio::error_code &ec) {
+  timer->async_wait([weak = weak_from_this(), i, timer](const asio::error_code &ec) {
     if (!ec) {
-      if (weak.lock())
-        removeRejectId(i);
+      auto ptr = weak.lock();
+      if (ptr) ptr->removeRejectId(i);
     } else {
       spdlog::error(ec.message());
     }

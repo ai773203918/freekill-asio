@@ -8,6 +8,8 @@ class Server;
 class Player;
 class RoomThread;
 
+class ClientSocket;
+
 class Room final : public RoomBase, public std::enable_shared_from_this<Room> {
 public:
   explicit Room();
@@ -53,7 +55,7 @@ public:
 
   bool isOutdated();
 
-  bool isStarted() const;
+  bool isStarted();
 
   std::weak_ptr<RoomThread> thread() const;
   void setThread(RoomThread &);
@@ -98,10 +100,7 @@ private:
   std::string password;
 
   // id[]
-  std::vector<int> runned_players;
   std::vector<int> rejected_players;
-
-  bool gameStarted = false;
 
   int timeout = 0;
   std::string md5;
@@ -111,6 +110,10 @@ private:
   std::mutex lua_ref_mutex;
 
   std::unique_ptr<asio::steady_timer> request_timer = nullptr;
+
+  void createRunnedPlayer(Player &player, std::shared_ptr<ClientSocket> socket);
+  void detectSameIpAndDevice();
+  void updatePlayerGameTime();
 
   void _gameOver();
   void _checkAbandoned();

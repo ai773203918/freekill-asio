@@ -130,8 +130,8 @@ void Router::sendMessage(const std::string &msg) {
     auto p = std::promise<bool>();
     auto f = p.get_future();
     asio::post(s, [&, weak = socket->weak_from_this()](){
-      if (weak.lock())
-        socket->send(std::make_shared<std::string>(msg));
+      auto ptr = weak.lock();
+      if (ptr) ptr->send(std::make_shared<std::string>(msg));
 
       p.set_value(true);
     });

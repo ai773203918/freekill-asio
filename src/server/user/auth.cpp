@@ -460,12 +460,12 @@ std::map<std::string, std::string> AuthManager::checkPassword() {
 
   if (auto player = um.findPlayer(atoi(obj["id"].c_str())).lock(); player) {
     // 顶号机制，如果在线的话就让他变成不在线
-    if (player->getState() == Player::Online || player->getState() == Player::Robot) {
+    if (player->isOnline()) {
       player->doNotify("ErrorDlg", "others logged in again with this name");
       player->emitKicked();
     }
 
-    if (player->getState() == Player::Offline) {
+    if (player->insideGame()) {
       updateUserLoginData(player->getId());
       player->reconnect(client);
       passed = true;

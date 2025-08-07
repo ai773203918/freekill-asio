@@ -41,6 +41,8 @@ public:
 
   State getState() const;
   std::string_view getStateString() const;
+  bool isOnline() const;
+  bool insideGame();
   void setState(State state);
 
   bool isReady() const;
@@ -53,6 +55,8 @@ public:
 
   bool isDied() const;
   void setDied(bool died);
+  bool isRunned() const;
+  void setRunned(bool run);
 
   int getConnId() const;
 
@@ -98,6 +102,7 @@ private:
   State state = Invalid;
   bool ready = false;
   bool died = false;
+  bool runned = false;
 
   std::string lastGameMode;
   int totalGames = 0;

@@ -105,6 +105,9 @@ private:
   std::string md5;
 
   int64_t start_timestamp;
+  std::unique_ptr<asio::steady_timer> heartbeat_timer;
+
+  void startHeartbeat();
 
   void _refreshMd5();
 };

@@ -111,10 +111,20 @@ void UserManager::processNewConnection(std::shared_ptr<ClientSocket> client) {
 
   // network delay test
   server.sendEarlyPacket(*client, "NetworkDelayTest", m_auth->getPublicKeyCbor());
-  // Note: the client should send a setup string next
   client->set_message_got_callback(
     std::bind(&AuthManager::processNewConnection, m_auth.get(), client, std::placeholders::_1));
-  // client->timerSignup.start(30000);
+
+  using namespace std::chrono_literals;
+  client->timerSignup = std::make_unique<asio::steady_timer>(server.context());
+  client->timerSignup->expires_after(3min);
+  client->timerSignup->async_wait([weak = client->weak_from_this()](const asio::error_code& ec){
+    if (!ec) {
+      auto ptr = weak.lock();
+      if (ptr) ptr->disconnectFromHost();
+    } else if (ec != asio::error::operation_aborted) {
+      spdlog::error("error in timerSignup: {}", ec.message());
+    }
+  });
 }
 
 void UserManager::createNewPlayer(std::shared_ptr<ClientSocket> client, std::string_view name, std::string_view avatar, int id, std::string_view uuid_str) {

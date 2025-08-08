@@ -233,12 +233,12 @@ void Player::setThinking(bool t) {
 }
 
 void Player::onNotificationGot(const Packet &packet) {
-  // spdlog::debug("[RX](id={} connId={} state={} Room={}): {} {}", id, connId, getStateString(), roomId, packet.command, toHex(packet.cborData));
   if (packet.command == "Heartbeat") {
     alive = true;
     return;
   }
 
+  // spdlog::debug("[RX](id={} connId={} state={} Room={}): {} {}", id, connId, getStateString(), roomId, packet.command, toHex(packet.cborData));
   auto room = getRoom().lock();
   if (room) room->handlePacket(*this, packet);
 }

@@ -128,7 +128,7 @@ std::string_view AuthManager::getPublicKeyCbor() const {
 }
 
 void AuthManager::processNewConnection(std::shared_ptr<ClientSocket> conn, Packet &packet) {
-  // client->timerSignup.stop();
+  conn->timerSignup->cancel();
   auto &server = Server::instance();
   auto &user_manager = server.user_manager();
 

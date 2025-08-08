@@ -54,7 +54,7 @@ static _rpcRet _rpc_qCritical(const JsonRpcPacket &packet) {
 }
 
 static _rpcRet _rpc_print(const JsonRpcPacket &packet) {
-  for (int i = 0; i < packet.param_count; i++) {
+  for (size_t i = 0; i < packet.param_count; i++) {
     switch (i) {
       case 0:
         std::cout << std::get<std::string_view>(packet.param1) << '\t';
@@ -361,24 +361,6 @@ static _rpcRet _rpc_Room_destroyRequestTimer(const JsonRpcPacket &packet) {
   return { true, nullVal };
 }
 
-static _rpcRet _rpc_Room_increaseRefCount(const JsonRpcPacket &packet) {
-  if (!( packet.param_count == 1 &&
-    std::holds_alternative<int>(packet.param1)
-  )) {
-    return { false, nullVal };
-  }
-
-  int roomId = std::get<int>(packet.param1);
-  auto room = Server::instance().room_manager().findRoom(roomId).lock();
-  if (!room) {
-    return { false, "Room not found"sv };
-  }
-
-  room->increaseRefCount();
-
-  return { true, nullVal };
-}
-
 static _rpcRet _rpc_Room_decreaseRefCount(const JsonRpcPacket &packet) {
   if (!( packet.param_count == 1 &&
     std::holds_alternative<int>(packet.param1)
@@ -524,7 +506,6 @@ const JsonRpc::RpcMethodMap RpcDispatchers::ServerRpcMethods {
   { "Room_gameOver", _rpc_Room_gameOver },
   { "Room_setRequestTimer", _rpc_Room_setRequestTimer },
   { "Room_destroyRequestTimer", _rpc_Room_destroyRequestTimer },
-  // { "Room_increaseRefCount", _rpc_Room_increaseRefCount },
   { "Room_decreaseRefCount", _rpc_Room_decreaseRefCount },
 
   { "RoomThread_getRoom", _rpc_RoomThread_getRoom },

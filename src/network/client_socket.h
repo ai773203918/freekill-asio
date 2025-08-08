@@ -50,8 +50,8 @@ public:
   void removeAESKey();
   bool aesReady() const { return aes_ready; }
   bool isConnected() const;
-  QTimer timerSignup;
   */
+  std::unique_ptr<asio::steady_timer> timerSignup;
 
 private:
   tcp::socket m_socket;

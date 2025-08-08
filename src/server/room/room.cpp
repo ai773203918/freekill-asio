@@ -800,7 +800,7 @@ void Room::kickPlayer(Player &player, const Packet &pkt) {
   addRejectId(i);
 
   using namespace std::chrono_literals;
-  auto timer = std::make_shared<asio::steady_timer>(Server::instance().context(), 30000ms);
+  auto timer = std::make_shared<asio::steady_timer>(Server::instance().context(), 3min);
   timer->async_wait([weak = weak_from_this(), i, timer](const asio::error_code &ec) {
     if (!ec) {
       auto ptr = weak.lock();

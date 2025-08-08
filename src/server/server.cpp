@@ -48,12 +48,41 @@ Server::Server() : m_socket { nullptr } {
 Server::~Server() {
 }
 
+void Server::startHeartbeat() {
+  using namespace std::chrono_literals;
+  heartbeat_timer->expires_after(10s);
+  heartbeat_timer->async_wait([this](const asio::error_code& ec) {
+    if (ec) return;
+    std::vector<std::shared_ptr<Player>> to_delete;
+    for (auto &[_, p] : m_user_manager->getPlayers()) {
+      if (p->isOnline() && !p->alive) {
+        to_delete.push_back(p);
+      }
+    }
+
+    for (auto &p : to_delete) {
+      p->emitKicked();
+    }
+
+    for (auto &[_, p] : m_user_manager->getPlayers()) {
+      if (p->isOnline()) {
+        p->alive = false;
+        p->doNotify("Heartbeat", "");
+      }
+    }
+    startHeartbeat();
+  });
+}
+
 void Server::listen(asio::io_context &io_ctx, asio::ip::tcp::endpoint end, asio::ip::udp::endpoint uend) {
   main_io_ctx = &io_ctx;
   m_socket = std::make_unique<ServerSocket>(io_ctx, end, uend);
 
   m_shell = std::make_unique<Shell>();
   m_shell->start();
+
+  heartbeat_timer = std::make_unique<asio::steady_timer>(io_ctx);
+  startHeartbeat();
 
   m_socket->set_new_connection_callback(
     std::bind(&UserManager::processNewConnection, m_user_manager.get(), std::placeholders::_1));

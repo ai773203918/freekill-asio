@@ -269,7 +269,7 @@ void Shell::msgRoomCommand(StringList &list) {
     return;
   }
   std::string msg;
-  for (int i = 1; i < list.size(); i++) {
+  for (size_t i = 1; i < list.size(); i++) {
     msg += list[i];
     msg += ' ';
   }
@@ -524,7 +524,7 @@ void Shell::whitelistCommand(StringList &list) {
 
   if (op == "add") {
     server.beginTransaction();
-    for (int i = 1; i < list.size(); i++) {
+    for (size_t i = 1; i < list.size(); i++) {
       auto &name = list[i];
       if (!Sqlite3::checkString(name))
         continue;
@@ -534,7 +534,7 @@ void Shell::whitelistCommand(StringList &list) {
     server.endTransaction();
   } else if (op == "rm") {
     server.beginTransaction();
-    for (int i = 1; i < list.size(); i++) {
+    for (size_t i = 1; i < list.size(); i++) {
       auto &name = list[i];
       if (!Sqlite3::checkString(name))
         continue;
@@ -790,7 +790,7 @@ QString Shell::syntaxHighlight(char *bytes) {
 */
 
 char *Shell::generateCommand(const char *text, int state) {
-  static int list_index, len;
+  static size_t list_index, len;
   static std::vector<std::string_view> keys;
   static std::once_flag flag;
   std::call_once(flag, [&](){

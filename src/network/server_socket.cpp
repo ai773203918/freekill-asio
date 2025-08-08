@@ -17,11 +17,15 @@ ServerSocket::ServerSocket(asio::io_context &io_ctx, tcp::endpoint end, udp::end
 void ServerSocket::listen() {
   m_acceptor.async_accept([this](const asio::error_code &err, tcp::socket socket) {
     if (!err) {
-      auto conn = std::make_shared<ClientSocket>(std::move(socket));
+      try {
+        auto conn = std::make_shared<ClientSocket>(std::move(socket));
 
-      if (new_connection_callback) {
-        new_connection_callback(conn);
-        conn->start();
+        if (new_connection_callback) {
+          new_connection_callback(conn);
+          conn->start();
+        }
+      } catch (std::system_error &e) {
+        spdlog::error("ClientSocket creation error: {}", e.what());
       }
     } else {
       spdlog::error("Accept error: {}", err.message());

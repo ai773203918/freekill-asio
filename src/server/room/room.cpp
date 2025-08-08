@@ -399,12 +399,14 @@ void Room::_checkAbandoned(CheckAbandonReason reason) {
 
     for (auto pConnId : players) {
       auto p = um.findPlayerByConnId(pConnId).lock();
-      if (!p) {
+      if (!p || !p->isOnline()) {
         to_delete.push_back(pConnId);
-      } else if (!p->isOnline()) {
-        to_delete.push_back(pConnId);
-        um.deletePlayer(*p);
       }
+    }
+
+    for (auto pConnId : to_delete) {
+      auto p = um.findPlayerByConnId(pConnId).lock();
+      if (p) um.deletePlayer(*p);
     }
 
     players.erase(std::remove_if(players.begin(), players.end(), [&](int x) {

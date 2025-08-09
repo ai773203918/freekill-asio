@@ -469,8 +469,11 @@ std::map<std::string, std::string> AuthManager::checkPassword() {
       player->doNotify("ErrorDlg", "others logged in again with this name");
       player->emitKicked();
     } else {
-      error_msg = "others logged in with this name";
-      passed = false;
+      // 又不在游戏内，又不在线，又正常被findPlayer
+      // 这不就是卡死了 针对卡死的我们直接删除然后继续走认证
+      // error_msg = "others logged in with this name";
+      // passed = false;
+      um.deletePlayer(*player);
     }
   }
 

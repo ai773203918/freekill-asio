@@ -47,6 +47,7 @@ private:
   void resetPasswordCommand(StringList &);
   void statCommand(StringList &);
   void killRoomCommand(StringList &);
+  void checkLobbyCommand(StringList &);
 
 private:
   // QString syntaxHighlight(char *);

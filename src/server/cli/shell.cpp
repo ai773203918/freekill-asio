@@ -44,6 +44,7 @@ void Shell::helpCommand(StringList &) {
   HELP_MSG("{}: Broadcast message to a room.", "msgroom/mr");
   HELP_MSG("{}: Kick a player by his <id>.", "kick");
   HELP_MSG("{}: Kick all players in a room, then abandon it.", "killroom");
+  HELP_MSG("{}: Delete dead players in the lobby.", "checklobby");
 
   spdlog::info("");
   spdlog::info("===== Account commands =====");
@@ -647,6 +648,13 @@ void Shell::killRoomCommand(StringList &list) {
   }
 }
 
+void Shell::checkLobbyCommand(StringList &) {
+  auto &server = Server::instance();
+  auto lobby = server.room_manager().lobby().lock();
+  asio::post(Server::instance().context(),
+             std::bind(&Lobby::checkAbandoned, lobby));
+}
+
 static void sigintHandler(int) {
   rl_reset_line_state();
   rl_replace_line("", 0);
@@ -702,6 +710,7 @@ Shell::Shell() {
     {"stat", &Shell::statCommand},
     {"gc", &Shell::statCommand},
     {"killroom", &Shell::killRoomCommand},
+    {"checklobby", &Shell::checkLobbyCommand},
     // special command
     {"quit", &Shell::helpCommand},
     {"crash", &Shell::helpCommand},

@@ -21,6 +21,8 @@ public:
 
   void updateOnlineInfo();
 
+  void checkAbandoned();
+
 private:
   // for handle packet
   void updateAvatar(Player &, const Packet &);

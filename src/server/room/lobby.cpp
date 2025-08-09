@@ -54,6 +54,27 @@ void Lobby::updateOnlineInfo() {
   }
 }
 
+// Lobby不可能abandon 这个主要是检查lobby的死人并清除
+// 然后命名这一块顺应Room同款函数
+void Lobby::checkAbandoned() {
+  auto &um = Server::instance().user_manager();
+  std::vector<int> to_delete;
+
+  for (auto &[pConnId, _] : players) {
+    auto p = um.findPlayerByConnId(pConnId).lock();
+    if (!p || !p->isOnline()) {
+      to_delete.push_back(pConnId);
+    }
+  }
+
+  for (auto pConnId : to_delete) {
+    auto p = um.findPlayerByConnId(pConnId).lock();
+    if (p) um.deletePlayer(*p);
+
+    players.erase(pConnId);
+  }
+}
+
 void Lobby::updateAvatar(Player &sender, const Packet &packet) {
   auto cbuf = (cbor_data)packet.cborData.data();
   auto len = packet.cborData.size();

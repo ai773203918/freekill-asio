@@ -9,6 +9,7 @@
 #include "core/util.h"
 
 #include <unistd.h>
+#include <sys/wait.h>
 #include <cjson/cJSON.h>
 
 RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
@@ -81,7 +82,24 @@ RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
 }
 
 RpcLua::~RpcLua() {
-  if (alive()) call("bye");
+  if (!alive()) return;
+
+  call("bye");
+
+  int wstatus;
+  int w = waitpid(child_pid, &wstatus, WUNTRACED);
+  if (w == -1) {
+    spdlog::error("waitpid() error: {}", strerror(errno));
+    return;
+  }
+
+  if (WIFEXITED(wstatus)) {
+    spdlog::info("child process exited, status={}", WEXITSTATUS(wstatus));
+  } else if (WIFSIGNALED(wstatus)) {
+    spdlog::info("killed by signal {}", WTERMSIG(wstatus));
+  } else if (WIFSTOPPED(wstatus)) {
+    spdlog::info("stopped by signal {}", WSTOPSIG(wstatus));
+  }
 }
 
 // 传过去的算上call和返回值只有int bytes和null... 毁灭吧

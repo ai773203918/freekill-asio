@@ -50,7 +50,7 @@ Server::~Server() {
 
 void Server::startHeartbeat() {
   using namespace std::chrono_literals;
-  heartbeat_timer->expires_after(10s);
+  heartbeat_timer->expires_after(50s);
   heartbeat_timer->async_wait([this](const asio::error_code& ec) {
     if (ec) return;
     std::vector<std::shared_ptr<Player>> to_delete;

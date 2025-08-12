@@ -74,7 +74,9 @@ public:
   std::string waitForReply(int timeout);
   void doNotify(const std::string_view &command, const std::string_view &data);
 
-  volatile bool alive; // For heartbeat
+  // 心跳用，若连续TTL个心跳都不回应就踢
+  enum { max_ttl = 6 };
+  int ttl = max_ttl;
 
   bool thinking();
   void setThinking(bool t);

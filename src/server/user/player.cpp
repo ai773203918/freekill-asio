@@ -31,7 +31,7 @@ Player::Player() {
   connId = nextConnId++;
   if (nextConnId >= 0x7FFFFF00) nextConnId = 1000;
 
-  alive = true;
+  ttl = max_ttl;
   m_thinking = false;
 
   gameTime = 0;
@@ -234,7 +234,7 @@ void Player::setThinking(bool t) {
 
 void Player::onNotificationGot(const Packet &packet) {
   if (packet.command == "Heartbeat") {
-    alive = true;
+    ttl = max_ttl;
     return;
   }
 
@@ -310,7 +310,7 @@ void Player::reconnect(std::shared_ptr<ClientSocket> client) {
   m_router->setSocket(client);
   setState(Player::Online);
   setRunned(false);
-  alive = true;
+  ttl = max_ttl;
 
   auto room = dynamic_pointer_cast<Room>(getRoom().lock());
   if (room) {

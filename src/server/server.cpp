@@ -50,12 +50,12 @@ Server::~Server() {
 
 void Server::startHeartbeat() {
   using namespace std::chrono_literals;
-  heartbeat_timer->expires_after(50s);
+  heartbeat_timer->expires_after(30s);
   heartbeat_timer->async_wait([this](const asio::error_code& ec) {
     if (ec) return;
     std::vector<std::shared_ptr<Player>> to_delete;
     for (auto &[_, p] : m_user_manager->getPlayers()) {
-      if (p->isOnline() && !p->alive) {
+      if (p->isOnline() && p->ttl <= 0) {
         to_delete.push_back(p);
       }
     }
@@ -66,7 +66,7 @@ void Server::startHeartbeat() {
 
     for (auto &[_, p] : m_user_manager->getPlayers()) {
       if (p->isOnline()) {
-        p->alive = false;
+        p->ttl--;
         p->doNotify("Heartbeat", "");
       }
     }

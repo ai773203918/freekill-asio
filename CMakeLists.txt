@@ -33,3 +33,10 @@ include_directories(src)
 add_executable(freekill-asio)
 
 add_subdirectory(src)
+
+install(TARGETS freekill-asio DESTINATION bin)
+install(FILES
+  ${PROJECT_SOURCE_DIR}/packages/init.sql
+  ${PROJECT_SOURCE_DIR}/server/init.sql
+  DESTINATION share/freekill-asio
+)

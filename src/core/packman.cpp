@@ -12,6 +12,12 @@ PackMan &PackMan::instance() {
   if (!pacman_instance) {
     pacman_instance = std::unique_ptr<PackMan>(new PackMan);
   }
+
+#ifdef FK_EMBEDDED
+  // 静态编译版中，需要手动打包certs文件，过老的系统里面的证书不太可靠
+  git_libgit2_opts(GIT_OPT_SET_SSL_CERT_LOCATIONS, NULL, "./certs");
+#endif
+
   return *pacman_instance;
 }
 

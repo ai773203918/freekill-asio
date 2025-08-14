@@ -1,0 +1,10 @@
+#!/bin/sh
+
+# 令freekill-asio在execlp时能找到lua5.4
+export PATH=${PATH}:$(pwd)/bin
+
+# 令lua5.4能正确require "socket"
+# 我也不知道为什么这里不需要写一个?.lua跟在后面 但总之这样就能跑 不能跑的话就补个?.lua
+export LUA_PATH=";;$(pwd)/luasocket/"
+
+freekill-asio $@

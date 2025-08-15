@@ -1,0 +1,63 @@
+name: Build For Windows 10+
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Set up Alpine Linux for amd64
+      id: alpine-target
+      uses: jirutka/setup-alpine@v1
+      with:
+        arch: x86_64
+
+    - name: Run build script
+      run: curl -fsSL https://raw.githubusercontent.com/Qsgs-Fans/freekill-asio/refs/heads/master/distro/static-build/alpine-build.sh | sh
+      shell: alpine.sh --root {0}
+
+    - name: Upload Release
+      uses: actions/upload-artifact@v4
+      with:
+        name: zip
+        path: ${{ steps.alpine-target.outputs.root-path }}/root/freekill-asio-static.tar.gz
+
+  release:
+    name: Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Git Repo
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Get Previous tag
+      id: previoustag
+      uses: WyriHaximus/github-action-get-previous-tag@v1
+      with:
+        fallback: 0.0.1
+
+    - name: Download zip from build
+      uses: actions/download-artifact@v4
+      with:
+        name: zip
+        path: zip
+
+    - name: Rename zip
+      run: |
+        mv zip/freekill-asio-static.tar.gz zip/freekill-asio-static-${{ steps.previoustag.outputs.tag }}-amd64.tar.gz
+
+    - name: Upload Release
+      uses: softprops/action-gh-release@v1
+      with:
+        token: ${{ secrets.MY_TOKEN }}
+        tag_name: ${{ steps.previoustag.outputs.tag }}
+        files: zip/freekill-asio-static-${{ steps.previoustag.outputs.tag }}-amd64.tar.gz
+

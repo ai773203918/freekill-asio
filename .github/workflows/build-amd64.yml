@@ -1,4 +1,4 @@
-name: Build For Windows 10+
+name: Static build for Linux amd64
 
 on:
   workflow_dispatch:
@@ -17,6 +17,7 @@ jobs:
       uses: jirutka/setup-alpine@v1
       with:
         arch: x86_64
+        packages: curl
 
     - name: Run build script
       run: curl -fsSL https://raw.githubusercontent.com/Qsgs-Fans/freekill-asio/refs/heads/master/distro/static-build/alpine-build.sh | sh

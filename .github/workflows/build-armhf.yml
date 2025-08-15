@@ -1,0 +1,69 @@
+name: Static build for Linux armhf
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Set up Alpine Linux for armhf
+      id: alpine-target
+      uses: jirutka/setup-alpine@v1
+      with:
+        arch: armhf
+        packages: curl
+
+    - name: Run build script
+      run: curl -fsSL https://raw.githubusercontent.com/Qsgs-Fans/freekill-asio/refs/heads/master/distro/static-build/alpine-build.sh | sh
+      shell: alpine.sh --root {0}
+
+    - name: Copy release zip
+      working-directory: ${{ github.action_path }}
+      run: sudo cp ${{ steps.alpine-target.outputs.root-path }}/root/freekill-asio-static.tar.gz .
+      shell: bash
+
+    - name: Upload Release
+      uses: actions/upload-artifact@v4
+      with:
+        name: zip
+        path: freekill-asio-static.tar.gz
+
+  release:
+    name: Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Git Repo
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Get Previous tag
+      id: previoustag
+      uses: WyriHaximus/github-action-get-previous-tag@v1
+      with:
+        fallback: 0.0.1
+
+    - name: Download zip from build
+      uses: actions/download-artifact@v4
+      with:
+        name: zip
+        path: zip
+
+    - name: Rename zip
+      run: |
+        mv zip/freekill-asio-static.tar.gz zip/freekill-asio-static-${{ steps.previoustag.outputs.tag }}-armhf.tar.gz
+
+    - name: Upload Release
+      uses: softprops/action-gh-release@v1
+      with:
+        token: ${{ secrets.MY_TOKEN }}
+        tag_name: ${{ steps.previoustag.outputs.tag }}
+        files: zip/freekill-asio-static-${{ steps.previoustag.outputs.tag }}-armhf.tar.gz
+

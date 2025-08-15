@@ -23,11 +23,16 @@ jobs:
       run: curl -fsSL https://raw.githubusercontent.com/Qsgs-Fans/freekill-asio/refs/heads/master/distro/static-build/alpine-build.sh | sh
       shell: alpine.sh --root {0}
 
+    - name: Copy release zip
+      working-directory: ${{ github.action_path }}
+      run: sudo cp ${{ steps.alpine-target.outputs.root-path }}/root/freekill-asio-static.tar.gz .
+      shell: bash
+
     - name: Upload Release
       uses: actions/upload-artifact@v4
       with:
         name: zip
-        path: ${{ steps.alpine-target.outputs.root-path }}/root/freekill-asio-static.tar.gz
+        path: freekill-asio-static.tar.gz
 
   release:
     name: Release

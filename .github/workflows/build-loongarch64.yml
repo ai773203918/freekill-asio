@@ -1,4 +1,4 @@
-name: Static build for Linux aarch64
+name: Static build for Linux loongarch64
 
 on:
   workflow_dispatch:
@@ -12,11 +12,11 @@ jobs:
 
     steps:
 
-    - name: Set up Alpine Linux for aarch64
+    - name: Set up Alpine Linux for loongarch64
       id: alpine-target
       uses: jirutka/setup-alpine@v1
       with:
-        arch: aarch64
+        arch: loongarch64
         packages: curl
 
     - name: Run build script
@@ -58,12 +58,12 @@ jobs:
 
     - name: Rename zip
       run: |
-        mv zip/freekill-asio-static.tar.gz zip/freekill-asio-static-${{ steps.previoustag.outputs.tag }}-aarch64.tar.gz
+        mv zip/freekill-asio-static.tar.gz zip/freekill-asio-static-${{ steps.previoustag.outputs.tag }}-loongarch64.tar.gz
 
     - name: Upload Release
       uses: softprops/action-gh-release@v1
       with:
         token: ${{ secrets.MY_TOKEN }}
         tag_name: ${{ steps.previoustag.outputs.tag }}
-        files: zip/freekill-asio-static-${{ steps.previoustag.outputs.tag }}-aarch64.tar.gz
+        files: zip/freekill-asio-static-${{ steps.previoustag.outputs.tag }}-loongarch64.tar.gz
 

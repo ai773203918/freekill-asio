@@ -193,10 +193,10 @@ static void init_callbacks() {
   callbacks.negint64 = [](void* self, uint64_t value) {
     static_cast<PacketBuilder*>(self)->handleInteger(-1 - static_cast<int64_t>(value));
   };
-  callbacks.byte_string = [](void* self, const cbor_data data, size_t len) {
+  callbacks.byte_string = [](void* self, const cbor_data data, uint64_t len) {
     static_cast<PacketBuilder*>(self)->handleBytes(data, len);
   };
-  callbacks.array_start = [](void* self, size_t size) {
+  callbacks.array_start = [](void* self, uint64_t size) {
     static_cast<PacketBuilder*>(self)->startArray(size);
   };
 }

@@ -214,20 +214,20 @@ Cbor::Cbor() {
     if (p) *p = -1 - value;
   };
 
-  stringCallbacks.string = [](void* self, const cbor_data data, size_t len) {
+  stringCallbacks.string = [](void* self, const cbor_data data, uint64_t len) {
     auto sv = static_cast<std::string_view *>(self);
     if (sv) *sv = { (char *)data, len };
   };
-  bytesCallbacks.byte_string = [](void* self, const cbor_data data, size_t len) {
+  bytesCallbacks.byte_string = [](void* self, const cbor_data data, uint64_t len) {
     auto sv = static_cast<std::string_view *>(self);
     if (sv) *sv = { (char *)data, len };
   };
 
-  arrayCallbacks.array_start = [](void* self, size_t size) {
+  arrayCallbacks.array_start = [](void* self, uint64_t size) {
     auto p = static_cast<size_t *>(self);
     if (p) *p = size;
   };
-  mapCallbacks.map_start = [](void* self, size_t size) {
+  mapCallbacks.map_start = [](void* self, uint64_t size) {
     auto p = static_cast<size_t *>(self);
     if (p) *p = size;
   };

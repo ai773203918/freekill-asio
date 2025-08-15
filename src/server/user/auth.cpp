@@ -150,10 +150,10 @@ void AuthManager::processNewConnection(std::shared_ptr<ClientSocket> conn, Packe
 static struct cbor_callbacks callbacks = cbor_empty_callbacks;
 static std::once_flag callbacks_flag;
 static void init_callbacks() {
-  callbacks.string = [](void *u, cbor_data data, size_t sz) {
+  callbacks.string = [](void *u, cbor_data data, uint64_t sz) {
     static_cast<AuthManagerPrivate *>(u)->handle(data, sz);
   };
-  callbacks.byte_string = [](void *u, cbor_data data, size_t sz) {
+  callbacks.byte_string = [](void *u, cbor_data data, uint64_t sz) {
     static_cast<AuthManagerPrivate *>(u)->handle(data, sz);
   };
 }

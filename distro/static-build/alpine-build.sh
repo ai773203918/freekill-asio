@@ -32,7 +32,7 @@ if [ ! -f "$ROOT_DIR/libgit2/build/libgit2.a" ]; then
   echo '[+] 编译安装 libgit2（静态库）'
   cd "$ROOT_DIR/libgit2"
   mkdir -p build && cd build
-  cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
+  cmake .. -DBUILD_SHARED_LIBS=OFF -DBUILD_CLAR=OFF
   make -j$(nproc)
   make install
   cd "$ROOT_DIR"

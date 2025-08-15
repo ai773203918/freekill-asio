@@ -14,7 +14,7 @@ echo '[+] 设置构建环境'
 # 安装系统依赖
 # -------------------------------
 echo '[+] 安装系统依赖'
-apk add --no-cache git vim cmake build-base \
+apk add git vim cmake build-base ca-certificates \
   sqlite-dev readline-dev cjson-dev spdlog-dev asio-dev \
   readline-static ncurses-static cjson-static sqlite-static \
   openssl-libs-static zlib-static
@@ -32,8 +32,8 @@ if [ ! -f "$ROOT_DIR/libgit2/build/libgit2.a" ]; then
   echo '[+] 编译安装 libgit2（静态库）'
   cd "$ROOT_DIR/libgit2"
   mkdir -p build && cd build
-  cmake .. -DBUILD_SHARED_LIBS=OFF -DBUILD_CLAR=OFF
-  make -j$(nproc)
+  cmake .. -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTS=OFF -DBUILD_CLI=OFF
+  make -j$NPROC
   make install
   cd "$ROOT_DIR"
 else
@@ -54,7 +54,7 @@ if [ ! -f "$ROOT_DIR/libcbor/build/src/libcbor.a" ]; then
   cd "$ROOT_DIR/libcbor"
   mkdir -p build && cd build
   cmake ..
-  make -j$(nproc)
+  make -j$NPROC
   make install
   cd "$ROOT_DIR"
 else
@@ -77,7 +77,7 @@ if [ ! -f "$LUA_DIR/src/liblua.a" ]; then
   echo '[+] 编译静态 Lua 5.4'
   cd "$LUA_DIR"
   make clean
-  make linux MYLDFLAGS="-static -Wl,--gc-sections" MYCFLAGS="-fPIC" -j$(nproc)
+  make linux MYLDFLAGS="-static -Wl,--gc-sections" MYCFLAGS="-fPIC" -j$NPROC
   make install
   cd "$ROOT_DIR"
 else
@@ -113,7 +113,7 @@ mime.a: $(MIME_OBJS)
 EOF
 
   make LUAV=5.4 clean
-  make LUAV=5.4 -j$(nproc)
+  make LUAV=5.4 -j$NRPOC
   cd "$LUA_DIR"
 else
   echo '[*] luasocket 已编译，跳过...'
@@ -192,7 +192,7 @@ if [ ! -f "$ROOT_DIR/freekill-asio/build/freekill-asio" ]; then
   mkdir -p build && cd build
   cmake .. --toolchain=../distro/static-build/alpine_static.cmake 2&>/dev/null || true
   cmake .. --toolchain=../distro/static-build/alpine_static.cmake || true
-  make -j$(nproc)
+  make -j$NPROC
   cd "$ROOT_DIR"
 else
   echo '[*] freekill-asio 已编译，跳过...'

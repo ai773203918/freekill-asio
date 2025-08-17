@@ -986,7 +986,7 @@ void Shell::run() {
   printf("certain conditions; For more information visit "
          "http://www.gnu.org/licenses.\n\n");
 
-  printf("[freekill-asio v0.0.1] Welcome to CLI. Enter 'help' for usage hints.\n");
+  printf("[freekill-asio v%s] Welcome to CLI. Enter 'help' for usage hints.\n", FK_VERSION);
 
   while (true) {
     char *bytes = readline(prompt);

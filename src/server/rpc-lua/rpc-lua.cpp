@@ -497,7 +497,7 @@ void RpcLua::wait(int waitType, const char *method, int id) {
     received_pkt.reset();
     asio::error_code ec;
     auto read_sz = child_stdout.read_some(asio::buffer(buffer, max_length), ec);
-    if (ec != asio::no_error) {
+    if (ec) {
       spdlog::error("Error occured when reading child stdin: {}", ec.message());
       break;
     }

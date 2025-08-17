@@ -34,7 +34,12 @@ Room::~Room() {
     auto p = um.findPlayerByConnId(pConnId).lock();
     if (!p) continue;
 
-    um.deletePlayer(*p);
+    if (p->isOnline()) {
+      removePlayer(*p);
+      rm.lobby().lock()->addPlayer(*p);
+    } else {
+      um.deletePlayer(*p);
+    }
   }
   for (auto pConnId : obClone) {
     auto p = um.findPlayerByConnId(pConnId).lock();
@@ -49,7 +54,10 @@ Room::~Room() {
   }
 
   auto thr = Server::instance().getThread(m_thread_id).lock();
-  if (thr) thr->decreaseRefCount();
+  if (thr) {
+    thr->removeRoom(id);
+    thr->decreaseRefCount();
+  }
 
   rm.lobby().lock()->updateOnlineInfo();
 
@@ -373,6 +381,10 @@ bool Room::isOutdated() {
   return ret;
 }
 
+void Room::setOutdated() {
+  md5 = "";
+}
+
 bool Room::isStarted() { return getRefCount() > 0; }
 
 std::weak_ptr<RoomThread> Room::thread() const {
@@ -382,6 +394,7 @@ std::weak_ptr<RoomThread> Room::thread() const {
 void Room::setThread(RoomThread &t) {
   m_thread_id = t.id();
   md5 = t.getMd5();
+  t.addRoom(id);
   t.increaseRefCount();
 }
 

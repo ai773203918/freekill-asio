@@ -12,96 +12,6 @@
 #include <sys/wait.h>
 #include <cjson/cJSON.h>
 
-RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
-  child_stdin { ctx }, child_stdout { ctx }
-{
-  int stdin_pipe[2];  // [0]=read, [1]=write
-  int stdout_pipe[2]; // [0]=read, [1]=write
-  if (::pipe(stdin_pipe) == -1 || pipe(stdout_pipe) == -1) {
-    throw std::runtime_error("Failed to create pipes");
-  }
-
-  pid_t pid = fork();
-  if (pid == 0) { // child
-    // 关闭父进程用的 pipe 端
-    ::close(stdin_pipe[1]);  // 关闭父进程的写入端（子进程只读 stdin）
-    ::close(stdout_pipe[0]); // 关闭父进程的读取端（子进程只写 stdout）
-
-    // 重定向 stdin/stdout
-    ::dup2(stdin_pipe[0], STDIN_FILENO);   // 子进程的 stdin ← 父进程的写入端
-    ::dup2(stdout_pipe[1], STDOUT_FILENO); // 子进程的 stdout → 父进程的读取端
-    ::close(stdin_pipe[0]);
-    ::close(stdout_pipe[1]);
-
-    sigset_t newmask, oldmask;
-    sigemptyset(&newmask);
-    sigaddset(&newmask, SIGINT); // 阻塞 SIGINT
-    sigprocmask(SIG_BLOCK, &newmask, &oldmask);
-
-    if (int err = ::chdir("packages/freekill-core"); err != 0) {
-      std::cout << "!" << std::endl;
-      throw std::runtime_error(fmt::format("Cannot chdir into packages/freekill-core: {}\n\tYou must install freekill-core before starting the server.", strerror(errno)));
-      // ::_exit(err);
-    }
-
-    auto disabled_packs = PackMan::instance().getDisabledPacks();
-    cJSON *json_array = cJSON_CreateArray();
-    for (const auto& pack : disabled_packs) {
-      cJSON_AddItemToArray(json_array, cJSON_CreateString(pack.c_str()));
-    }
-    char *json_string = cJSON_PrintUnformatted(json_array);
-    ::setenv("FK_DISABLED_PACKS", json_string, 1);
-    free(json_string);
-    cJSON_Delete(json_array);
-
-    ::setenv("FK_RPC_MODE", "cbor", 1);
-    ::execlp("lua5.4", "lua5.4", "lua/server/rpc/entry.lua", nullptr);
-
-    ::_exit(EXIT_FAILURE);
-  } else if (pid > 0) { // 父进程
-    child_pid = pid;
-    // 转下文
-  } else {
-    throw std::runtime_error("Failed to fork process");
-  }
-
-  // 关闭子进程用的 pipe 端
-  close(stdin_pipe[0]);   // 关闭子进程的读取端（父进程只写 stdin）
-  close(stdout_pipe[1]);  // 关闭子进程的写入端（父进程只读 stdout）
-
-  child_stdin = { io_ctx, stdin_pipe[1] };
-  child_stdout = { io_ctx, stdout_pipe[0] };
-
-  size_t length = child_stdout.read_some(asio::buffer(buffer, max_length));
-#ifdef RPC_DEBUG
-  spdlog::debug("Me <-- {}", toHex({ buffer, length }));
-#endif
-  if ( std::string_view { buffer, length } == "!" ) {
-    // spdlog::error("Cannot chdir into packages/freekill-core: {}\nYou must install freekill-core before starting the server.", strerror(err));
-  }
-}
-
-RpcLua::~RpcLua() {
-  if (!alive()) return;
-
-  call("bye");
-
-  int wstatus;
-  int w = waitpid(child_pid, &wstatus, WUNTRACED);
-  if (w == -1) {
-    spdlog::error("waitpid() error: {}", strerror(errno));
-    return;
-  }
-
-  if (WIFEXITED(wstatus)) {
-    spdlog::info("child process exited, status={}", WEXITSTATUS(wstatus));
-  } else if (WIFSIGNALED(wstatus)) {
-    spdlog::info("killed by signal {}", WTERMSIG(wstatus));
-  } else if (WIFSTOPPED(wstatus)) {
-    spdlog::info("stopped by signal {}", WSTOPSIG(wstatus));
-  }
-}
-
 // 传过去的算上call和返回值只有int bytes和null... 毁灭吧
 static void sendParam(asio::posix::stream_descriptor &file, JsonRpcParam &param) {
   u_char buf[10]; size_t buflen;
@@ -421,11 +331,11 @@ struct RpcPacketBuilder {
   size_t param_count = 0;
   bool valid = false;
   int current_key;
-  int value_readed = 0;
-  int current_param_idx = 0;
+  size_t value_readed = 0;
+  size_t current_param_idx = 0;
   size_t error_key_count = 0;
   int current_err_key;
-  int error_value_readed = 0;
+  size_t error_value_readed = 0;
   JsonRpcPacket &pkt;
 };
 
@@ -496,27 +406,102 @@ static cbor_decoder_status readJsonRpcPacket(cbor_data &cbuf, size_t &len, JsonR
   }
 }
 
-void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param2, JsonRpcParam param3) {
-#ifdef RPC_DEBUG
-  spdlog::debug("L->call({})", func_name);
-#endif
+RpcLua::RpcLua(asio::io_context &ctx) : io_ctx { ctx },
+  child_stdin { ctx }, child_stdout { ctx }
+{
+  int stdin_pipe[2];  // [0]=read, [1]=write
+  int stdout_pipe[2]; // [0]=read, [1]=write
+  if (::pipe(stdin_pipe) == -1 || pipe(stdout_pipe) == -1) {
+    throw std::runtime_error("Failed to create pipes");
+  }
 
-  if (!alive()) {
-#ifdef RPC_DEBUG
-    spdlog::debug("Me <-- <process died>");
-#endif
+  pid_t pid = fork();
+  if (pid == 0) { // child
+    // 关闭父进程用的 pipe 端
+    ::close(stdin_pipe[1]);  // 关闭父进程的写入端（子进程只读 stdin）
+    ::close(stdout_pipe[0]); // 关闭父进程的读取端（子进程只写 stdout）
+
+    // 重定向 stdin/stdout
+    ::dup2(stdin_pipe[0], STDIN_FILENO);   // 子进程的 stdin ← 父进程的写入端
+    ::dup2(stdout_pipe[1], STDOUT_FILENO); // 子进程的 stdout → 父进程的读取端
+    ::close(stdin_pipe[0]);
+    ::close(stdout_pipe[1]);
+
+    sigset_t newmask, oldmask;
+    sigemptyset(&newmask);
+    sigaddset(&newmask, SIGINT); // 阻塞 SIGINT
+    sigprocmask(SIG_BLOCK, &newmask, &oldmask);
+
+    if (int err = ::chdir("packages/freekill-core"); err != 0) {
+      std::cout << "!" << std::endl;
+      throw std::runtime_error(fmt::format("Cannot chdir into packages/freekill-core: {}\n\tYou must install freekill-core before starting the server.", strerror(errno)));
+      // ::_exit(err);
+    }
+
+    auto disabled_packs = PackMan::instance().getDisabledPacks();
+    cJSON *json_array = cJSON_CreateArray();
+    for (const auto& pack : disabled_packs) {
+      cJSON_AddItemToArray(json_array, cJSON_CreateString(pack.c_str()));
+    }
+    char *json_string = cJSON_PrintUnformatted(json_array);
+    ::setenv("FK_DISABLED_PACKS", json_string, 1);
+    free(json_string);
+    cJSON_Delete(json_array);
+
+    ::setenv("FK_RPC_MODE", "cbor", 1);
+    ::execlp("lua5.4", "lua5.4", "lua/server/rpc/entry.lua", nullptr);
+
+    ::_exit(EXIT_FAILURE);
+  } else if (pid > 0) { // 父进程
+    child_pid = pid;
+    // 转下文
+  } else {
+    throw std::runtime_error("Failed to fork process");
+  }
+
+  // 关闭子进程用的 pipe 端
+  close(stdin_pipe[0]);   // 关闭子进程的读取端（父进程只写 stdin）
+  close(stdout_pipe[1]);  // 关闭子进程的写入端（父进程只读 stdout）
+
+  child_stdin = { io_ctx, stdin_pipe[1] };
+  child_stdout = { io_ctx, stdout_pipe[0] };
+
+  wait(WaitForNotification, "hello", 0);
+}
+
+RpcLua::~RpcLua() {
+  if (!alive()) return;
+
+  call("bye");
+
+  int wstatus;
+  int w = waitpid(child_pid, &wstatus, WUNTRACED);
+  if (w == -1) {
+    spdlog::error("waitpid() error: {}", strerror(errno));
     return;
   }
 
-  auto req = JsonRpc::request(func_name, param1, param2, param3);
-  auto id = req.id;
-  sendRequest(child_stdin, req);
+  if (WIFEXITED(wstatus)) {
+    spdlog::info("child process exited, status={}", WEXITSTATUS(wstatus));
+  } else if (WIFSIGNALED(wstatus)) {
+    spdlog::info("killed by signal {}", WTERMSIG(wstatus));
+  } else if (WIFSTOPPED(wstatus)) {
+    spdlog::info("stopped by signal {}", WSTOPSIG(wstatus));
+  }
+}
 
+void RpcLua::wait(int waitType, const char *method, int id) {
   JsonRpcPacket received_pkt;
 
   while (child_stdout.is_open() && alive()) {
     received_pkt.reset();
-    auto read_sz = child_stdout.read_some(asio::buffer(buffer, max_length));
+    asio::error_code ec;
+    auto read_sz = child_stdout.read_some(asio::buffer(buffer, max_length), ec);
+    if (ec != asio::no_error) {
+      spdlog::error("Error occured when reading child stdin: {}", ec.message());
+      break;
+    }
+
     cborBuffer.insert(cborBuffer.end(), buffer, buffer + read_sz);
     cbor_data cbuf = (cbor_data)cborBuffer.data(); size_t len = cborBuffer.size();
 
@@ -531,7 +516,8 @@ void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param
       if (stat == CBOR_DECODER_NEDATA) continue;
     }
 
-    if (received_pkt.id == id && received_pkt.method == "") {
+    if ((waitType == WaitForResponse && received_pkt.id == id && received_pkt.method == "") ||
+      (waitType == WaitForNotification && received_pkt.id == -1 && received_pkt.method == method)) {
 #ifdef RPC_DEBUG
       spdlog::debug("Me <-- returned {}", toHex({ buffer, read_sz }));
 #endif
@@ -564,6 +550,25 @@ void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param
 #ifdef RPC_DEBUG
   spdlog::debug("Me <-- IO read timeout. Is Lua process died?");
 #endif
+}
+
+void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param2, JsonRpcParam param3) {
+#ifdef RPC_DEBUG
+  spdlog::debug("L->call({})", func_name);
+#endif
+
+  if (!alive()) {
+#ifdef RPC_DEBUG
+    spdlog::debug("Me <-- <process died>");
+#endif
+    return;
+  }
+
+  auto req = JsonRpc::request(func_name, param1, param2, param3);
+  auto id = req.id;
+  sendRequest(child_stdin, req);
+
+  wait(WaitForResponse, "", id);
 }
 
 std::string RpcLua::getConnectionInfo() const {

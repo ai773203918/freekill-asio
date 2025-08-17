@@ -54,6 +54,7 @@ public:
   void delay(int ms);
 
   bool isOutdated();
+  void setOutdated();
 
   bool isStarted();
 

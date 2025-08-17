@@ -8,6 +8,8 @@
 #include "server/gamelogic/rpc-dispatchers.h"
 #include "server/user/player.h"
 #include "server/user/user_manager.h"
+#include "server/room/room_manager.h"
+#include "server/room/room.h"
 #include "server/rpc-lua/rpc-lua.h"
 
 #include <spdlog/spdlog.h>
@@ -119,9 +121,27 @@ void RoomThread::quit() {
   ::write(evt_fd, &value, sizeof(value));
 }
 
+void RoomThread::shutdown() {
+  md5 = ""; // outdated = true;
+
+  auto &rm = Server::instance().room_manager();
+  for (auto roomId : m_rooms) {
+    auto room = rm.findRoom(roomId).lock();
+    if (!room) continue;
+
+    // 无论如何都减一下 因为Lua肯定不存在了
+    room->decreaseRefCount();
+
+    room->setOutdated();
+    room->doBroadcastNotify(room->getPlayers(), "ErrorDlg", "Server Internal Error");
+    rm.removeRoom(roomId);
+  }
+}
+
 void RoomThread::emit_signal(std::function<void()> f) {
   if (!L->alive()) {
-    md5 = ""; // outdated = true;
+    spdlog::error("Lua is not working ({}). Shutting down thread {}.", L->getConnectionInfo(), m_id);
+    shutdown();
     return;
   }
   if (std::this_thread::get_id() == m_thread.get_id()) {
@@ -193,5 +213,15 @@ void RoomThread::decreaseRefCount() {
     asio::post(Server::instance().context(), [this](){
       Server::instance().removeThread(m_id);
     });
+  }
+}
+
+void RoomThread::addRoom(int roomId) {
+  m_rooms.push_back(roomId);
+}
+
+void RoomThread::removeRoom(int roomId) {
+  if (auto it = std::find(m_rooms.begin(), m_rooms.end(), roomId); it != m_rooms.end()) {
+    m_rooms.erase(it);
   }
 }

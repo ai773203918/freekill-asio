@@ -39,6 +39,9 @@ public:
   void increaseRefCount();
   void decreaseRefCount();
 
+  void addRoom(int roomId);
+  void removeRoom(int roomId);
+
 private:
   int m_id = 0;
 
@@ -51,6 +54,7 @@ private:
   std::unique_ptr<RpcLua> L;
 
   void start();
+  void shutdown();
 
   // signals
   std::function<void(const std::string& req)> push_request_callback = nullptr;

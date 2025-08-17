@@ -102,7 +102,9 @@ void Shell::lspCommand(StringList &) {
   }
   spdlog::info("Current {} online player(s) are:", players.size());
   for (auto &[_, player] : players) {
-    spdlog::info("{}, {}", player->getId(), player->getScreenName());
+    spdlog::info("{} {{id:{}, connId:{}, state:{}}}",
+                 player->getScreenName(), player->getId(),
+                 player->getConnId(), player->getStateString());
   }
 }
 
@@ -123,18 +125,24 @@ void Shell::lsrCommand(StringList &list) {
         auto lobby = room_manager.lobby().lock();
         for (auto &[pid, _] : lobby->getPlayers()) {
           auto p = user_manager.findPlayerByConnId(pid).lock();
-          if (p) spdlog::info("{}, {}", p->getId(), p->getScreenName());
+          if (!p) continue;
+          spdlog::info("{} {{id:{}, connId:{}, state:{}}}",
+                       p->getScreenName(), p->getId(),
+                       p->getConnId(), p->getStateString());
         }
       }
     } else {
       auto pw = room->getPassword();
-      spdlog::info("{}, {} [pw={}]", room->getId(), room->getName(),
-        pw == "" ? "<nil>" : pw);
+      spdlog::info("{}, {} {{mode:{}, running={}, pw:{}}}", room->getId(), room->getName(),
+        room->getGameMode(), room->isStarted(), pw == "" ? "<nil>" : pw);
       spdlog::info("Players in this room:");
 
       for (auto pid : room->getPlayers()) {
         auto p = user_manager.findPlayerByConnId(pid).lock();
-        if (p) spdlog::info("{}, {}", p->getId(), p->getScreenName());
+        if (!p) continue;
+        spdlog::info("{} {{id:{}, connId:{}, state:{}}}",
+                     p->getScreenName(), p->getId(),
+                     p->getConnId(), p->getStateString());
       }
     }
 
@@ -149,8 +157,8 @@ void Shell::lsrCommand(StringList &list) {
   spdlog::info("Current {} running rooms are:", rooms.size());
   for (auto &[_, room] : rooms) {
     auto pw = room->getPassword();
-    spdlog::info("{}, {} [pw={}]", room->getId(), room->getName(),
-                 pw == "" ? "<nil>" : pw);
+    spdlog::info("{}, {} {{mode:{}, running={}, pw:{}}}", room->getId(), room->getName(),
+                 room->getGameMode(), room->isStarted(), pw == "" ? "<nil>" : pw);
   }
 }
 
@@ -225,6 +233,7 @@ void Shell::lspkgCommand(StringList &) {
 
 void Shell::syncpkgCommand(StringList &) {
   PackMan::instance().syncCommitHashToDatabase();
+  Server::instance().refreshMd5();
   spdlog::info("Done.");
 }
 
@@ -870,76 +879,70 @@ static char *repo_generator(const char *text, int state) {
 }
 
 static char *package_generator(const char *text, int state) {
-  /*
-  static QJsonArray arr;
-  static int list_index, len;
+  static Sqlite3::QueryResult arr;
+  static size_t list_index, len;
   const char *name;
 
   if (state == 0) {
-    arr = QJsonDocument::fromJson(PackMan::instance().listPackages().toUtf8()).array();
+    arr = PackMan::instance().listPackages();
     list_index = 0;
     len = strlen(text);
   }
 
-  while (list_index < arr.count()) {
-    name = arr[list_index].toObject().value("name").toString().toUtf8().constData();
+  while (list_index < arr.size()) {
+    name = arr[list_index].at("name").c_str();
     ++list_index;
     if (strncmp(name, text, len) == 0) {
       return strdup(name);
     }
   }
-  */
 
   return NULL;
 }
 
 static char *user_generator(const char *text, int state) {
-  /*
   // TODO: userinfo表需要一个cache机制
   static Sqlite3::QueryResult arr;
-  static int list_index, len;
+  static size_t list_index, len;
   const char *name;
 
   if (state == 0) {
-    arr = Server::instance().database()->select("SELECT name FROM userinfo;");
+    arr = Server::instance().database().select("SELECT name FROM userinfo;");
     list_index = 0;
     len = strlen(text);
   }
 
-  while (list_index < arr.count()) {
-    name = arr[list_index]["name"].toUtf8().constData();
+  while (list_index < arr.size()) {
+    name = arr[list_index]["name"].c_str();
     ++list_index;
     if (strncmp(name, text, len) == 0) {
       return strdup(name);
     }
   }
-  */
 
   return NULL;
 };
 
 static char *banned_user_generator(const char *text, int state) {
-  /*
   // TODO: userinfo表需要一个cache机制
   static Sqlite3::QueryResult arr;
-  static int list_index, len;
+  static size_t list_index, len;
   const char *name;
-  auto db = Server::instance().database();
+  auto &db = Server::instance().database();
 
   if (state == 0) {
-    arr = db->select("SELECT name FROM userinfo WHERE banned = 1;");
+    arr = db.select("SELECT name FROM userinfo WHERE banned = 1;");
     list_index = 0;
     len = strlen(text);
   }
 
-  while (list_index < arr.count()) {
-    name = arr[list_index]["name"].toUtf8().constData();
+  while (list_index < arr.size()) {
+    name = arr[list_index]["name"].c_str();
     ++list_index;
     if (strncmp(name, text, len) == 0) {
       return strdup(name);
     }
   }
-  */
 
   return NULL;
 };
@@ -961,10 +964,11 @@ static char **fk_completion(const char* text, int start, int end) {
     auto command = command_list[0];
     if (command == "install") {
       matches = rl_completion_matches(text, repo_generator);
-    } else if (command == "remove" || command == "upgrade"
+    } else if (command == "remove" || command == "upgrade" || command == "u"
         || command == "enable" || command == "disable") {
       matches = rl_completion_matches(text, package_generator);
-    } else if (command.starts_with("ban") || command == "resetpassword" || command == "rp") {
+    } else if (command.starts_with("ban") || command == "tempban"
+        || command == "resetpassword" || command == "rp") {
       matches = rl_completion_matches(text, user_generator);
     } else if (command.starts_with("unban")) {
       matches = rl_completion_matches(text, banned_user_generator);

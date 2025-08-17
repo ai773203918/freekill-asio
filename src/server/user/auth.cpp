@@ -76,6 +76,9 @@ struct AuthManagerPrivate {
 
 AuthManagerPrivate::AuthManagerPrivate() {
   rsa = RSA_new();
+  if (!std::filesystem::is_directory("server")) {
+    throw std::runtime_error("server/ is not a directory so I can't generate key pairs. Quitting!");
+  }
   if (!std::filesystem::exists("server/rsa_pub")) {
     BIGNUM *bne = BN_new();
     BN_set_word(bne, RSA_F4);

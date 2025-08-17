@@ -6,11 +6,6 @@
 
 namespace fs = std::filesystem;
 
-// Forward declarations
-void writeFileMD5(std::ofstream &dest, const std::string &fname);
-void writeDirMD5(std::ofstream &dest, const std::string &dir, const std::regex &filter_re);
-void writePkgsMD5(std::ofstream &dest, const std::string &dir, const std::string &filter_pattern);
-
 // Read file content, normalize \r\n → \n, compute MD5
 std::string computeFileMD5(const std::string &fname) {
   std::ifstream file(fname, std::ios::binary);
@@ -42,13 +37,13 @@ std::string computeFileMD5(const std::string &fname) {
 }
 
 // Write file MD5: "filename=md5;"
-void writeFileMD5(std::ofstream &dest, const std::string &fname) {
+void writeFileMD5(std::ostringstream &dest, const std::string &fname) {
   std::string hash = computeFileMD5(fname);
   dest << fname << '=' << hash << ';';
 }
 
 // Recursively write all files matching regex (sorted by name), dirs first in name order
-void writeDirMD5(std::ofstream &dest, const std::string &dir, const std::regex &filter_re) {
+void writeDirMD5(std::ostringstream &dest, const std::string &dir, const std::regex &filter_re) {
   fs::path path(dir);
 
   if (!fs::exists(path) || !fs::is_directory(path)) {
@@ -79,7 +74,7 @@ void writeDirMD5(std::ofstream &dest, const std::string &dir, const std::regex &
 }
 
 // Handle packages: scan top-level dirs under "packages", skip .disabled, disabled packs, and built-ins
-void writePkgsMD5(std::ofstream &dest, const std::string &base_dir, const std::string &filter_pattern) {
+void writePkgsMD5(std::ostringstream &dest, const std::string &base_dir, const std::string &filter_pattern) {
   fs::path path(base_dir);
   if (!fs::exists(path) || !fs::is_directory(path)) {
     return;
@@ -118,32 +113,25 @@ void writePkgsMD5(std::ofstream &dest, const std::string &base_dir, const std::s
 std::string calcFileMD5() {
   const std::string flist_path = "flist.txt";
 
-  std::ofstream flist(flist_path, std::ios::out | std::ios::trunc);
-  if (!flist.is_open()) {
-    spdlog::error("Cannot open flist.txt. Quitting.");
-    std::exit(1);
-  }
-
+  std::ostringstream flist;
+  
   writePkgsMD5(flist, "packages", "^.*\\.lua$");
   writePkgsMD5(flist, "packages", "^.*\\.qml$");
   writePkgsMD5(flist, "packages", "^.*\\.js$");
 
-  flist.close();
+  std::ofstream flist_file(flist_path, std::ios::out | std::ios::trunc);
+  if (!flist_file.is_open()) {
+    spdlog::warn("Cannot open flist.txt. Quitting.");
+  } else {
+    flist_file << flist.str();
+    flist_file.close();
+  }
 
   // Now compute MD5 of the generated flist.txt
-  std::ifstream input(flist_path, std::ios::binary);
-  if (!input.is_open()) {
-    spdlog::error("Cannot reopen flist.txt for hashing.");
-    std::exit(1);
-  }
-
+  std::string content = flist.str();
   MD5_CTX md5_ctx;
   MD5_Init(&md5_ctx);
-
-  char buffer[4096];
-  while (input.read(buffer, sizeof(buffer)) || input.gcount() > 0) {
-    MD5_Update(&md5_ctx, buffer, input.gcount());
-  }
+  MD5_Update(&md5_ctx, content.data(), content.size());
 
   unsigned char digest[MD5_DIGEST_LENGTH];
   MD5_Final(digest, &md5_ctx);

@@ -25,6 +25,12 @@ private:
   pid_t child_pid;
   asio::posix::stream_descriptor child_stdin;   // 父进程写入子进程 stdin
   asio::posix::stream_descriptor child_stdout;  // 父进程读取子进程 stdout
+  
+  enum WaitType {
+    WaitForNotification,
+    WaitForResponse,
+  };
+  void wait(int waitType, const char *method, int id);
 
   enum { max_length = 32768 };
   char buffer[max_length];

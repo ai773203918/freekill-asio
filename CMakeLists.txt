@@ -38,6 +38,9 @@ add_subdirectory(src)
 install(TARGETS freekill-asio DESTINATION bin)
 install(FILES
   ${PROJECT_SOURCE_DIR}/packages/init.sql
+  DESTINATION share/freekill-asio/packages
+)
+install(FILES
   ${PROJECT_SOURCE_DIR}/server/init.sql
-  DESTINATION share/freekill-asio
+  DESTINATION share/freekill-asio/server
 )

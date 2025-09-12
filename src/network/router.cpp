@@ -50,7 +50,6 @@ void Router::request(int type, const std::string_view &command,
   requestId++;
   if (requestId > 10000000) requestId = 1;
 
-  std::lock_guard<std::mutex> lock(replyMutex);
   expectedReplyId = requestId;
   replyTimeout = timeout;
 
@@ -58,7 +57,9 @@ void Router::request(int type, const std::string_view &command,
   requestStartTime =
     duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
+  replyMutex.lock();
   m_reply = "__notready";
+  replyMutex.unlock();
 
   sendMessage(Cbor::encodeArray({
     requestId,

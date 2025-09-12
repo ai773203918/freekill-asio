@@ -62,16 +62,16 @@ static void show_usage(const char *prog) {
 }
 
 static void print_version() {
-  puts(
-    "freekill-asio (Non-Qt FreeKill server) v0.0.1\n"
+  printf(
+    "freekill-asio (Non-Qt FreeKill server) v%s\n"
     "Copyright (C) 2025, Qsgs-Fans.\n"
     "License GPLv3: GNU GPL version 3 <https://gnu.org/licenses/gpl.html>.\n"
     "This is free software: you are free to change and redistribute it.\n"
     "There is NO WARRANTY, to the extent permitted by law.\n"
     "\n"
     "Written by Notify-ctrl and others; see\n"
-    "<https://github.com/Qsgs-Fans/freekill-asio>."
-  );
+    "<https://github.com/Qsgs-Fans/freekill-asio>.",
+    FK_VERSION);
 }
 
 struct cmdConfig {

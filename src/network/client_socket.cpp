@@ -19,7 +19,7 @@ void ClientSocket::start() {
   m_socket.async_read_some(
     asio::buffer(m_data, max_length),
     [this, self](asio::error_code err, std::size_t length) {
-      if (!err && self.lock()) {
+      if (auto c = self.lock(); !err && c) {
         auto stat = handleBuffer(length);
         if (stat != CBOR_DECODER_ERROR) {
           // 再次read_some

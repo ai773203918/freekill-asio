@@ -37,7 +37,7 @@ $ ./freekill-asio
 手动构建运行
 --------------
 
-本服务端只支持Linux，且手动构建运行至少需要Debian11(需要至少g++ 10.2，用到了一些C++20特性)。推荐用尽可能新的版本。
+本服务端只支持Linux，且手动构建运行至少需要Debian13。推荐用尽可能新的版本。
 
 ### 安装依赖
 
@@ -50,47 +50,15 @@ $ sudo apt install libasio-dev libssl-dev libcbor-dev libcjson-dev libsqlite3-de
 
 其余版本较新的发行版（如Arch、Kali等）安装依赖方式与此大同小异。
 
-**Debian 11, 12:**
-
-推荐将整个系统升级到Debian 13，或者按下面所述单独手动编译安装spdlog，因为对spdlog库版本要求稍微较高：
-
-```sh
-$ sudo apt install git g++ cmake pkg-config
-$ sudo apt install libasio-dev libssl-dev libcbor-dev libcjson-dev libsqlite3-dev libgit2-dev libreadline-dev
-
-$ git clone https://github.com/gabime/spdlog.git
-$ cd spdlog && mkdir build && cd build
-$ cmake .. && cmake --build .
-$ sudo cmake --install .
-```
-
 ### 另外安装Lua的依赖
 
 freekill-asio并不直接将Lua嵌入到自己执行，而是将Lua作为子进程执行，这需要系统安装了lua5.4。
 
-**Debian 11, 12, 13:**
+**Debian 13:**
 
 ```sh
 $ sudo apt install lua5.4 lua-socket lua-filesystem
 ```
-
-> **Debian11 附注:**
->
-> 由于无法安装Qt6Core，改为安装`qtbase5-dev`包。
->
-> 由于apt提供的lua-socket没有5.4版，需要手动处理。apt提供的luarocks亦没有5.4版，因此我们全部都需要手动安装：
->
-> ```sh
-> $ sudo apt install build-essential libreadline-dev liblua5.4-dev unzip
-> $ wget https://luarocks.github.io/luarocks/releases/luarocks-3.12.2.tar.gz
-> $ tar xf luarocks-3.12.2.tar.gz && cd luarocks-3.12.2
-> $ ./configure
-> $ make
-> $ sudo make install
-> $ sudo luarocks install LuaSocket
-> ```
->
-> 结论是不要用Debian11安装。直接用13吧，所有全部apt搞定。
 
 ### 构建
 
@@ -125,7 +93,7 @@ fk-asio> install https://gitee.com/Qsgs-Fans/freekill-core
 
 仅测试过Linux (GCC 10+)
 
-- Linux (Debian 11+, Arch)
+- Linux (Debian 13+, Arch)
 
 若为Release中的静态编译版，则测试过了：
 

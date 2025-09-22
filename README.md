@@ -50,15 +50,23 @@ $ sudo apt install libasio-dev libssl-dev libcbor-dev libcjson-dev libsqlite3-de
 
 其余版本较新的发行版（如Arch、Kali等）安装依赖方式与此大同小异。
 
-### 另外安装Lua的依赖
-
 freekill-asio并不直接将Lua嵌入到自己执行，而是将Lua作为子进程执行，这需要系统安装了lua5.4。
-
-**Debian 13:**
 
 ```sh
 $ sudo apt install lua5.4 lua-socket lua-filesystem
 ```
+
+**Windows (WSL2 + Alpine Linux)**
+
+再介绍windows上基于wsl2和alpine linux的环境搭建方案。Alpine Linux是非常精简的Linux发行版，相比debian能够节省更多资源，当然你也可以用wsl2和debian搭。
+
+```sh
+$ apk add git cmake build-base
+$ apk add sqlite-dev readline-dev cjson-dev spdlog-dev asio-dev libgit2-dev libcbor-dev cjson-static
+$ apk add lua5.4 lua5.4-socket lua5.4-filesystem
+```
+
+之后的步骤一致，但是可以看到alpine占用的磁盘空间更低。
 
 ### 构建
 

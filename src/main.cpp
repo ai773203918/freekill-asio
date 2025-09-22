@@ -75,7 +75,7 @@ static void print_version() {
 }
 
 struct cmdConfig {
-  ushort port = 9527;
+  uint16_t port = 9527;
 };
 
 static bool parse_opt(int argc, char **argv, cmdConfig &cfg) {
@@ -102,7 +102,7 @@ static bool parse_opt(int argc, char **argv, cmdConfig &cfg) {
           std::srand(static_cast<unsigned int>(std::time(nullptr)));
           port = std::rand() % (65535 - 1024 + 1) + 1024;
         }
-        cfg.port = (ushort)port;
+        cfg.port = (uint16_t)port;
         break;
       }
       default:

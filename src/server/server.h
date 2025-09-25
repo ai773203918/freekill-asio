@@ -51,6 +51,7 @@ public:
   UserManager &user_manager();
   RoomManager &room_manager();
   Sqlite3 &database();
+  Sqlite3 &gameDatabase();  // gamedb的getter
   Shell &shell();
 
   void sendEarlyPacket(ClientSocket &client, const std::string_view &type, const std::string_view &msg);
@@ -88,6 +89,7 @@ private:
   std::unique_ptr<ServerSocket> m_socket;
 
   std::unique_ptr<Sqlite3> db;
+  std::unique_ptr<Sqlite3> gamedb;  // 存档变量
   std::mutex transaction_mutex;
 
   std::unordered_map<int, std::shared_ptr<RoomThread>> m_threads;

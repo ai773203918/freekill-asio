@@ -18,6 +18,7 @@
 /freekill-asio
 /server/*
 !/server/init.sql
+!/server/gamedb_init.sql
 /freekill.server.config.json
 /freekill.server.*log
 /freekill.*log

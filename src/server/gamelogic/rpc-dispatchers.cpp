@@ -379,6 +379,83 @@ static _rpcRet _rpc_Room_decreaseRefCount(const JsonRpcPacket &packet) {
   return { true, nullVal };
 }
 
+static _rpcRet _rpc_Player_saveState(const JsonRpcPacket &packet) {
+  if (!(packet.param_count == 2 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<std::string_view>(packet.param2)
+  )) {
+    return { false, nullVal };
+  }
+
+  auto connId = std::get<int>(packet.param1);
+  auto jsonData = std::get<std::string_view>(packet.param2);
+
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
+  if (!player) {
+    return { false, nullVal };
+  }
+
+  player->saveState(jsonData);
+  return { true, nullVal };
+}
+
+static _rpcRet _rpc_Player_getSaveState(const JsonRpcPacket &packet) {
+  if (!(packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
+    return { false, nullVal };
+  }
+
+  auto connId = std::get<int>(packet.param1);
+
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
+  if (!player) {
+    return { false, nullVal };
+  }
+
+  std::string result = player->getSaveState();
+  return { true, result };
+}
+
+static _rpcRet _rpc_Player_saveGlobalState(const JsonRpcPacket &packet) {
+  if (!(packet.param_count == 2 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<std::string_view>(packet.param2)
+  )) {
+    return { false, nullVal };
+  }
+
+  auto connId = std::get<int>(packet.param1);
+  auto jsonData = std::get<std::string_view>(packet.param2);
+
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
+  if (!player) {
+    return { false, nullVal };
+  }
+
+  player->saveGlobalState(jsonData);
+  return { true, nullVal };
+}
+
+static _rpcRet _rpc_Player_getGlobalSaveState(const JsonRpcPacket &packet) {
+  if (!(packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
+    return { false, nullVal };
+  }
+
+  auto connId = std::get<int>(packet.param1);
+
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
+  if (!player) {
+    return { false, nullVal };
+  }
+
+  std::string result = player->getGlobalSaveState();
+  return { true, result };
+}
+
+
 // 收官：getRoom
 
 std::string RpcDispatchers::getPlayerObject(Player &p) {
@@ -499,6 +576,10 @@ const JsonRpc::RpcMethodMap RpcDispatchers::ServerRpcMethods {
   { "ServerPlayer_setThinking", _rpc_Player_setThinking },
   { "ServerPlayer_setDied", _rpc_Player_setDied },
   { "ServerPlayer_emitKick", _rpc_Player_emitKick },
+  { "ServerPlayer_saveState", _rpc_Player_saveState },
+  { "ServerPlayer_getSaveState", _rpc_Player_getSaveState },
+  { "ServerPlayer_saveGlobalState", _rpc_Player_saveGlobalState },
+  { "ServerPlayer_getGlobalSaveState", _rpc_Player_getGlobalSaveState },
 
   { "Room_delay", _rpc_Room_delay },
   { "Room_updatePlayerWinRate", _rpc_Room_updatePlayerWinRate },

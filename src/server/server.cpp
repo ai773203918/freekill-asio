@@ -36,6 +36,7 @@ Server::Server() : m_socket { nullptr } {
   main_thread_id = std::this_thread::get_id();
 
   db = std::make_unique<Sqlite3>();
+  gamedb = std::make_unique<Sqlite3>("./server/game.db", "./server/gamedb_init.sql");  // 初始化
 
   reloadConfig();
   refreshMd5();
@@ -114,6 +115,10 @@ RoomManager &Server::room_manager() {
 
 Sqlite3 &Server::database() {
   return *db;
+}
+
+Sqlite3 &Server::gameDatabase() {
+  return *gamedb;
 }
 
 Shell &Server::shell() {

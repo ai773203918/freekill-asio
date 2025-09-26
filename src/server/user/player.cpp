@@ -403,14 +403,6 @@ std::string Player::getSaveState() {
   return readSaveState(mode);
 }
 
-void Player::saveGlobalState(std::string_view jsonData) {
-  writeSaveState("__global__", jsonData);
-}
-
-std::string Player::getGlobalSaveState() {
-  return readSaveState("__global__");
-}
-
 void Player::writeSaveState(std::string mode, std::string_view jsonData) {
   if (!Sqlite3::checkString(mode)) {
     spdlog::error("Invalid mode string for saveState: {}", mode);
@@ -421,7 +413,7 @@ void Player::writeSaveState(std::string mode, std::string_view jsonData) {
   auto &gamedb = Server::instance().gameDatabase();
   auto sql = fmt::format("REPLACE INTO gameSaves (uid, mode, data) VALUES ({},'{}',X'{}')", id, mode, hexData);
 
-  gamedb.exec(sql);;
+  gamedb.exec(sql);
 }
 
 std::string Player::readSaveState(std::string mode) {
@@ -432,6 +424,42 @@ std::string Player::readSaveState(std::string mode) {
 
   auto sql = fmt::format("SELECT data FROM gameSaves WHERE uid = {} AND mode = '{}'", id, mode);
 
+  auto result = Server::instance().gameDatabase().select(sql);
+  if (result.empty() || result[0].count("data") == 0 || result[0]["data"] == "#null") {
+    return "{}";
+  }
+
+  const auto& data = result[0]["data"];
+  if (!data.empty() && (data[0] == '{' || data[0] == '[')) {
+    return data;
+  }
+
+  spdlog::warn("Returned data is not valid JSON: {}", data);
+  return "{}";
+}
+
+void Player::saveGlobalState(std::string_view key, std::string_view jsonData) {
+  if (!Sqlite3::checkString(key)) {
+    spdlog::error("Invalid key string for saveGlobalState: {}", std::string(key));
+    return;
+  }
+
+  auto hexData = toHex(jsonData);
+  auto &gamedb = Server::instance().gameDatabase();
+  auto sql = fmt::format("REPLACE INTO globalSaves (uid, key, data) VALUES ({},'{}',X'{}')", id, key, hexData);
+  
+  gamedb.exec(sql);
+}
+
+
+std::string Player::getGlobalSaveState(std::string_view key) {
+  if (!Sqlite3::checkString(key)) {
+    spdlog::error("Invalid key string for getGlobalSaveState: {}", std::string(key));
+    return "{}";
+  }
+
+  auto sql = fmt::format("SELECT data FROM globalSaves WHERE uid = {} AND key = '{}'", id, key);
+  
   auto result = Server::instance().gameDatabase().select(sql);
   if (result.empty() || result[0].count("data") == 0 || result[0]["data"] == "#null") {
     return "{}";

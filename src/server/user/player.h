@@ -100,8 +100,8 @@ public:
   void saveState(std::string_view jsonData);
   std::string getSaveState();
   // 全局存档
-  void saveGlobalState(std::string_view jsonData);
-  std::string getGlobalSaveState();
+  void saveGlobalState(std::string_view key, std::string_view jsonData);
+  std::string getGlobalSaveState(std::string_view key);
 
 private:
   int id = 0;

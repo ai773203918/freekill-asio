@@ -418,6 +418,28 @@ static _rpcRet _rpc_Player_getSaveState(const JsonRpcPacket &packet) {
 }
 
 static _rpcRet _rpc_Player_saveGlobalState(const JsonRpcPacket &packet) {
+  if (!(packet.param_count == 3 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<std::string_view>(packet.param2) &&
+    std::holds_alternative<std::string_view>(packet.param3)
+  )) {
+    return { false, nullVal };
+  }
+
+  auto connId = std::get<int>(packet.param1);
+  auto key = std::get<std::string_view>(packet.param2);
+  auto jsonData = std::get<std::string_view>(packet.param3);
+
+  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
+  if (!player) {
+    return { false, nullVal };
+  }
+
+  player->saveGlobalState(key, jsonData);
+  return { true, nullVal };
+}
+
+static _rpcRet _rpc_Player_getGlobalSaveState(const JsonRpcPacket &packet) {
   if (!(packet.param_count == 2 &&
     std::holds_alternative<int>(packet.param1) &&
     std::holds_alternative<std::string_view>(packet.param2)
@@ -426,32 +448,14 @@ static _rpcRet _rpc_Player_saveGlobalState(const JsonRpcPacket &packet) {
   }
 
   auto connId = std::get<int>(packet.param1);
-  auto jsonData = std::get<std::string_view>(packet.param2);
+  auto key = std::get<std::string_view>(packet.param2);
 
   auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
   if (!player) {
     return { false, nullVal };
   }
 
-  player->saveGlobalState(jsonData);
-  return { true, nullVal };
-}
-
-static _rpcRet _rpc_Player_getGlobalSaveState(const JsonRpcPacket &packet) {
-  if (!(packet.param_count == 1 &&
-    std::holds_alternative<int>(packet.param1)
-  )) {
-    return { false, nullVal };
-  }
-
-  auto connId = std::get<int>(packet.param1);
-
-  auto player = Server::instance().user_manager().findPlayerByConnId(connId).lock();
-  if (!player) {
-    return { false, nullVal };
-  }
-
-  std::string result = player->getGlobalSaveState();
+  std::string result = player->getGlobalSaveState(key);
   return { true, result };
 }
 

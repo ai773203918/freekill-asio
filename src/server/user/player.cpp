@@ -386,24 +386,14 @@ void Player::onReadyChanged() {
 }
 
 void Player::saveState(std::string_view jsonData) {
+  if (id < 0) return;
+
   auto room_base = getRoom().lock();
   if (!room_base) return;
   auto room = dynamic_pointer_cast<Room>(room_base);
   if (!room) return;
   std::string mode { room->getGameMode() };
-  writeSaveState(mode, jsonData);
-}
 
-std::string Player::getSaveState() {
-  auto room_base = getRoom().lock();
-  if (!room_base) return "{}";
-  auto room = dynamic_pointer_cast<Room>(room_base);
-  if (!room) return "{}";
-  std::string mode { room->getGameMode() };
-  return readSaveState(mode);
-}
-
-void Player::writeSaveState(std::string mode, std::string_view jsonData) {
   if (!Sqlite3::checkString(mode)) {
     spdlog::error("Invalid mode string for saveState: {}", mode);
     return;
@@ -416,7 +406,13 @@ void Player::writeSaveState(std::string mode, std::string_view jsonData) {
   gamedb.exec(sql);
 }
 
-std::string Player::readSaveState(std::string mode) {
+std::string Player::getSaveState() {
+  auto room_base = getRoom().lock();
+  if (!room_base) return "{}";
+  auto room = dynamic_pointer_cast<Room>(room_base);
+  if (!room) return "{}";
+  std::string mode { room->getGameMode() };
+
   if (!Sqlite3::checkString(mode)) {
     spdlog::error("Invalid mode string for readSaveState: {}", mode);
     return "{}";
@@ -439,6 +435,8 @@ std::string Player::readSaveState(std::string mode) {
 }
 
 void Player::saveGlobalState(std::string_view key, std::string_view jsonData) {
+  if (id < 0) return;
+
   if (!Sqlite3::checkString(key)) {
     spdlog::error("Invalid key string for saveGlobalState: {}", std::string(key));
     return;
@@ -450,7 +448,6 @@ void Player::saveGlobalState(std::string_view key, std::string_view jsonData) {
   
   gamedb.exec(sql);
 }
-
 
 std::string Player::getGlobalSaveState(std::string_view key) {
   if (!Sqlite3::checkString(key)) {

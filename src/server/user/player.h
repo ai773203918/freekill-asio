@@ -132,7 +132,4 @@ private:
 
   int64_t gameTime = 0; // 在这个房间的有效游戏时长(秒)
   int64_t gameTimerStartTimestamp;
-
-  void writeSaveState(std::string mode, std::string_view jsonData);
-  std::string readSaveState(std::string mode);
 };

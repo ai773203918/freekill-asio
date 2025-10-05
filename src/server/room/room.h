@@ -135,4 +135,6 @@ private:
   void kickPlayer(Player &, const Packet &);
   void ready(Player &, const Packet &);
   void startGame(Player &, const Packet &);
+  void trust(Player &, const Packet &);
+
 };

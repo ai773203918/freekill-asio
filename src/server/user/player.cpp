@@ -211,7 +211,7 @@ std::string Player::waitForReply(int timeout) {
 }
 
 void Player::doNotify(const std::string_view &command, const std::string_view &data) {
-  if (getState() != Player::Online)
+  if (!isOnline())
     return;
 
   // spdlog::debug("[TX](id={} connId={} state={} Room={}): {} {}", id, connId, getStateString(), roomId, command, toHex(data));

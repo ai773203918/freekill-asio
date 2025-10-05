@@ -666,6 +666,11 @@ void Room::_gameOver() {
       addRunRate(p->getId(), mode);
     }
 
+    // 游戏结束变回来
+    if (p->getState() == Player::Trust) {
+      p->setState(Player::Online);
+    }
+
     // 踢了并非人类，但是注意下面的两个kick不会释放player
     if (!p->isOnline()) {
       if (p->getState() == Player::Offline) {
@@ -826,6 +831,23 @@ void Room::kickPlayer(Player &player, const Packet &pkt) {
   });
 }
 
+void Room::trust(Player &player, const Packet &pkt) {
+  // 仅在对局中允许托管
+  if (!isStarted()) return;
+
+  // 将玩家置为托管
+  if (player.getState() != Player::Trust) {
+    player.setState(Player::Trust);
+    if (player.thinking()) {
+      auto thread = this->thread().lock();
+      if (thread) thread->wakeUp(id, "player_trust");
+    }
+  } else {
+    player.setState(Player::Online);
+  }
+}
+
+
 void Room::ready(Player &player, const Packet &) {
   setPlayerReady(player, !player.isReady());
 }
@@ -853,9 +875,9 @@ void Room::handlePacket(Player &sender, const Packet &packet) {
     {"KickPlayer", &Room::kickPlayer},
     {"Ready", &Room::ready},
     {"StartGame", &Room::startGame},
+    {"Trust", &Room::trust},
     {"Chat", &Room::chat},
   };
-
   if (packet.command == "PushRequest") {
     std::string_view sv;
     auto ret = cbor_stream_decode(

@@ -207,7 +207,7 @@ FAIL:
 
 bool AuthManager::checkVersion() {
   semver::range_set range;
-  semver::parse(">=0.5.11", range);
+  semver::parse(">=0.5.11 <0.6.0", range);
 
   auto client = p_ptr->client.lock();
   if (!client) return false;

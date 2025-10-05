@@ -70,8 +70,10 @@ static void print_version() {
     "There is NO WARRANTY, to the extent permitted by law.\n"
     "\n"
     "Written by Notify-ctrl and others; see\n"
-    "<https://github.com/Qsgs-Fans/freekill-asio>.",
-    FK_VERSION);
+    "<https://github.com/Qsgs-Fans/freekill-asio>.\n",
+
+    FK_VERSION
+  );
 }
 
 struct cmdConfig {

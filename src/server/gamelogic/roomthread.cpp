@@ -98,7 +98,7 @@ asio::io_context &RoomThread::context() {
 
 void RoomThread::start() {
   evt_fd = ::eventfd(0, 0);
-  m_thread = std::thread([&](){
+  m_thread = std::thread([&] {
     // 直到调用quit()写evt_fd之前都让他一直等下去
     asio::posix::stream_descriptor eventfd_desc(io_ctx, evt_fd);
     char buf[16];
@@ -152,27 +152,27 @@ void RoomThread::emit_signal(std::function<void()> f) {
 }
 
 void RoomThread::pushRequest(const std::string &req) {
-  emit_signal(std::bind(push_request_callback, req));
+  emit_signal([&] { push_request_callback(req); });
 }
 
 void RoomThread::delay(int roomId, int ms) {
-  emit_signal(std::bind(delay_callback, roomId, ms));
+  emit_signal([=, this] { delay_callback(roomId, ms); });
 }
 
 void RoomThread::wakeUp(int roomId, const char *reason) {
-  emit_signal(std::bind(wake_up_callback, roomId, reason));
+  emit_signal([=, this] { wake_up_callback(roomId, reason); });
 }
 
 void RoomThread::setPlayerState(int connId, int pid, int roomId) {
-  emit_signal(std::bind(set_player_state_callback, connId, pid, roomId));
+  emit_signal([=, this] { set_player_state_callback(connId, pid, roomId); });
 }
 
 void RoomThread::addObserver(int connId, int roomId) {
-  emit_signal(std::bind(add_observer_callback, connId, roomId));
+  emit_signal([=, this] { add_observer_callback(connId, roomId); });
 }
 
 void RoomThread::removeObserver(int pid, int roomId) {
-  emit_signal(std::bind(remove_observer_callback, pid, roomId));
+  emit_signal([=, this] { remove_observer_callback(pid, roomId); });
 }
 
 const RpcLua &RoomThread::getLua() const {
@@ -210,7 +210,7 @@ void RoomThread::decreaseRefCount() {
   if (m_ref_count > 0) return;
 
   if (isOutdated()) {
-    asio::post(Server::instance().context(), [this](){
+    asio::post(Server::instance().context(), [this] {
       Server::instance().removeThread(m_id);
     });
   }

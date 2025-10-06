@@ -660,8 +660,7 @@ void Shell::killRoomCommand(StringList &list) {
 void Shell::checkLobbyCommand(StringList &) {
   auto &server = Server::instance();
   auto lobby = server.room_manager().lobby().lock();
-  asio::post(Server::instance().context(),
-             std::bind(&Lobby::checkAbandoned, lobby));
+  asio::post(Server::instance().context(), [&] { lobby->checkAbandoned(); });
 }
 
 static void sigintHandler(int) {
@@ -811,7 +810,7 @@ char *Shell::generateCommand(const char *text, int state) {
   static size_t list_index, len;
   static std::vector<std::string_view> keys;
   static std::once_flag flag;
-  std::call_once(flag, [&](){
+  std::call_once(flag, [&] {
     for (const auto &[k, _] : handler_map) {
       keys.push_back(k);
     }

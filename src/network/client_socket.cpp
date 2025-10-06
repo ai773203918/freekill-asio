@@ -6,11 +6,10 @@
 
 ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
   m_peer_address = m_socket.remote_endpoint().address().to_string();
-  disconnected_callback = [this]() {
+  disconnected_callback = [this] {
     spdlog::info("client {} disconnected", peerAddress());
   };
-
-  message_got_callback = std::bind(&Packet::describe, std::placeholders::_1);
+  message_got_callback = [](Packet &p){ p.describe(); };
 }
 
 void ClientSocket::start() {
@@ -29,13 +28,13 @@ void ClientSocket::start() {
           disconnected_callback();
 
           set_message_got_callback([](Packet &){});
-          set_disconnected_callback([](){});
+          set_disconnected_callback([]{});
         }
       } else {
         disconnected_callback();
 
         set_message_got_callback([](Packet &){});
-        set_disconnected_callback([](){});
+        set_disconnected_callback([]{});
       }
     }
   );
@@ -60,7 +59,7 @@ void ClientSocket::disconnectFromHost() {
 
   // 连接建立阶段绑的callback中可能拷贝了自身的shared
   set_message_got_callback([](Packet &){});
-  set_disconnected_callback([](){});
+  set_disconnected_callback([]{});
 }
 
 void ClientSocket::send(const std::shared_ptr<std::string> msg) {

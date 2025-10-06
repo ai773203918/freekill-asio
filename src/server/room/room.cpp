@@ -399,7 +399,7 @@ void Room::setThread(RoomThread &t) {
 }
 
 void Room::checkAbandoned(CheckAbandonReason reason) {
-  asio::post(Server::instance().context(), [reason, weak = weak_from_this()](){
+  asio::post(Server::instance().context(), [reason, weak = weak_from_this()] {
     auto ptr = weak.lock();
     if (ptr) ptr->_checkAbandoned(reason);
   });
@@ -598,7 +598,7 @@ void Room::gameOver() {
 
     auto p = std::promise<bool>();
     auto f = p.get_future();
-    asio::post(ctx, [weak = weak_from_this(), &p](){
+    asio::post(ctx, [weak = weak_from_this(), &p] {
       auto ptr = weak.lock();
       if (ptr) ptr->_gameOver();
 

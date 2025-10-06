@@ -21,10 +21,8 @@ static int nextConnId = 1000;
 Player::Player() {
   m_router = std::make_unique<Router>(this, nullptr, Router::TYPE_SERVER);
 
-  m_router->set_notification_got_callback(
-    std::bind(&Player::onNotificationGot, this, std::placeholders::_1));
-  m_router->set_reply_ready_callback(
-    std::bind(&Player::onReplyReady, this));
+  m_router->set_notification_got_callback([this](const Packet &p) { onNotificationGot(p); });
+  m_router->set_reply_ready_callback([this] { onReplyReady(); });
 
   roomId = 0;
 
@@ -290,7 +288,7 @@ void Player::emitKicked() {
 
     auto p = std::promise<bool>();
     auto f = p.get_future();
-    asio::post(ctx, [weak = weak_from_this(), &p](){
+    asio::post(ctx, [weak = weak_from_this(), &p] {
       auto ptr = weak.lock();
       if (ptr) ptr->kick();
       p.set_value(true);

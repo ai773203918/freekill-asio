@@ -111,8 +111,9 @@ void UserManager::processNewConnection(std::shared_ptr<ClientSocket> client) {
 
   // network delay test
   server.sendEarlyPacket(*client, "NetworkDelayTest", m_auth->getPublicKeyCbor());
-  client->set_message_got_callback(
-    std::bind(&AuthManager::processNewConnection, m_auth.get(), client, std::placeholders::_1));
+  client->set_message_got_callback([this, client](Packet &p) {
+    m_auth->processNewConnection(client, p);
+  });
 
   using namespace std::chrono_literals;
   client->timerSignup = std::make_unique<asio::steady_timer>(server.context());

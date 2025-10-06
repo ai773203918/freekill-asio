@@ -23,15 +23,13 @@ std::shared_ptr<ClientSocket> Router::getSocket() const { return socket; }
 void Router::setSocket(std::shared_ptr<ClientSocket> socket) {
   if (this->socket != nullptr) {
     this->socket->set_message_got_callback([](Packet&){});
-    this->socket->set_disconnected_callback([](){});
+    this->socket->set_disconnected_callback([]{});
   }
 
   this->socket = nullptr;
   if (socket != nullptr) {
-    socket->set_message_got_callback(
-      std::bind(&Router::handlePacket, this, std::placeholders::_1));
-    socket->set_disconnected_callback(
-      std::bind(&Player::onDisconnected, player));
+    socket->set_message_got_callback([this](Packet &p) { handlePacket(p); });
+    socket->set_disconnected_callback([this] { player->onDisconnected(); });
     this->socket = socket;
   }
 }
@@ -130,7 +128,7 @@ void Router::sendMessage(const std::string &msg) {
     auto &s = Server::instance().context();
     auto p = std::promise<bool>();
     auto f = p.get_future();
-    asio::post(s, [&, weak = socket->weak_from_this()](){
+    asio::post(s, [&, weak = socket->weak_from_this()] {
       auto ptr = weak.lock();
       if (ptr) ptr->send(std::make_shared<std::string>(msg));
 

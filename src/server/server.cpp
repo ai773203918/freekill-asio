@@ -85,8 +85,9 @@ void Server::listen(asio::io_context &io_ctx, asio::ip::tcp::endpoint end, asio:
   heartbeat_timer = std::make_unique<asio::steady_timer>(io_ctx);
   startHeartbeat();
 
-  m_socket->set_new_connection_callback(
-    std::bind(&UserManager::processNewConnection, m_user_manager.get(), std::placeholders::_1));
+  m_socket->set_new_connection_callback([this](std::shared_ptr<ClientSocket> p) {
+    m_user_manager->processNewConnection(p);
+  });
 
   m_socket->listen();
   m_socket->listen_udp();
@@ -338,7 +339,7 @@ void Server::refreshMd5() {
   if (std::this_thread::get_id() == mainThreadId()) {
     _refreshMd5();
   } else {
-    asio::post(*main_io_ctx, std::bind(&Server::_refreshMd5, this));
+    asio::post(*main_io_ctx, [this] { _refreshMd5(); });
   }
 }
 

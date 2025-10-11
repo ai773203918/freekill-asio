@@ -92,7 +92,7 @@ void Packet::describe() {
 }
 
 struct PacketBuilder {
-  explicit PacketBuilder(Packet &p) : pkt { p } {
+  explicit PacketBuilder(Packet &p, auto callback) : pkt { p }, message_got_callback { callback } {
     reset();
   }
 
@@ -157,8 +157,8 @@ struct PacketBuilder {
     }
   }
 
-  std::function<void(Packet &)> message_got_callback = 0;
   Packet &pkt;
+  std::function<void(Packet &)> &message_got_callback;
   int current_field = 0;
   bool valid_packet = false;
   int handled = 0;
@@ -214,9 +214,8 @@ cbor_decoder_status ClientSocket::handleBuffer(size_t length) {
 
   struct cbor_decoder_result decode_result;
   Packet pkt;
-  PacketBuilder builder { pkt };
+  PacketBuilder builder { pkt, message_got_callback };
   int handled = 0;
-  builder.message_got_callback = message_got_callback;
 
   cbor_decoder_status lastStat;
 

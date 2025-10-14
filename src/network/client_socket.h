@@ -68,6 +68,8 @@ private:
   std::function<void()> disconnected_callback = 0;
   std::function<void(Packet &)> message_got_callback = 0;
 
+  boost::asio::awaitable<void> reader();
+
   /*
   QByteArray aesEnc(const QByteArray &in);
   QByteArray aesDec(const QByteArray &out);

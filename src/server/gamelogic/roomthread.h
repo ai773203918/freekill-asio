@@ -59,7 +59,7 @@ private:
   void shutdown();
 
   // signals
-  std::function<void(const std::string& req)> push_request_callback = nullptr;
+  std::function<void(const std::string req)> push_request_callback = nullptr;
   std::function<void(int roomId, int ms)> delay_callback = nullptr;
   std::function<void(int roomId, const char* reason)> wake_up_callback = nullptr;
   std::function<void(int connId, int pid, int roomId)> set_player_state_callback = nullptr;

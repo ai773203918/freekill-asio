@@ -15,8 +15,7 @@ public:
   ServerSocket(ServerSocket &&) = delete;
   ServerSocket(io_context &io_ctx, tcp::endpoint end, udp::endpoint udpEnd);
 
-  void listen();
-  void listen_udp();
+  void start();
 
   // signal connectors
   void set_new_connection_callback(std::function<void(std::shared_ptr<ClientSocket>)>);
@@ -30,4 +29,7 @@ private:
 
   // signals
   std::function<void(std::shared_ptr<ClientSocket>)> new_connection_callback;
+
+  boost::asio::awaitable<void> listener();
+  boost::asio::awaitable<void> udpListener();
 };

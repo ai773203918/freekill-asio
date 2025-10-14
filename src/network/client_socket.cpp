@@ -5,6 +5,10 @@
 #include <openssl/aes.h>
 
 namespace asio = boost::asio;
+using asio::awaitable;
+using asio::use_awaitable;
+using asio::detached;
+using asio::redirect_error;
 
 ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
   m_peer_address = m_socket.remote_endpoint().address().to_string();
@@ -15,31 +19,31 @@ ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
 }
 
 void ClientSocket::start() {
-  // 内存由player他们管理
-  auto self { weak_from_this() };
-  m_socket.async_read_some(
-    asio::buffer(m_data, max_length),
-    [this, self](std::error_code err, std::size_t length) {
-      if (auto c = self.lock(); !err && c) {
-        auto stat = handleBuffer(length);
-        if (stat != CBOR_DECODER_ERROR) {
-          // 再次read_some
-          start();
-        } else {
-          spdlog::warn("Malformed data from client {}", peerAddress());
-          disconnected_callback();
+  asio::co_spawn(m_socket.get_executor(), [self = shared_from_this()] {
+    return self->reader();
+  }, detached);
+}
 
-          set_message_got_callback([](Packet &){});
-          set_disconnected_callback([]{});
-        }
-      } else {
-        disconnected_callback();
+awaitable<void> ClientSocket::reader() {
+  for (;;) {
+    boost::system::error_code ec;
+    auto length = co_await m_socket.async_read_some(
+      asio::buffer(m_data, max_length),
+      redirect_error(use_awaitable, ec));
 
-        set_message_got_callback([](Packet &){});
-        set_disconnected_callback([]{});
-      }
+    if (ec) break;
+
+    auto stat = handleBuffer(length);
+    if (stat == CBOR_DECODER_ERROR) {
+      spdlog::warn("Malformed data from client {}", peerAddress());
+      break;
     }
-  );
+  }
+
+  disconnected_callback();
+
+  set_message_got_callback([](Packet &){});
+  set_disconnected_callback([]{});
 }
 
 asio::ip::tcp::socket &ClientSocket::socket() {
@@ -94,7 +98,7 @@ void Packet::describe() {
 }
 
 struct PacketBuilder {
-  explicit PacketBuilder(Packet &p, auto callback) : pkt { p }, message_got_callback { callback } {
+  explicit PacketBuilder(Packet &p, auto &callback) : pkt { p }, message_got_callback { callback } {
     reset();
   }
 

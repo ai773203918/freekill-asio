@@ -34,7 +34,7 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {},
   // 这集可以直接在构造函数创了 Qt故事里面是为了绑定到新线程对应的eventLoop
   L = std::make_unique<RpcLua>(io_ctx);
 
-  push_request_callback = [&](const std::string &msg) {
+  push_request_callback = [&](const std::string msg) {
     // spdlog::debug("--> PushRequest {}" , msg);
     L->call("HandleRequest", msg);
   };
@@ -153,7 +153,7 @@ void RoomThread::emit_signal(std::function<void()> f) {
 }
 
 void RoomThread::pushRequest(const std::string &req) {
-  emit_signal([&] { push_request_callback(req); });
+  emit_signal([=, this] { push_request_callback(req); });
 }
 
 void RoomThread::delay(int roomId, int ms) {

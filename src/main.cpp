@@ -12,6 +12,7 @@
 
 namespace asio = boost::asio;
 using asio::ip::tcp;
+using asio::ip::udp;
 
 // 也是一种很蠢的方式了
 static bool shellAlive = false;
@@ -132,7 +133,7 @@ int main(int argc, char *argv[]) {
   Server::instance().listen(
     io_ctx,
     tcp::endpoint(tcp::v6(), cfg.port),
-    asio::ip::udp::endpoint(asio::ip::udp::v6(), cfg.port)
+    udp::endpoint(udp::v6(), cfg.port)
   );
 
   shellAlive = true;

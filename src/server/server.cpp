@@ -91,8 +91,7 @@ void Server::listen(io_context &io_ctx, tcp::endpoint end, udp::endpoint uend) {
     m_user_manager->processNewConnection(p);
   });
 
-  m_socket->listen();
-  m_socket->listen_udp();
+  m_socket->start();
 }
 
 void Server::stop() {

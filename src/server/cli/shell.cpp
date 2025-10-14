@@ -22,6 +22,8 @@
 #include <cstdio>
 #include <cstring>
 
+namespace asio = boost::asio;
+
 static constexpr const char *prompt = "fk-asio> ";
 
 void Shell::helpCommand(StringList &) {

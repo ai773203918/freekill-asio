@@ -15,7 +15,7 @@ echo '[+] 设置构建环境'
 # -------------------------------
 echo '[+] 安装系统依赖'
 apk add git vim cmake build-base ca-certificates \
-  sqlite-dev readline-dev cjson-dev spdlog-dev asio-dev \
+  sqlite-dev readline-dev cjson-dev spdlog-dev boost-dev \
   readline-static ncurses-static cjson-static sqlite-static \
   openssl-libs-static zlib-static
 

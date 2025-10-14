@@ -10,6 +10,9 @@
 
 #include <getopt.h>
 
+namespace asio = boost::asio;
+using asio::ip::tcp;
+
 // 也是一种很蠢的方式了
 static bool shellAlive = false;
 

@@ -17,6 +17,7 @@
 #include <thread>
 #include <unistd.h>
 
+namespace asio = boost::asio;
 using namespace std::literals;
 
 RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {},
@@ -40,7 +41,7 @@ RoomThread::RoomThread(asio::io_context &main_ctx) : io_ctx {},
   delay_callback = [&](int roomId, int ms) {
     // spdlog::debug("--> Delay {} {}", roomId, ms);
     auto timer = std::make_shared<asio::steady_timer>(io_ctx, std::chrono::milliseconds(ms));
-    timer->async_wait([weak = weak_from_this(), roomId, timer](const asio::error_code& ec){
+    timer->async_wait([weak = weak_from_this(), roomId, timer](const std::error_code& ec){
       if (!ec) {
         auto t = weak.lock();
         if (!t) return;
@@ -104,7 +105,7 @@ void RoomThread::start() {
     char buf[16];
     eventfd_desc.async_read_some(
       asio::buffer(buf, 16),
-      [&](asio::error_code err, std::size_t length) {
+      [&](std::error_code err, std::size_t length) {
         if (!err) {
           ::close(evt_fd);
           spdlog::info("quit() called, eventfd is closed");

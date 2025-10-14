@@ -7,13 +7,15 @@ class RpcLua;
 
 class RoomThread : public std::enable_shared_from_this<RoomThread> {
 public:
-  explicit RoomThread(asio::io_context &main_ctx);
+  using io_context = boost::asio::io_context;
+
+  explicit RoomThread(io_context &main_ctx);
   RoomThread(RoomThread &) = delete;
   RoomThread(RoomThread &&) = delete;
   ~RoomThread();
 
   int id() const;
-  asio::io_context &context();
+  io_context &context();
 
   void quit();
 
@@ -46,7 +48,7 @@ private:
   int m_id = 0;
 
   int evt_fd;
-  asio::io_context io_ctx;
+  io_context io_ctx;
   std::thread m_thread;
 
   std::vector<int> m_rooms;

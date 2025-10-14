@@ -6,6 +6,8 @@
 #include "server/server.h"
 #include "core/c-wrapper.h"
 
+namespace asio = boost::asio;
+
 Router::Router(Player *player, std::shared_ptr<ClientSocket> socket, RouterType type) {
   this->type = type;
   this->player = player;

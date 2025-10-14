@@ -4,8 +4,6 @@
 
 #include <openssl/aes.h>
 
-using asio::ip::tcp;
-
 // 为了省那几字节重排了一下字段
 // 实际应当是 `[ reqId, type, command, data, timeout, timestamp ]`
 
@@ -28,6 +26,8 @@ struct Packet {
 
 class ClientSocket : public std::enable_shared_from_this<ClientSocket> {
 public:
+  using tcp = boost::asio::ip::tcp;
+
   ClientSocket() = delete;
   ClientSocket(ClientSocket &) = delete;
   ClientSocket(ClientSocket &&) = delete;
@@ -51,7 +51,7 @@ public:
   bool aesReady() const { return aes_ready; }
   bool isConnected() const;
   */
-  std::unique_ptr<asio::steady_timer> timerSignup;
+  std::unique_ptr<boost::asio::steady_timer> timerSignup;
 
 private:
   tcp::socket m_socket;

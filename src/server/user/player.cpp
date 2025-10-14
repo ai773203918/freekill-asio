@@ -14,6 +14,7 @@
 #include "core/c-wrapper.h"
 #include "core/util.h"
 
+namespace asio = boost::asio;
 using namespace std::chrono;
 
 static int nextConnId = 1000;

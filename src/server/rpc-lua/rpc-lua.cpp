@@ -12,6 +12,9 @@
 #include <sys/wait.h>
 #include <cjson/cJSON.h>
 
+using namespace JsonRpc;
+namespace asio = boost::asio;
+
 // 传过去的算上call和返回值只有int bytes和null... 毁灭吧
 static void sendParam(asio::posix::stream_descriptor &file, JsonRpcParam &param) {
   u_char buf[10]; size_t buflen;
@@ -495,7 +498,7 @@ void RpcLua::wait(int waitType, const char *method, int id) {
 
   while (child_stdout.is_open() && alive()) {
     received_pkt.reset();
-    asio::error_code ec;
+    boost::system::error_code ec;
     auto read_sz = child_stdout.read_some(asio::buffer(buffer, max_length), ec);
     if (ec) {
       spdlog::error("Error occured when reading child stdin: {}", ec.message());

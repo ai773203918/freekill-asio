@@ -2,17 +2,18 @@
 
 #pragma once
 
-using asio::ip::tcp;
-using asio::ip::udp;
-
 class ClientSocket;
 
 class ServerSocket {
 public:
+  using io_context = boost::asio::io_context;
+  using tcp = boost::asio::ip::tcp;
+  using udp = boost::asio::ip::udp;
+
   ServerSocket() = delete;
   ServerSocket(ServerSocket &) = delete;
   ServerSocket(ServerSocket &&) = delete;
-  ServerSocket(asio::io_context &io_ctx, tcp::endpoint end, udp::endpoint udpEnd);
+  ServerSocket(io_context &io_ctx, tcp::endpoint end, udp::endpoint udpEnd);
 
   void listen();
   void listen_udp();

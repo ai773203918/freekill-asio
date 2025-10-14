@@ -10,6 +10,8 @@
 #include "network/router.h"
 #include "core/c-wrapper.h"
 
+namespace asio = boost::asio;
+
 UserManager::UserManager() {
   m_auth = std::make_unique<AuthManager>();
 }
@@ -118,11 +120,11 @@ void UserManager::processNewConnection(std::shared_ptr<ClientSocket> client) {
   using namespace std::chrono_literals;
   client->timerSignup = std::make_unique<asio::steady_timer>(server.context());
   client->timerSignup->expires_after(3min);
-  client->timerSignup->async_wait([weak = client->weak_from_this()](const asio::error_code& ec){
+  client->timerSignup->async_wait([weak = client->weak_from_this()](const std::error_code& ec){
     if (!ec) {
       auto ptr = weak.lock();
       if (ptr) ptr->disconnectFromHost();
-    } else if (ec != asio::error::operation_aborted) {
+    } else if (ec.value() != asio::error::operation_aborted) {
       spdlog::error("error in timerSignup: {}", ec.message());
     }
   });

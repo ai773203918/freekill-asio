@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <boost/asio/io_context.hpp>
 class ServerSocket;
 class ClientSocket;
 
@@ -11,8 +12,6 @@ class RoomThread;
 
 class Shell;
 class Sqlite3;
-
-using asio::ip::tcp;
 
 struct ServerConfig {
   std::vector<std::string> banWords;
@@ -36,17 +35,21 @@ struct ServerConfig {
 
 class Server {
 public:
+  using io_context = boost::asio::io_context;
+  using tcp = boost::asio::ip::tcp;
+  using udp = boost::asio::ip::udp;
+
   static Server &instance();
 
   Server(Server &) = delete;
   Server(Server &&) = delete;
   ~Server();
 
-  void listen(asio::io_context &io_ctx, tcp::endpoint end, asio::ip::udp::endpoint uend);
+  void listen(io_context &io_ctx, tcp::endpoint end, udp::endpoint uend);
   void stop();
   static void destroy();
 
-  asio::io_context &context();
+  io_context &context();
 
   UserManager &user_manager();
   RoomManager &room_manager();
@@ -99,7 +102,7 @@ private:
 
   std::unique_ptr<Shell> m_shell;
 
-  asio::io_context *main_io_ctx = nullptr;
+  io_context *main_io_ctx = nullptr;
   std::thread::id main_thread_id;
 
   std::vector<std::string> temp_banlist;
@@ -107,7 +110,7 @@ private:
   std::string md5;
 
   int64_t start_timestamp;
-  std::unique_ptr<asio::steady_timer> heartbeat_timer;
+  std::unique_ptr<boost::asio::steady_timer> heartbeat_timer;
 
   void startHeartbeat();
 

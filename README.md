@@ -62,7 +62,7 @@ $ sudo apt install lua5.4 lua-socket lua-filesystem
 
 ```sh
 $ apk add git cmake build-base
-$ apk add sqlite-dev readline-dev cjson-dev spdlog-dev asio-dev libgit2-dev libcbor-dev cjson-static
+$ apk add sqlite-dev readline-dev cjson-dev spdlog-dev boost-dev libgit2-dev libcbor-dev cjson-static
 $ apk add lua5.4 lua5.4-socket lua5.4-filesystem
 ```
 

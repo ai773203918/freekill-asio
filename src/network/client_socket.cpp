@@ -4,6 +4,8 @@
 
 #include <openssl/aes.h>
 
+namespace asio = boost::asio;
+
 ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
   m_peer_address = m_socket.remote_endpoint().address().to_string();
   disconnected_callback = [this] {
@@ -17,7 +19,7 @@ void ClientSocket::start() {
   auto self { weak_from_this() };
   m_socket.async_read_some(
     asio::buffer(m_data, max_length),
-    [this, self](asio::error_code err, std::size_t length) {
+    [this, self](std::error_code err, std::size_t length) {
       if (auto c = self.lock(); !err && c) {
         auto stat = handleBuffer(length);
         if (stat != CBOR_DECODER_ERROR) {
@@ -40,7 +42,7 @@ void ClientSocket::start() {
   );
 }
 
-tcp::socket &ClientSocket::socket() {
+asio::ip::tcp::socket &ClientSocket::socket() {
   return m_socket;
 }
 
@@ -66,7 +68,7 @@ void ClientSocket::send(const std::shared_ptr<std::string> msg) {
   asio::async_write(
     m_socket,
     asio::const_buffer { msg->data(), msg->size() },
-    [msg](const asio::error_code &, std::size_t) {
+    [msg](const std::error_code &, std::size_t) {
       // no-op
       (void)msg;
     }

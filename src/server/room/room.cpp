@@ -12,6 +12,8 @@
 #include "core/c-wrapper.h"
 #include "core/util.h"
 
+namespace asio = boost::asio;
+
 Room::Room() {
   static int nextRoomId = 1;
   id = nextRoomId++;
@@ -821,7 +823,7 @@ void Room::kickPlayer(Player &player, const Packet &pkt) {
 
   using namespace std::chrono_literals;
   auto timer = std::make_shared<asio::steady_timer>(Server::instance().context(), 3min);
-  timer->async_wait([weak = weak_from_this(), i, timer](const asio::error_code &ec) {
+  timer->async_wait([weak = weak_from_this(), i, timer](const std::error_code &ec) {
     if (!ec) {
       auto ptr = weak.lock();
       if (ptr) ptr->removeRejectId(i);
@@ -907,13 +909,13 @@ void Room::setRequestTimer(int ms) {
 
   // 不能让即将运行在thread中的lambda捕获到shared_ptr，否则可能会线程内析构自身导致死锁
   auto weak_thr = std::weak_ptr(thread);
-  request_timer->async_wait([this, weak_thr](const asio::error_code& ec){
+  request_timer->async_wait([this, weak_thr](const std::error_code& ec){
     if (!ec) {
       auto thread = weak_thr.lock();
       if (thread) thread->wakeUp(id, "request_timer");
     } else {
       // 我们本来就会调cancel()并销毁requestTimer，所以aborted的情况很多很多
-      if (ec != asio::error::operation_aborted) {
+      if (ec.value() != asio::error::operation_aborted) {
         spdlog::error("error in request timer of room {}: {}", id, ec.message());
       }
     }

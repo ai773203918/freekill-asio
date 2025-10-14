@@ -48,7 +48,8 @@
 // libcbor
 #include <cbor.h>
 
-// libasio
-#include <asio.hpp>
+// boost networking library
+#include <boost/asio.hpp>
+#include <boost/beast.hpp>
 
 #define OPENSSL_API_COMPAT 0x10101000L

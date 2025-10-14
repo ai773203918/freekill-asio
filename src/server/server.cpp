@@ -20,6 +20,8 @@
 
 #include <cjson/cJSON.h>
 
+namespace asio = boost::asio;
+
 static std::unique_ptr<Server> server_instance = nullptr;
 
 Server &Server::instance() {
@@ -52,7 +54,7 @@ Server::~Server() {
 void Server::startHeartbeat() {
   using namespace std::chrono_literals;
   heartbeat_timer->expires_after(30s);
-  heartbeat_timer->async_wait([this](const asio::error_code& ec) {
+  heartbeat_timer->async_wait([this](const std::error_code& ec) {
     if (ec) return;
     std::vector<std::shared_ptr<Player>> to_delete;
     for (auto &[_, p] : m_user_manager->getPlayers()) {
@@ -75,7 +77,7 @@ void Server::startHeartbeat() {
   });
 }
 
-void Server::listen(asio::io_context &io_ctx, asio::ip::tcp::endpoint end, asio::ip::udp::endpoint uend) {
+void Server::listen(io_context &io_ctx, tcp::endpoint end, udp::endpoint uend) {
   main_io_ctx = &io_ctx;
   m_socket = std::make_unique<ServerSocket>(io_ctx, end, uend);
 
@@ -102,7 +104,7 @@ void Server::destroy() {
   server_instance = nullptr;
 }
 
-asio::io_context &Server::context() {
+auto Server::context() -> decltype(*main_io_ctx) {
   return *main_io_ctx;
 }
 
@@ -305,7 +307,7 @@ void Server::temporarilyBan(int playerId) {
   using namespace std::chrono;
   auto timer = std::make_shared<asio::steady_timer>(*main_io_ctx, seconds(time * 60));
   // Server不会析构，先不weak
-  timer->async_wait([this, addr, timer](const asio::error_code& ec){
+  timer->async_wait([this, addr, timer](const std::error_code& ec){
     if (!ec) {
       auto it = std::find(temp_banlist.begin(), temp_banlist.end(), addr);
       if (it != temp_banlist.end())

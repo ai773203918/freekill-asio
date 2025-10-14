@@ -115,7 +115,7 @@ private:
   int lua_ref_count = 0;
   std::mutex lua_ref_mutex;
 
-  std::unique_ptr<asio::steady_timer> request_timer = nullptr;
+  std::unique_ptr<boost::asio::steady_timer> request_timer = nullptr;
 
   void createRunnedPlayer(Player &player, std::shared_ptr<ClientSocket> socket);
   void detectSameIpAndDevice();

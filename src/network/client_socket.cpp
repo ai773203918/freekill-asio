@@ -19,12 +19,13 @@ ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
 }
 
 void ClientSocket::start() {
-  asio::co_spawn(m_socket.get_executor(), [self = shared_from_this()] {
-    return self->reader();
-  }, detached);
+  asio::co_spawn(m_socket.get_executor(), reader(), detached);
 }
 
 awaitable<void> ClientSocket::reader() {
+  // 下面那个死循环的持续周期可能比this的生命周期长，所以续一下
+  auto self { shared_from_this() };
+
   for (;;) {
     boost::system::error_code ec;
     auto length = co_await m_socket.async_read_some(

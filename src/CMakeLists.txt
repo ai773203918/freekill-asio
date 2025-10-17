@@ -10,6 +10,7 @@ set(freekill_SRCS
   "network/server_socket.cpp"
   "network/client_socket.cpp"
   "network/router.cpp"
+  "network/http_listener.cpp"
 
   "server/server.cpp"
 
@@ -28,7 +29,7 @@ set(freekill_SRCS
   "server/gamelogic/roomthread.cpp"
   "server/gamelogic/rpc-dispatchers.cpp"
 
-  "server/cli/shell.cpp"
+  "server/admin/shell.cpp"
 )
 
 target_precompile_headers(freekill-asio PRIVATE pch.h)

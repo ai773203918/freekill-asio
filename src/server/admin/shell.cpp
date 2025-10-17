@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "server/cli/shell.h"
+#include "server/admin/shell.h"
 #include "core/packman.h"
 // #include "server/rpc-lua/rpc-lua.h"
 #include "server/server.h"

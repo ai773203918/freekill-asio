@@ -10,9 +10,10 @@
 #include "network/server_socket.h"
 #include "network/client_socket.h"
 #include "network/router.h"
+#include "network/http_listener.h"
 #include "server/gamelogic/roomthread.h"
 
-#include "server/cli/shell.h"
+#include "server/admin/shell.h"
 
 #include "core/c-wrapper.h"
 #include "core/util.h"
@@ -23,7 +24,7 @@
 namespace asio = boost::asio;
 using asio::awaitable;
 using asio::detached;
-using asio::as_tuple;
+using asio::redirect_error;
 
 static std::unique_ptr<Server> server_instance = nullptr;
 
@@ -56,7 +57,8 @@ awaitable<void> Server::heartbeat() {
   using namespace std::chrono_literals;
   for (;;) {
     heartbeat_timer->expires_after(30s);
-    auto [ec] = co_await heartbeat_timer->async_wait(as_tuple);
+    boost::system::error_code ec;
+    co_await heartbeat_timer->async_wait(redirect_error(ec));
     if (ec) {
       spdlog::error(ec.message());
       break;
@@ -83,19 +85,21 @@ awaitable<void> Server::heartbeat() {
 
 void Server::listen(io_context &io_ctx, tcp::endpoint end, udp::endpoint uend) {
   main_io_ctx = &io_ctx;
-  m_socket = std::make_unique<ServerSocket>(io_ctx, end, uend);
 
-  m_shell = std::make_unique<Shell>();
-  m_shell->start();
+  m_socket = std::make_unique<ServerSocket>(io_ctx, end, uend);
+  m_socket->set_new_connection_callback([this](std::shared_ptr<ClientSocket> p) {
+    m_user_manager->processNewConnection(p);
+  });
+  m_socket->start();
 
   heartbeat_timer = std::make_unique<asio::steady_timer>(io_ctx);
   asio::co_spawn(io_ctx, heartbeat(), detached);
 
-  m_socket->set_new_connection_callback([this](std::shared_ptr<ClientSocket> p) {
-    m_user_manager->processNewConnection(p);
-  });
+  m_shell = std::make_unique<Shell>();
+  m_shell->start();
 
-  m_socket->start();
+  // FIXME 此处仅供测试用
+  (new HttpListener(tcp::endpoint { tcp::v6(), 9000 }))->start();
 }
 
 void Server::stop() {

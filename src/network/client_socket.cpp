@@ -7,7 +7,7 @@
 namespace asio = boost::asio;
 using asio::awaitable;
 using asio::detached;
-using asio::as_tuple;
+using asio::redirect_error;
 
 ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
   m_peer_address = m_socket.remote_endpoint().address().to_string();
@@ -26,8 +26,9 @@ awaitable<void> ClientSocket::reader() {
   auto self { shared_from_this() };
 
   for (;;) {
-    auto [ec, length] = co_await m_socket.async_read_some(
-      asio::buffer(m_data, max_length), as_tuple);
+    boost::system::error_code ec;
+    auto length = co_await m_socket.async_read_some(
+      asio::buffer(m_data, max_length), redirect_error(ec));
 
     if (ec) break;
 

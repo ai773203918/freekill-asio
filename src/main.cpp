@@ -2,7 +2,7 @@
 
 #include "core/packman.h"
 #include "server/server.h"
-#include "server/cli/shell.h"
+#include "server/admin/shell.h"
 
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/rotating_file_sink.h>

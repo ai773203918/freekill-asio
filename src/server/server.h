@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include <boost/asio/io_context.hpp>
 class ServerSocket;
 class ClientSocket;
 

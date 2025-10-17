@@ -35,8 +35,6 @@ Server::Server() : m_socket { nullptr } {
   m_user_manager = std::make_unique<UserManager>();
   m_room_manager = std::make_unique<RoomManager>();
 
-  main_thread_id = std::this_thread::get_id();
-
   db = std::make_unique<Sqlite3>();
   gamedb = std::make_unique<Sqlite3>("./server/game.db", "./server/gamedb_init.sql");  // 初始化
 
@@ -171,10 +169,6 @@ const std::unordered_map<int, std::shared_ptr<RoomThread>> &
   Server::getThreads() const
 {
   return m_threads;
-}
-
-std::thread::id Server::mainThreadId() const {
-  return main_thread_id;
 }
 
 void Server::broadcast(const std::string_view &command, const std::string_view &jsonData) {
@@ -337,11 +331,10 @@ const std::string &Server::getMd5() const {
 }
 
 void Server::refreshMd5() {
-  if (std::this_thread::get_id() == mainThreadId()) {
-    _refreshMd5();
-  } else {
-    asio::post(*main_io_ctx, [this] { _refreshMd5(); });
+  if (!main_io_ctx) {
+    return _refreshMd5();
   }
+  asio::dispatch(*main_io_ctx, [this] { _refreshMd5(); });
 }
 
 void Server::_refreshMd5() {

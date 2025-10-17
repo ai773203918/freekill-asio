@@ -283,21 +283,12 @@ void Player::kick() {
 }
 
 void Player::emitKicked() {
-  auto &s = Server::instance();
-  if (std::this_thread::get_id() != s.mainThreadId()) {
-    auto &ctx = Server::instance().context();
-
-    auto p = std::promise<bool>();
-    auto f = p.get_future();
-    asio::post(ctx, [weak = weak_from_this(), &p] {
-      auto ptr = weak.lock();
-      if (ptr) ptr->kick();
-      p.set_value(true);
-    });
-    f.wait();
-  } else {
-    kick();
-  }
+  auto &main_ctx = Server::instance().context();
+  auto f = asio::dispatch(main_ctx, asio::use_future([weak = weak_from_this()] {
+    auto c = weak.lock();
+    if (c) c->kick();
+  }));
+  f.wait();
 }
 
 void Player::reconnect(std::shared_ptr<ClientSocket> client) {

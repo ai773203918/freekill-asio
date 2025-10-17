@@ -8,12 +8,16 @@ struct Packet;
 class Player;
 
 class Lobby final : public RoomBase {
+private:
+  // connId -> true
+  std::unordered_map<int, bool> players;
+
 public:
   Lobby();
   Lobby(Lobby &) = delete;
   Lobby(Lobby &&) = delete;
 
-  const std::unordered_map<int, bool> &getPlayers() const;
+  auto getPlayers() const -> const decltype(players) &;
 
   void addPlayer(Player &player) final;
   void removePlayer(Player &player) final;
@@ -33,7 +37,4 @@ private:
   void refreshRoomList(Player &, const Packet &);
 
   void joinRoom(Player &, const Packet &, bool ob = false);
-
-  // connId -> true
-  std::unordered_map<int, bool> players;
 };

@@ -54,6 +54,6 @@ std::weak_ptr<Lobby> RoomManager::lobby() const {
   return m_lobby;
 }
 
-const std::map<int, std::shared_ptr<Room>> &RoomManager::getRooms() const {
+auto RoomManager::getRooms() const -> const decltype(rooms) & {
   return rooms;
 }

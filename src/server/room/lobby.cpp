@@ -17,7 +17,7 @@ Lobby::Lobby() {
   id = 0;
 }
 
-const std::unordered_map<int, bool> &Lobby::getPlayers() const {
+auto Lobby::getPlayers() const -> const decltype(players) & {
   return players;
 }
 

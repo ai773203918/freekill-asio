@@ -145,11 +145,8 @@ void RoomThread::emit_signal(std::function<void()> f) {
     shutdown();
     return;
   }
-  if (std::this_thread::get_id() == m_thread.get_id()) {
-    f();
-  } else {
-    asio::post(io_ctx, f);
-  }
+
+  asio::dispatch(io_ctx, f);
 }
 
 void RoomThread::pushRequest(const std::string &req) {

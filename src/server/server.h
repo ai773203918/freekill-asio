@@ -65,8 +65,6 @@ public:
   RoomThread &getAvailableThread();
   const std::unordered_map<int, std::shared_ptr<RoomThread>> &getThreads() const;
 
-  std::thread::id mainThreadId() const;
-
   void broadcast(const std::string_view &command, const std::string_view &jsonData);
 
   const ServerConfig &config() const;

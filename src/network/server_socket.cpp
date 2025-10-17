@@ -10,8 +10,8 @@
 
 namespace asio = boost::asio;
 using asio::awaitable;
-using asio::use_awaitable;
-using asio::redirect_error;
+using asio::as_tuple;
+using asio::detached;
 
 ServerSocket::ServerSocket(asio::io_context &io_ctx, tcp::endpoint end, udp::endpoint udpEnd):
   m_acceptor { io_ctx, end }, m_udp_socket { io_ctx, udpEnd }
@@ -26,8 +26,7 @@ void ServerSocket::start() {
 
 awaitable<void> ServerSocket::listener() {
   for (;;) {
-    boost::system::error_code ec;
-    auto socket = co_await m_acceptor.async_accept(redirect_error(use_awaitable, ec));
+    auto [ec, socket] = co_await m_acceptor.async_accept(as_tuple);
 
     if (!ec) {
       try {
@@ -48,16 +47,14 @@ awaitable<void> ServerSocket::listener() {
 
 awaitable<void> ServerSocket::udpListener() {
   for (;;) {
-    boost::system::error_code ec;
     auto buffer = asio::buffer(udp_recv_buffer);
-    auto len = co_await m_udp_socket.async_receive_from(buffer, udp_remote_end, redirect_error(use_awaitable, ec));
+    auto [ec, len] = co_await m_udp_socket.async_receive_from(buffer, udp_remote_end, as_tuple);
 
     auto sv = std::string_view { udp_recv_buffer.data(), len };
     // spdlog::debug("RX (udp [{}]:{}): {}", udp_remote_end.address().to_string(), udp_remote_end.port(), sv);
     if (sv == "fkDetectServer") {
       m_udp_socket.async_send_to(
-        asio::const_buffer("me", 2), udp_remote_end,
-        [](const std::error_code &ec, size_t){});
+        asio::const_buffer("me", 2), udp_remote_end, detached);
     } else if (sv.starts_with("fkGetDetail,")) {
       auto &conf = Server::instance().config();
       auto &um = Server::instance().user_manager();
@@ -72,9 +69,7 @@ awaitable<void> ServerSocket::udpListener() {
 
       char *json = cJSON_PrintUnformatted(jsonArray);
       m_udp_socket.async_send_to(
-        asio::const_buffer(json, strlen(json)),
-        udp_remote_end,
-        [](const std::error_code &ec, size_t){});
+        asio::const_buffer(json, strlen(json)), udp_remote_end, detached);
 
       // spdlog::debug("TX (udp [{}]:{}): {}", udp_remote_end.address().to_string(), udp_remote_end.port(), json);
       cJSON_Delete(jsonArray);

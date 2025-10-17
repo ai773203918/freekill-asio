@@ -6,9 +6,8 @@
 
 namespace asio = boost::asio;
 using asio::awaitable;
-using asio::use_awaitable;
 using asio::detached;
-using asio::redirect_error;
+using asio::as_tuple;
 
 ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
   m_peer_address = m_socket.remote_endpoint().address().to_string();
@@ -27,24 +26,22 @@ awaitable<void> ClientSocket::reader() {
   auto self { shared_from_this() };
 
   for (;;) {
-    boost::system::error_code ec;
-    auto length = co_await m_socket.async_read_some(
-      asio::buffer(m_data, max_length),
-      redirect_error(use_awaitable, ec));
+    auto [ec, length] = co_await m_socket.async_read_some(
+      asio::buffer(m_data, max_length), as_tuple);
 
     if (ec) break;
 
-    auto stat = handleBuffer(length);
+    auto stat = self->handleBuffer(length);
     if (stat == CBOR_DECODER_ERROR) {
-      spdlog::warn("Malformed data from client {}", peerAddress());
+      spdlog::warn("Malformed data from client {}", self->peerAddress());
       break;
     }
   }
 
-  disconnected_callback();
+  self->disconnected_callback();
 
-  set_message_got_callback([](Packet &){});
-  set_disconnected_callback([]{});
+  self->set_message_got_callback([](Packet &){});
+  self->set_disconnected_callback([]{});
 }
 
 asio::ip::tcp::socket &ClientSocket::socket() {
@@ -73,10 +70,7 @@ void ClientSocket::send(const std::shared_ptr<std::string> msg) {
   asio::async_write(
     m_socket,
     asio::const_buffer { msg->data(), msg->size() },
-    [msg](const std::error_code &, std::size_t) {
-      // no-op
-      (void)msg;
-    }
+    detached
   );
 }
 

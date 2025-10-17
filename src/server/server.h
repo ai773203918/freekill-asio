@@ -110,7 +110,7 @@ private:
   int64_t start_timestamp;
   std::unique_ptr<boost::asio::steady_timer> heartbeat_timer;
 
-  void startHeartbeat();
+  boost::asio::awaitable<void> heartbeat();
 
   void _refreshMd5();
 };

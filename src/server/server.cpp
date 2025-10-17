@@ -21,6 +21,9 @@
 #include <cjson/cJSON.h>
 
 namespace asio = boost::asio;
+using asio::awaitable;
+using asio::detached;
+using asio::as_tuple;
 
 static std::unique_ptr<Server> server_instance = nullptr;
 
@@ -49,11 +52,15 @@ Server::Server() : m_socket { nullptr } {
 Server::~Server() {
 }
 
-void Server::startHeartbeat() {
+awaitable<void> Server::heartbeat() {
   using namespace std::chrono_literals;
-  heartbeat_timer->expires_after(30s);
-  heartbeat_timer->async_wait([this](const std::error_code& ec) {
-    if (ec) return;
+  for (;;) {
+    heartbeat_timer->expires_after(30s);
+    auto [ec] = co_await heartbeat_timer->async_wait(as_tuple);
+    if (ec) {
+      spdlog::error(ec.message());
+      break;
+    }
     std::vector<std::shared_ptr<Player>> to_delete;
     for (auto &[_, p] : m_user_manager->getPlayers()) {
       if (p->isOnline() && p->ttl <= 0) {
@@ -71,8 +78,7 @@ void Server::startHeartbeat() {
         p->doNotify("Heartbeat", "");
       }
     }
-    startHeartbeat();
-  });
+  }
 }
 
 void Server::listen(io_context &io_ctx, tcp::endpoint end, udp::endpoint uend) {
@@ -83,7 +89,7 @@ void Server::listen(io_context &io_ctx, tcp::endpoint end, udp::endpoint uend) {
   m_shell->start();
 
   heartbeat_timer = std::make_unique<asio::steady_timer>(io_ctx);
-  startHeartbeat();
+  asio::co_spawn(io_ctx, heartbeat(), detached);
 
   m_socket->set_new_connection_callback([this](std::shared_ptr<ClientSocket> p) {
     m_user_manager->processNewConnection(p);

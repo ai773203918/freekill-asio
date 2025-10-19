@@ -24,6 +24,7 @@
 namespace asio = boost::asio;
 using asio::awaitable;
 using asio::detached;
+using asio::use_awaitable;
 using asio::redirect_error;
 
 static std::unique_ptr<Server> server_instance = nullptr;
@@ -58,7 +59,7 @@ awaitable<void> Server::heartbeat() {
   for (;;) {
     heartbeat_timer->expires_after(30s);
     boost::system::error_code ec;
-    co_await heartbeat_timer->async_wait(redirect_error(ec));
+    co_await heartbeat_timer->async_wait(redirect_error(use_awaitable, ec));
     if (ec) {
       spdlog::error(ec.message());
       break;

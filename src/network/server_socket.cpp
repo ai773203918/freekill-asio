@@ -11,6 +11,7 @@
 namespace asio = boost::asio;
 using asio::awaitable;
 using asio::detached;
+using asio::use_awaitable;
 using asio::redirect_error;
 
 ServerSocket::ServerSocket(asio::io_context &io_ctx, tcp::endpoint end, udp::endpoint udpEnd):
@@ -27,7 +28,7 @@ void ServerSocket::start() {
 awaitable<void> ServerSocket::listener() {
   for (;;) {
     boost::system::error_code ec;
-    auto socket = co_await m_acceptor.async_accept(redirect_error(ec));
+    auto socket = co_await m_acceptor.async_accept(redirect_error(use_awaitable, ec));
 
     if (!ec) {
       try {
@@ -51,7 +52,7 @@ awaitable<void> ServerSocket::udpListener() {
     auto buffer = asio::buffer(udp_recv_buffer);
     boost::system::error_code ec;
     auto len = co_await m_udp_socket.async_receive_from(
-      buffer, udp_remote_end, redirect_error(ec));
+      buffer, udp_remote_end, redirect_error(use_awaitable, ec));
 
     auto sv = std::string_view { udp_recv_buffer.data(), len };
     // spdlog::debug("RX (udp [{}]:{}): {}", udp_remote_end.address().to_string(), udp_remote_end.port(), sv);

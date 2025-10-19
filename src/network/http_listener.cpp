@@ -8,6 +8,7 @@ namespace http = beast::http;
 using tcp = asio::ip::tcp;
 using asio::awaitable;
 using asio::detached;
+using asio::use_awaitable;
 using asio::redirect_error;
 
 HttpListener::HttpListener(tcp::endpoint end) :
@@ -37,7 +38,7 @@ awaitable<void> HttpListener::listener() {
 
   for (;;) {
     boost::system::error_code ec;
-    auto socket = co_await acceptor.async_accept(redirect_error(ec));
+    auto socket = co_await acceptor.async_accept(redirect_error(use_awaitable, ec));
     if (ec) {
       spdlog::warn("Http accept error: {}", ec.message());
       continue;
@@ -56,7 +57,7 @@ static awaitable<void> session(beast::tcp_stream stream) {
 
     http::request<http::string_body> req;
     boost::system::error_code ec;
-    co_await http::async_read(stream, buffer, req, redirect_error(ec));
+    co_await http::async_read(stream, buffer, req, redirect_error(use_awaitable, ec));
     if (ec) break;
 
     // TODO 按照example中的添加一下http处理逻辑
@@ -66,7 +67,7 @@ static awaitable<void> session(beast::tcp_stream stream) {
     res.body() = "<b>Hello, world!</b>";
     res.prepare_payload();
 
-    co_await beast::async_write(stream, http::message_generator { std::move(res) });
+    co_await beast::async_write(stream, http::message_generator { std::move(res) }, use_awaitable);
 
     // if (!req.keep_alive()) {
     if (true) {

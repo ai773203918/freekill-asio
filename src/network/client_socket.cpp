@@ -7,6 +7,7 @@
 namespace asio = boost::asio;
 using asio::awaitable;
 using asio::detached;
+using asio::use_awaitable;
 using asio::redirect_error;
 
 ClientSocket::ClientSocket(tcp::socket socket) : m_socket(std::move(socket)) {
@@ -28,7 +29,7 @@ awaitable<void> ClientSocket::reader() {
   for (;;) {
     boost::system::error_code ec;
     auto length = co_await m_socket.async_read_some(
-      asio::buffer(m_data, max_length), redirect_error(ec));
+      asio::buffer(m_data, max_length), redirect_error(use_awaitable, ec));
 
     if (ec) break;
 

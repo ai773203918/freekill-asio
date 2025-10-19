@@ -90,6 +90,10 @@ public:
   void increaseRefCount();
   void decreaseRefCount();
 
+  int getSessionId() const;
+  std::string_view getSessionData() const;
+  void setSessionData(std::string_view json);
+
 private:
   int m_thread_id = 0;
 
@@ -112,8 +116,14 @@ private:
   std::string md5;
 
   // 表示此房被多少个Lua room引用，为0时才能回收
+  // 显然这个数字一般来说最大为1
   int lua_ref_count = 0;
   std::mutex lua_ref_mutex;
+
+  // 表示此房正在运行第几局游戏
+  int session_id = 0;
+  // 以及某个供Lua往里面放点数据的东西
+  std::string session_data = "{}";
 
   std::unique_ptr<boost::asio::steady_timer> request_timer = nullptr;
 

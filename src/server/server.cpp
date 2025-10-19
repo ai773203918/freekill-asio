@@ -99,7 +99,7 @@ void Server::listen(io_context &io_ctx, tcp::endpoint end, udp::endpoint uend) {
   m_shell->start();
 
   // FIXME 此处仅供测试用
-  (new HttpListener(tcp::endpoint { tcp::v6(), 9000 }))->start();
+  // (new HttpListener(tcp::endpoint { tcp::v6(), 9000 }))->start();
 }
 
 void Server::stop() {

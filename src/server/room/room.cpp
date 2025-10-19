@@ -746,6 +746,8 @@ void Room::manuallyStart() {
 
   // 立刻加，但又要保证reconnect请求在newroom后面
   increaseRefCount();
+
+  session_id++;
 }
 
 void Room::pushRequest(const std::string &req) {
@@ -936,4 +938,16 @@ void Room::decreaseRefCount() {
     if (lua_ref_count > 0) return;
   }
   checkAbandoned(NoRefCount);
+}
+
+int Room::getSessionId() const {
+  return session_id;
+}
+
+std::string_view Room::getSessionData() const {
+  return session_data;
+}
+
+void Room::setSessionData(std::string_view json) {
+  session_data = json;
 }

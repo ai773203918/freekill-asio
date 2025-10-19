@@ -379,6 +379,62 @@ static _rpcRet _rpc_Room_decreaseRefCount(const JsonRpcPacket &packet) {
   return { true, nullVal };
 }
 
+static _rpcRet _rpc_Room_getSessionId(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
+    return { false, nullVal };
+  }
+
+  int roomId = std::get<int>(packet.param1);
+  auto room = Server::instance().room_manager().findRoom(roomId).lock();
+  if (!room) {
+    return { false, "Room not found"sv };
+  }
+
+  int id = room->getSessionId();
+
+  return { true, id };
+}
+
+static _rpcRet _rpc_Room_getSessionData(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 1 &&
+    std::holds_alternative<int>(packet.param1)
+  )) {
+    return { false, nullVal };
+  }
+
+  int roomId = std::get<int>(packet.param1);
+  auto room = Server::instance().room_manager().findRoom(roomId).lock();
+  if (!room) {
+    return { false, "Room not found"sv };
+  }
+
+  auto s = room->getSessionData();
+
+  return { true, s };
+}
+
+static _rpcRet _rpc_Room_setSessionData(const JsonRpcPacket &packet) {
+  if (!( packet.param_count == 2 &&
+    std::holds_alternative<int>(packet.param1) &&
+    std::holds_alternative<std::string_view>(packet.param2)
+  )) {
+    return { false, nullVal };
+  }
+
+  int roomId = std::get<int>(packet.param1);
+  auto jsonData = std::get<std::string_view>(packet.param2);
+  auto room = Server::instance().room_manager().findRoom(roomId).lock();
+  if (!room) {
+    return { false, "Room not found"sv };
+  }
+
+  room->setSessionData(jsonData);
+
+  return { true, nullVal };
+}
+
 static _rpcRet _rpc_Player_saveState(const JsonRpcPacket &packet) {
   if (!(packet.param_count == 2 &&
     std::holds_alternative<int>(packet.param1) &&
@@ -592,6 +648,9 @@ const JsonRpc::RpcMethodMap RpcDispatchers::ServerRpcMethods {
   { "Room_setRequestTimer", _rpc_Room_setRequestTimer },
   { "Room_destroyRequestTimer", _rpc_Room_destroyRequestTimer },
   { "Room_decreaseRefCount", _rpc_Room_decreaseRefCount },
+  { "Room_getSessionId", _rpc_Room_getSessionId },
+  { "Room_getSessionData", _rpc_Room_getSessionData },
+  { "Room_setSessionData", _rpc_Room_setSessionData },
 
   { "RoomThread_getRoom", _rpc_RoomThread_getRoom },
 };

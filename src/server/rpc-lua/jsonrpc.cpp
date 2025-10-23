@@ -25,6 +25,7 @@ void JsonRpcPacket::reset() {
   id = -1;
   param_count = 0;
   error.code = 0;
+  error.message = "";
   result = nullptr;
   method = "";
 }

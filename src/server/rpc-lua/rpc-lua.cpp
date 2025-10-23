@@ -115,10 +115,10 @@ static void sendError(asio::posix::stream_descriptor &file, JsonRpcPacket &pkt) 
 
   // msg:
   file.write_some(asio::const_buffer("\x18\xC9", 2));
-  buflen = cbor_encode_uint(strlen(pkt.error.message), buf, 10);
+  buflen = cbor_encode_uint(pkt.error.message.size(), buf, 10);
   buf[0] += 0x40;
   file.write_some(asio::const_buffer(buf, buflen));
-  file.write_some(asio::const_buffer(pkt.error.message, strlen(pkt.error.message)));
+  file.write_some(asio::const_buffer(pkt.error.message.data(), pkt.error.message.size()));
 
   // data:
   file.write_some(asio::const_buffer("\x18\xCA", 2));
@@ -227,7 +227,9 @@ struct RpcPacketBuilder {
     } else if (state == READING_PARAMS) {
       readParam(std::string_view { (char *)data, len });
     } else if (state == READING_ERROR_V) {
-      if (current_err_key == ErrorMessage || current_err_key == ErrorData) {
+      if (current_err_key == ErrorMessage) {
+        pkt.error.message = std::string_view { (char *)data, len };
+      } else if (current_err_key == ErrorData) {
         ; // no-op
       } else {
         checkState(ERROR);
@@ -493,7 +495,7 @@ RpcLua::~RpcLua() {
   }
 }
 
-void RpcLua::wait(int waitType, const char *method, int id) {
+void RpcLua::wait(WaitType waitType, const char *method, int id) {
   JsonRpcPacket received_pkt;
 
   while (child_stdout.is_open() && alive()) {
@@ -519,12 +521,15 @@ void RpcLua::wait(int waitType, const char *method, int id) {
       if (stat == CBOR_DECODER_NEDATA) continue;
     }
 
-    if ((waitType == WaitForResponse && received_pkt.id == id && received_pkt.method == "") ||
+    if ((waitType == WaitForResponse && received_pkt.id == id && received_pkt.method == "" && received_pkt.error.code == 0) ||
       (waitType == WaitForNotification && received_pkt.id == -1 && received_pkt.method == method)) {
 #ifdef RPC_DEBUG
       spdlog::debug("Me <-- returned {}", toHex({ buffer, read_sz }));
 #endif
       // 并不关心lua返回了啥；那为什么还要去读取
+      return;
+    } else if (received_pkt.error.code != 0) {
+      spdlog::error("RPC call failed! id={} method={} ec={} msg={}", id, method, received_pkt.error.code, received_pkt.error.message);
       return;
     } else {
 #ifdef RPC_DEBUG
@@ -571,7 +576,7 @@ void RpcLua::call(const char *func_name, JsonRpcParam param1, JsonRpcParam param
   auto id = req.id;
   sendRequest(child_stdin, req);
 
-  wait(WaitForResponse, "", id);
+  wait(WaitForResponse, func_name, id);
 }
 
 std::string RpcLua::getConnectionInfo() const {

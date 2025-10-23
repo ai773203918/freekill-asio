@@ -26,7 +26,7 @@ typedef std::variant<int, int64_t, std::string, std::string_view, bool, std::nul
 
 struct JsonRpcError {
   int code = 0;
-  const char *message;
+  std::string message = "";
   JsonRpcParam data = nullptr;
 };
 

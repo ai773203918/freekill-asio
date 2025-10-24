@@ -1,0 +1,60 @@
+name: Docker 编译并发布
+
+on:
+  # 每天检查一次新版本
+  schedule:
+    - cron: '0 2 * * *'  # 每天凌晨2点运行
+  # 允许手动触发
+  workflow_dispatch:
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    - name: Get latest release version
+      id: get_version
+      run: |
+        # 获取最新版本号
+        LATEST_VERSION=$(curl -s https://api.github.com/repos/Qsgs-Fans/freekill-asio/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | sed 's/v//')
+        echo "Latest version: $LATEST_VERSION"
+        
+        # 检查Docker Hub上是否已有该版本的镜像
+        TOKEN=$(curl -s -X POST -H "Content-Type: application/json" -d '{"username": "${{ secrets.DOCKERHUB_USERNAME }}", "password": "${{ secrets.DOCKERHUB_PASSWORD }}"}' https://hub.docker.com/v2/users/login/ | jq -r .token)
+        TAG_EXISTS=$(curl -s -H "Authorization: JWT $TOKEN" https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/freekill-asio/tags/?page_size=100 | jq -r ".results[] | select(.name == \"$LATEST_VERSION\") | .name")
+        
+        if [ "$TAG_EXISTS" = "$LATEST_VERSION" ]; then
+          echo "Version $LATEST_VERSION already exists on Docker Hub"
+          echo "build_needed=false" >> $GITHUB_OUTPUT
+        else
+          echo "Version $LATEST_VERSION is new, building image"
+          echo "build_needed=true" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+        
+    - name: Set up Docker Buildx
+      if: steps.get_version.outputs.build_needed == 'true'
+      uses: docker/setup-buildx-action@v2
+      
+    - name: Login to Docker Hub
+      if: steps.get_version.outputs.build_needed == 'true'
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+        
+    - name: Build and push Docker image
+      if: steps.get_version.outputs.build_needed == 'true'
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        tags: |
+          ${{ secrets.DOCKERHUB_USERNAME }}/freekill-asio:latest
+          ${{ secrets.DOCKERHUB_USERNAME }}/freekill-asio:${{ steps.get_version.outputs.version }}
+        platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6,linux/386
+        build-args: |
+          VERSION=${{ steps.get_version.outputs.version }}

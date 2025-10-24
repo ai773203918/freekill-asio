@@ -1,4 +1,4 @@
-name: Docker 编译并发布
+name: Docker Build and Publish
 
 on:
   # 每天检查一次新版本
@@ -20,20 +20,25 @@ jobs:
         # 获取最新版本号
         LATEST_VERSION=$(curl -s https://api.github.com/repos/Qsgs-Fans/freekill-asio/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | sed 's/v//')
         echo "Latest version: $LATEST_VERSION"
-        
-        # 检查Docker Hub上是否已有该版本的镜像
-        TOKEN=$(curl -s -X POST -H "Content-Type: application/json" -d '{"username": "${{ secrets.DOCKERHUB_USERNAME }}", "password": "${{ secrets.DOCKERHUB_PASSWORD }}"}' https://hub.docker.com/v2/users/login/ | jq -r .token)
-        TAG_EXISTS=$(curl -s -H "Authorization: JWT $TOKEN" https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/freekill-asio/tags/?page_size=100 | jq -r ".results[] | select(.name == \"$LATEST_VERSION\") | .name")
-        
-        if [ "$TAG_EXISTS" = "$LATEST_VERSION" ]; then
-          echo "Version $LATEST_VERSION already exists on Docker Hub"
-          echo "build_needed=false" >> $GITHUB_OUTPUT
-        else
-          echo "Version $LATEST_VERSION is new, building image"
-          echo "build_needed=true" >> $GITHUB_OUTPUT
-        fi
-        
         echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+        
+        # 检查是否是手动触发
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "Manual trigger, skipping Docker Hub check"
+          echo "build_needed=true" >> $GITHUB_OUTPUT
+        else
+          echo "Automatic trigger, checking Docker Hub"
+          # 检查Docker Hub上是否已有该版本的镜像
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/freekill-asio/tags/$LATEST_VERSION/")
+          
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "Version $LATEST_VERSION already exists on Docker Hub"
+            echo "build_needed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Version $LATEST_VERSION is new, building image"
+            echo "build_needed=true" >> $GITHUB_OUTPUT
+          fi
+        fi
         
     - name: Set up Docker Buildx
       if: steps.get_version.outputs.build_needed == 'true'

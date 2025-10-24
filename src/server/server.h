@@ -100,7 +100,6 @@ private:
   std::unique_ptr<Shell> m_shell;
 
   io_context *main_io_ctx = nullptr;
-  std::thread::id main_thread_id;
 
   std::vector<std::string> temp_banlist;
 

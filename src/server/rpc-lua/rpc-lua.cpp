@@ -529,7 +529,7 @@ void RpcLua::wait(WaitType waitType, const char *method, int id) {
       // 并不关心lua返回了啥；那为什么还要去读取
       return;
     } else if (received_pkt.error.code != 0) {
-      spdlog::error("RPC call failed! id={} method={} ec={} msg={}", id, method, received_pkt.error.code, received_pkt.error.message);
+      spdlog::warn("RPC call failed! id={} method={} ec={} msg={}", id, method, received_pkt.error.code, received_pkt.error.message);
       return;
     } else {
 #ifdef RPC_DEBUG

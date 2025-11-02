@@ -841,6 +841,73 @@ void Room::trust(Player &player, const Packet &pkt) {
   }
 }
 
+//改变房间配置
+void Room::changeroom(Player &player, const Packet &packet) {
+  // 检查权限：只有房主才能修改房间配置
+  if (player.getConnId() != m_owner_conn_id) {
+    player.doNotify("ErrorMsg", "只有房主才能修改房间配置");
+    return;
+  }
+  auto currentplayers =getPlayers();
+  auto cbuf = (cbor_data)packet.cborData.data();
+  auto len = packet.cborData.size();
+  std::string_view newname;
+  int newcapacity = -1;
+  int newtimeout = -1;
+  std::string_view newsettings;
+  size_t sz = 0;
+  struct cbor_decoder_result decode_result;
+
+  decode_result = cbor_stream_decode(cbuf, len, &Cbor::arrayCallbacks, &sz); // arr
+  if (decode_result.read == 0) return;
+  cbuf += decode_result.read; len -= decode_result.read;
+  if (sz != 4) return;
+
+  decode_result = cbor_stream_decode(cbuf, len, &Cbor::stringCallbacks, &newname);
+  if (decode_result.read == 0) return;
+  cbuf += decode_result.read; len -= decode_result.read;
+  if (newname == "") return;
+
+  decode_result = cbor_stream_decode(cbuf, len, &Cbor::intCallbacks, &newcapacity);
+  if (decode_result.read == 0) return;
+  cbuf += decode_result.read; len -= decode_result.read;
+  if (newcapacity == -1) return;
+
+  decode_result = cbor_stream_decode(cbuf, len, &Cbor::intCallbacks, &newtimeout);
+  if (decode_result.read == 0) return;
+  cbuf += decode_result.read; len -= decode_result.read;
+  if (newtimeout == -1) return;
+
+  newsettings = { (char *)cbuf, len };
+  // 房间人数大于新容量，不允许
+  if (newcapacity < int(players.size())) {
+    player.doNotify("ErrorMsg", "新容量不得低于现有玩家数！");
+    return;
+  }
+
+  setName(newname);
+  setCapacity(newcapacity);
+  setTimeout(newtimeout);
+  setSettings(newsettings);
+
+  auto &rm = Server::instance().room_manager();
+  auto &um = Server::instance().user_manager();
+  for (auto pid : currentplayers) {
+    auto p = um.findPlayerByConnId(pid).lock();
+    if (!p) continue;
+    if (p->getRouter().getSocket() != nullptr ){
+      //先移出去再进来
+      p->setReady(false);
+      auto it = std::find(players.begin(), players.end(), p->getConnId());
+      players.erase(it);
+      rm.lobby().lock()->addPlayer(*p);
+      doBroadcastNotify(players, "RemovePlayer", Cbor::encodeArray({ p->getId() }));
+
+      addPlayer(*p);
+    }
+  }
+}
+
 
 void Room::ready(Player &player, const Packet &) {
   setPlayerReady(player, !player.isReady());
@@ -870,6 +937,7 @@ void Room::handlePacket(Player &sender, const Packet &packet) {
     {"Ready", &Room::ready},
     {"StartGame", &Room::startGame},
     {"Trust", &Room::trust},
+    {"ChangeRoom", &Room::changeroom},
     {"Chat", &Room::chat},
   };
   if (packet.command == "PushRequest") {

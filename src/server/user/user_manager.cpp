@@ -187,13 +187,13 @@ void UserManager::setupPlayer(Player &player, bool all_info) {
 
   if (all_info) {
     auto &conf = Server::instance().config();
-
+   
     // 经典环节
     std::string toSend;
     toSend.reserve(1024);
     u_char buf[10]; size_t buflen;
 
-    toSend += "\x83"; // array(3)
+    toSend += "\x84"; // array(3)
 
     // arr[0] = motd
     buflen = cbor_encode_uint(conf.motd.size(), buf, 10);
@@ -214,6 +214,9 @@ void UserManager::setupPlayer(Player &player, bool all_info) {
 
     // arr[2] = enableBots
     buflen = cbor_encode_bool(conf.enableBots, buf, 10);
+    toSend += std::string_view { (char*)buf, buflen };
+    //arr[3] = enableChangeRoom
+    buflen = cbor_encode_bool(conf.enableChangeRoom, buf, 10);
     toSend += std::string_view { (char*)buf, buflen };
 
     player.doNotify("SetServerSettings", toSend);

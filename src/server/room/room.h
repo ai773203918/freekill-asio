@@ -146,5 +146,6 @@ private:
   void ready(Player &, const Packet &);
   void startGame(Player &, const Packet &);
   void trust(Player &, const Packet &);
+  void changeroom(Player &, const Packet &);
 
 };

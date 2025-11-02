@@ -243,6 +243,10 @@ void ServerConfig::loadConf(const char* jsonStr) {
     enableBots = cJSON_IsTrue(item);
   }
 
+  if ((item = cJSON_GetObjectItem(root, "enableChangeRoom")) && cJSON_IsBool(item)) {
+    enableChangeRoom = cJSON_IsTrue(item);
+  }
+
   if ((item = cJSON_GetObjectItem(root, "enableWhitelist")) && cJSON_IsBool(item)) {
     enableWhitelist = cJSON_IsTrue(item);
   }

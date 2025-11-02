@@ -72,6 +72,7 @@ public:
 
   void temporarilyBan(int playerId);
   bool isTempBanned(const std::string_view &addr) const;
+  int isMuted(int playerId) const;
 
   void beginTransaction();
   void endTransaction();

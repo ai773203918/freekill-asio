@@ -38,6 +38,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           build-args: |
             VERSION=${{ needs.get_version.outputs.version }}
+          allow: failure # 这是核心配置，允许某个平台的构建失败而不影响其他平台
 
   # 还需要一个额外的Job来创建并推送包含所有成功架构的Manifest列表（即多架构镜像的“latest”和版本标签）
   create-manifest:

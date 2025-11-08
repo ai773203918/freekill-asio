@@ -66,16 +66,3 @@ jobs:
         build-args: |
           VERSION=${{ steps.get_version.outputs.version }}
       allow: failure # 这是核心配置，允许某个平台的构建失败而不影响其他平台
-      id: build_and_push # 为步骤设置ID，以便后续检查结果
-    
-    # 新增步骤6：检查构建结果并设置最终作业状态
-    - name: Check build results
-      if: steps.get_version.outputs.build_needed == 'true'
-      run: |
-        # 检查上一步骤的结果，如果其结论不是'success'，则此步骤会失败，从而导致整个作业状态为失败
-        if [ "${{ steps.build_and_push.conclusion }}" != "success" ]; then
-          echo "⚠️ 部分架构的镜像构建失败，但已跳过。请检查上述日志中是否有 'no match for platform' 或类似错误。"
-          echo "✅ 成功构建的架构镜像已推送。"
-        else
-          echo "✅ 所有指定架构的镜像均已成功构建并推送。"
-        fi

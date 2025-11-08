@@ -8,8 +8,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-and-build:
+  # 第一步：检查版本和是否需要构建
+  check-version:
     runs-on: ubuntu-latest
+    outputs:
+      # 将版本号和构建标志传递给其他作业
+      version: ${{ steps.get_version.outputs.version }}
+      build_needed: ${{ steps.get_version.outputs.build_needed }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
@@ -39,30 +44,104 @@ jobs:
             echo "build_needed=true" >> $GITHUB_OUTPUT
           fi
         fi
-        
+
+  # 第二步：使用矩阵为每个平台构建独立的镜像
+  build:
+    # 依赖于 check-version 作业
+    needs: check-version
+    # 只有在需要构建时才运行
+    if: needs.check-version.outputs.build_needed == 'true'
+    runs-on: ubuntu-latest
+    # 关键设置1：定义作业矩阵
+    strategy:
+      # 关键设置2：允许某个平台失败，其他平台继续构建
+      fail-fast: false
+      matrix:
+        # 定义你想要构建的平台
+        platform:
+          - linux/amd64
+          - linux/arm64
+          - linux/arm/v7
+          - linux/arm/v6
+          - linux/386
+        # 为每个平台定义一个用于标签的简短架构名
+        include:
+          - platform: linux/amd64
+            arch: amd64
+          - platform: linux/arm64
+            arch: arm64v8
+          - platform: linux/arm/v7
+            arch: arm32v7
+          - platform: linux/arm/v6
+            arch: arm32v6
+          - platform: linux/386
+            arch: i386
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
+      with:
+        platforms: ${{ matrix.platform }}
+      
     - name: Set up Docker Buildx
-      if: steps.get_version.outputs.build_needed == 'true'
       uses: docker/setup-buildx-action@v2
       
     - name: Login to Docker Hub
-      if: steps.get_version.outputs.build_needed == 'true'
       uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_PASSWORD }}
-        
-    # 步骤5：构建并推送Docker镜像（优化版）
-    - name: Build and push Docker image
-      if: steps.get_version.outputs.build_needed == 'true'
+
+    - name: Build and push single-arch image
       uses: docker/build-push-action@v4
-      continue-on-error: true # 关键设置1：允许此步骤失败而不导致整个作业失败
       with:
         context: .
         push: true
+        # 关键设置3：为每个架构打一个唯一的标签，例如: v1.0.0-amd64
         tags: |
-          ${{ secrets.DOCKERHUB_USERNAME }}/freekill-asio:latest
-          ${{ secrets.DOCKERHUB_USERNAME }}/freekill-asio:${{ steps.get_version.outputs.version }}
-        platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6,linux/386
+          ${{ secrets.DOCKERHUB_USERNAME }}/freekill-asio:${{ needs.check-version.outputs.version }}-${{ matrix.arch }}
+        platforms: ${{ matrix.platform }}
         build-args: |
-          VERSION=${{ steps.get_version.outputs.version }}
-      allow: failure # 这是核心配置，允许某个平台的构建失败而不影响其他平台
+          VERSION=${{ needs.check-version.outputs.version }}
+        # 加载到 buildx 以便后续创建清单
+        load: false 
+
+  # 第三步：创建并推送多架构清单
+  create-manifest:
+    # 依赖于 check-version 和 build 作业
+    needs: [check-version, build]
+    # 只有在需要构建时才运行
+    if: needs.check-version.outputs.build_needed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+    - name: Create and push manifest
+      run: |
+        # 从 needs.check-version.outputs 获取版本号
+        VERSION="${{ needs.check-version.outputs.version }}"
+        DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+        IMAGE_NAME="$DOCKERHUB_USERNAME/freekill-asio"
+        
+        # 定义所有架构的标签列表
+        TAGS=(
+          "$IMAGE_NAME:$VERSION-amd64"
+          "$IMAGE_NAME:$VERSION-arm64v8"
+          "$IMAGE_NAME:$VERSION-arm32v7"
+          "$IMAGE_NAME:$VERSION-arm32v6"
+          "$IMAGE_NAME:$VERSION-i386"
+        )
+        
+        # 创建清单，将所有成功的单架构镜像组合起来
+        # `imagetools create` 会忽略不存在的标签，因此即使某个平台构建失败，此命令也能成功
+        docker buildx imagetools create \
+          -t "$IMAGE_NAME:$VERSION" \
+          -t "$IMAGE_NAME:latest" \
+          "${TAGS[@]}"

@@ -69,6 +69,8 @@ void Shell::helpCommand(StringList &) {
       "At least 1 <name> required.",
       "unbanuuid");
   HELP_MSG("{}: Ban an accounts by his <name> and <duration> (??m/??h/??d/??mo).", "tempban");
+  HELP_MSG("{}: Ban a player's chat by his <name> and <duration> (??m/??h/??d/??mo).", "tempmute");
+  HELP_MSG("{}: Unban 1 or more players' chat by their <name>.", "unmute");
   HELP_MSG("{}: Add or remove names from whitelist.", "whitelist");
   HELP_MSG("{}: reset <name>'s password to 1234.", "resetpassword/rp");
 
@@ -524,6 +526,113 @@ void Shell::tempbanCommand(StringList &list) {
                local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
 }
 
+void Shell::tempmuteCommand(StringList &list) {
+  if (list.size() != 3) {
+    spdlog::warn("usage: tempmute <type> <name> <duration>");
+    spdlog::warn("type: 1 for full mute, 2 for blocking $-commands");
+    return;
+  }
+
+  auto &db = Server::instance().database();
+  auto type_num = list[0];
+  auto name = list[1];
+  auto duration_str = list[2];
+  int mute_type = std::stoi(type_num);
+  if (mute_type != 1 && mute_type != 2) {
+    spdlog::warn("Invalid mute type. Use 1 for full mute, 2 for blocking $-commands");
+    return;
+  }
+
+  static const char *invalid_dur = "Invalid duration value. "
+    "Possible choices: ??m (minute), ??h (hour), ??d (day) and ??mo (month, 30 days).";
+  size_t pos;
+  long value;
+  try {
+    value = std::stol(duration_str, &pos);
+  } catch (const std::exception& e) {
+    spdlog::warn(invalid_dur);
+    return;
+  }
+
+  if (value < 0) {
+    spdlog::warn(invalid_dur);
+    return;
+  }
+
+  using namespace std::chrono;
+  std::string unit = duration_str.substr(pos);
+
+  seconds duration;
+
+  if (unit == "m") {
+    duration = value * 60s;
+  } else if (unit == "h") {
+    duration = value * 3600s;
+  } else if (unit == "d") {
+    duration = value * 86400s;
+  } else if (unit == "mo") {
+    duration = value * 2592000s;
+  } else {
+    spdlog::warn(invalid_dur);
+    return;
+  }
+
+  auto end_tp = system_clock::now() + duration;
+  auto expireTimestamp = duration_cast<seconds>(end_tp.time_since_epoch()).count();
+
+  if (!Sqlite3::checkString(name))
+    return;
+
+  static constexpr const char *sql_find = 
+    "SELECT id FROM userinfo WHERE name='{}';";
+  auto result = db.select(fmt::format(sql_find, name));
+  if (result.empty())
+    return;
+
+  auto obj = result[0];
+  int id = atoi(obj["id"].c_str());
+  db.exec(fmt::format(
+    "REPLACE INTO tempmute (uid, expireAt, type) VALUES ({}, {}, {});", id, expireTimestamp, mute_type));
+
+  std::time_t now_time_t = system_clock::to_time_t(end_tp);
+  std::tm local_tm = *std::localtime(&now_time_t);
+  if (mute_type == 1) {
+    spdlog::info("Muted {} until {:04}-{:02}-{:02} {:02}:{:02}:{:02}.", name.c_str(),
+                local_tm.tm_year + 1900, local_tm.tm_mon + 1, local_tm.tm_mday,
+                local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
+    } else if (mute_type == 2) {
+      spdlog::info("Muted {} from using $-commands until {:04}-{:02}-{:02} {:02}:{:02}:{:02}.", name.c_str(),
+                local_tm.tm_year + 1900, local_tm.tm_mon + 1, local_tm.tm_mday,
+                local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
+  }
+}
+
+void Shell::unmuteCommand(StringList &list) {
+  if (list.empty()) {
+    spdlog::warn("The 'unmute' command needs at least 1 <name>.");
+    return;
+  }
+  auto &db = Server::instance().database();
+
+  for (auto &name : list) {
+    if (!Sqlite3::checkString(name))
+      continue;
+
+    static constexpr const char *sql_find = 
+      "SELECT id FROM userinfo WHERE name='{}';";
+    auto result = db.select(fmt::format(sql_find, name));
+    if (result.empty()) {
+      spdlog::info("Player {} not found.", name.c_str());
+      continue;
+    }
+
+    auto obj = result[0];
+    int id = atoi(obj["id"].c_str());
+    db.exec(fmt::format("DELETE FROM tempmute WHERE uid={};", id));
+    spdlog::info("Unmuted player {}.", name.c_str());
+  }
+}
+
 void Shell::whitelistCommand(StringList &list) {
   if (list.size() < 2) {
     spdlog::warn("usage: whitelist add/rm <names>...");
@@ -712,6 +821,8 @@ Shell::Shell() {
     {"banuuid", &Shell::banUuidCommand},
     {"unbanuuid", &Shell::unbanUuidCommand},
     {"tempban", &Shell::tempbanCommand},
+    {"tempmute", &Shell::tempmuteCommand},
+    {"unmute", &Shell::unmuteCommand},
     {"whitelist", &Shell::whitelistCommand},
     {"reloadconf", &Shell::reloadConfCommand},
     {"r", &Shell::reloadConfCommand},

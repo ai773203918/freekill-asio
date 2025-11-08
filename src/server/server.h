@@ -21,6 +21,7 @@ struct ServerConfig {
   std::string motd = "Welcome!";
   std::vector<std::string> hiddenPacks;
   bool enableBots = true;
+  bool enableChangeRoom = true;
   bool enableWhitelist = false;
   int roomCountPerThread = 2000;
   int maxPlayersPerDevice = 1000;
@@ -72,6 +73,7 @@ public:
 
   void temporarilyBan(int playerId);
   bool isTempBanned(const std::string_view &addr) const;
+  int isMuted(int playerId) const;
 
   void beginTransaction();
   void endTransaction();
@@ -100,7 +102,6 @@ private:
   std::unique_ptr<Shell> m_shell;
 
   io_context *main_io_ctx = nullptr;
-  std::thread::id main_thread_id;
 
   std::vector<std::string> temp_banlist;
 

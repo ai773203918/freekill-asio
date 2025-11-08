@@ -213,6 +213,7 @@ cp -r "$ROOT_DIR/freekill-asio/packages" .
 rm -f packages/.gitignore
 
 cp -r "$ROOT_DIR/freekill-asio/server" .
+cp -r "$ROOT_DIR/freekill-asio/freekill.server.config.json.example" .
 
 # 复制 CA 证书
 mkdir -p certs

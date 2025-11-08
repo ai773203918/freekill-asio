@@ -243,6 +243,10 @@ void ServerConfig::loadConf(const char* jsonStr) {
     enableBots = cJSON_IsTrue(item);
   }
 
+  if ((item = cJSON_GetObjectItem(root, "enableChangeRoom")) && cJSON_IsBool(item)) {
+    enableChangeRoom = cJSON_IsTrue(item);
+  }
+
   if ((item = cJSON_GetObjectItem(root, "enableWhitelist")) && cJSON_IsBool(item)) {
     enableWhitelist = cJSON_IsTrue(item);
   }
@@ -325,6 +329,29 @@ void Server::temporarilyBan(int playerId) {
 
 bool Server::isTempBanned(const std::string_view &addr) const {
   return (std::find(temp_banlist.begin(), temp_banlist.end(), addr) != temp_banlist.end());
+}
+
+int Server::isMuted(int playerId) const {
+  auto result = db->select(fmt::format("SELECT expireAt, type FROM tempmute WHERE uid={};", playerId));
+  if (result.empty())
+    return 0; // 0为未被禁言
+
+  auto obj = result[0];
+  auto expireAt = std::stoll(obj["expireAt"]);
+  auto now = std::chrono::duration_cast<std::chrono::seconds>(
+    std::chrono::system_clock::now().time_since_epoch()).count();
+
+  if (now > expireAt) {
+    db->exec(fmt::format("DELETE FROM tempmute WHERE uid={};", playerId));
+    return 0;
+  }
+
+  int type = 1;
+  if (obj.find("type") != obj.end() && !obj["type"].empty()) {
+    type = std::stoi(obj["type"]);
+  }
+
+  return type; // 1为完全禁言，2为禁止$开头
 }
 
 void Server::beginTransaction() {

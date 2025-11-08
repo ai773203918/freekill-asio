@@ -42,6 +42,8 @@ private:
   void unbanipCommand(StringList &);
   void unbanUuidCommand(StringList &);
   void tempbanCommand(StringList &);
+  void tempmuteCommand(StringList &);
+  void unmuteCommand(StringList &);
   void whitelistCommand(StringList &);
   void reloadConfCommand(StringList &);
   void resetPasswordCommand(StringList &);

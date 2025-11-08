@@ -64,7 +64,7 @@ awaitable<void> ServerSocket::udpListener() {
       auto &um = Server::instance().user_manager();
 
       cJSON *jsonArray = cJSON_CreateArray();
-      cJSON_AddItemToArray(jsonArray, cJSON_CreateString("0.5.11+"));
+      cJSON_AddItemToArray(jsonArray, cJSON_CreateString("0.5.14+"));
       cJSON_AddItemToArray(jsonArray, cJSON_CreateString(conf.iconUrl.c_str()));
       cJSON_AddItemToArray(jsonArray, cJSON_CreateString(conf.description.c_str()));
       cJSON_AddItemToArray(jsonArray, cJSON_CreateNumber(conf.capacity));

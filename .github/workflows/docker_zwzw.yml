@@ -117,74 +117,74 @@ jobs:
         build-args: |
           VERSION=${{ needs.check-version.outputs.version }}
 
-    # =================================================================
-    # 作业 3: 合并多架构镜像并创建最终标签 (修正版)
-    # 这个作业负责将所有成功构建的单架构镜像合并成一个统一的多架构镜像。
-    # =================================================================
-    create-manifest:
-      # 依赖于 check-version 和 build 作业
-      needs: [check-version, build]
-      # 关键设置: 即使 build 矩阵中有作业失败，此作业也始终运行。
-      # 这确保了只要有任何一个平台构建成功，我们就能尝试创建最终镜像。
-      if: always() && needs.check-version.outputs.build_needed == 'true'
-      runs-on: ubuntu-latest
-      steps:
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+  # =================================================================
+  # 作业 3: 合并多架构镜像并创建最终标签 (修正版)
+  # 这个作业负责将所有成功构建的单架构镜像合并成一个统一的多架构镜像。
+  # =================================================================
+  create-manifest:
+    # 依赖于 check-version 和 build 作业
+    needs: [check-version, build]
+    # 关键设置: 即使 build 矩阵中有作业失败，此作业也始终运行。
+    # 这确保了只要有任何一个平台构建成功，我们就能尝试创建最终镜像。
+    if: always() && needs.check-version.outputs.build_needed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Create and push multi-arch manifest (Robust Version)
-        run: |
-          # 从 check-version 作业获取版本号
-          VERSION="${{ needs.check-version.outputs.version }}"
-          DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
-          IMAGE_NAME="$DOCKERHUB_USERNAME/freekill-asio"
-          
-          # 定义所有可能存在的架构标签列表
-          ALL_TAGS=(
-            "$IMAGE_NAME:$VERSION-amd64"
-            "$IMAGE_NAME:$VERSION-arm64v8"
-            "$IMAGE_NAME:$VERSION-arm32v7"
-            "$IMAGE_NAME:$VERSION-arm32v6"
-            "$IMAGE_NAME:$VERSION-i386"
-          )
-          
-          # 创建一个空数组，用于存放实际存在的标签
-          VALID_TAGS=()
-          
-          echo "Checking for successfully built images..."
-          
-          # 遍历所有可能的标签
-          for TAG in "${ALL_TAGS[@]}"; do
-            # 使用 docker buildx imagetools inspect 检查标签是否存在
-            # 如果镜像不存在，此命令会返回一个非零的退出码
-            if docker buildx imagetools inspect --format='{{.Manifest}}' "$TAG" > /dev/null 2>&1; then
-              echo "✅ Found: $TAG"
-              # 将存在的标签添加到 VALID_TAGS 数组中
-              VALID_TAGS+=("$TAG")
-            else
-              echo "❌ Not found: $TAG, skipping."
-            fi
-          done
-          
-          # 检查是否找到了任何有效的标签
-          if [ ${#VALID_TAGS[@]} -eq 0 ]; then
-            echo "Error: No images were successfully built. Cannot create manifest."
-            exit 1 # 如果没有镜像，则失败，这使得整个工作流失败，这是正确的行为
+    - name: Create and push multi-arch manifest (Robust Version)
+      run: |
+        # 从 check-version 作业获取版本号
+        VERSION="${{ needs.check-version.outputs.version }}"
+        DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+        IMAGE_NAME="$DOCKERHUB_USERNAME/freekill-asio"
+        
+        # 定义所有可能存在的架构标签列表
+        ALL_TAGS=(
+          "$IMAGE_NAME:$VERSION-amd64"
+          "$IMAGE_NAME:$VERSION-arm64v8"
+          "$IMAGE_NAME:$VERSION-arm32v7"
+          "$IMAGE_NAME:$VERSION-arm32v6"
+          "$IMAGE_NAME:$VERSION-i386"
+        )
+        
+        # 创建一个空数组，用于存放实际存在的标签
+        VALID_TAGS=()
+        
+        echo "Checking for successfully built images..."
+        
+        # 遍历所有可能的标签
+        for TAG in "${ALL_TAGS[@]}"; do
+          # 使用 docker buildx imagetools inspect 检查标签是否存在
+          # 如果镜像不存在，此命令会返回一个非零的退出码
+          if docker buildx imagetools inspect --format='{{.Manifest}}' "$TAG" > /dev/null 2>&1; then
+            echo "✅ Found: $TAG"
+            # 将存在的标签添加到 VALID_TAGS 数组中
+            VALID_TAGS+=("$TAG")
+          else
+            echo "❌ Not found: $TAG, skipping."
           fi
-          
-          echo "-----------------------------------------"
-          echo "Creating manifest with the following tags:"
-          printf '  %s\n' "${VALID_TAGS[@]}"
-          echo "-----------------------------------------"
-          
-          # 使用找到的有效标签创建并推送多架构清单
-          # 这次我们传递给命令的标签都是确定存在的，所以命令一定会成功
-          docker buildx imagetools create \
-            -t "$IMAGE_NAME:$VERSION" \
-            -t "$IMAGE_NAME:latest" \
-            "${VALID_TAGS[@]}"
-          
-          echo "Successfully created manifest for $IMAGE_NAME:$VERSION and $IMAGE_NAME:latest"
+        done
+        
+        # 检查是否找到了任何有效的标签
+        if [ ${#VALID_TAGS[@]} -eq 0 ]; then
+          echo "Error: No images were successfully built. Cannot create manifest."
+          exit 1 # 如果没有镜像，则失败，这使得整个工作流失败，这是正确的行为
+        fi
+        
+        echo "-----------------------------------------"
+        echo "Creating manifest with the following tags:"
+        printf '  %s\n' "${VALID_TAGS[@]}"
+        echo "-----------------------------------------"
+        
+        # 使用找到的有效标签创建并推送多架构清单
+        # 这次我们传递给命令的标签都是确定存在的，所以命令一定会成功
+        docker buildx imagetools create \
+          -t "$IMAGE_NAME:$VERSION" \
+          -t "$IMAGE_NAME:latest" \
+          "${VALID_TAGS[@]}"
+        
+        echo "Successfully created manifest for $IMAGE_NAME:$VERSION and $IMAGE_NAME:latest"

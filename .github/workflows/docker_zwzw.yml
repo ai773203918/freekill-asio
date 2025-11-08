@@ -8,11 +8,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  # 第一步：检查版本和是否需要构建
+  # =================================================================
+  # 作业 1: 检查版本和是否需要构建
+  # 这个作业作为入口，获取信息并决定后续流程。
+  # =================================================================
   check-version:
     runs-on: ubuntu-latest
+    # 定义输出变量，供其他作业使用
     outputs:
-      # 将版本号和构建标志传递给其他作业
       version: ${{ steps.get_version.outputs.version }}
       build_needed: ${{ steps.get_version.outputs.build_needed }}
     steps:
@@ -45,26 +48,29 @@ jobs:
           fi
         fi
 
-  # 第二步：使用矩阵为每个平台构建独立的镜像
+  # =================================================================
+  # 作业 2: 并行构建各平台镜像
+  # 使用矩阵策略为每个目标平台创建一个独立的构建任务。
+  # =================================================================
   build:
-    # 依赖于 check-version 作业
+    # 依赖于 check-version 作业，并使用其输出
     needs: check-version
-    # 只有在需要构建时才运行
+    # 只有在需要构建时才运行此作业
     if: needs.check-version.outputs.build_needed == 'true'
     runs-on: ubuntu-latest
-    # 关键设置1：定义作业矩阵
+    # 关键设置 1: 矩阵策略
     strategy:
-      # 关键设置2：允许某个平台失败，其他平台继续构建
+      # 关键设置 2: 允许失败，不因单个平台失败而终止其他平台的构建
       fail-fast: false
       matrix:
-        # 定义你想要构建的平台
+        # 定义需要构建的平台列表
         platform:
           - linux/amd64
           - linux/arm64
           - linux/arm/v7
           - linux/arm/v6
           - linux/386
-        # 为每个平台定义一个用于标签的简短架构名
+        # 为每个平台定义一个用于标签的简短架构名，便于后续识别
         include:
           - platform: linux/amd64
             arch: amd64
@@ -82,11 +88,13 @@ jobs:
       uses: actions/checkout@v3
       
     - name: Set up QEMU
+      # 用于模拟非 x86 架构，是跨平台构建的必要组件
       uses: docker/setup-qemu-action@v2
       with:
         platforms: ${{ matrix.platform }}
       
     - name: Set up Docker Buildx
+      # Docker Buildx 是用于构建多平台镜像的工具
       uses: docker/setup-buildx-action@v2
       
     - name: Login to Docker Hub
@@ -100,21 +108,25 @@ jobs:
       with:
         context: .
         push: true
-        # 关键设置3：为每个架构打一个唯一的标签，例如: v1.0.0-amd64
+        # 关键设置 3: 为每个架构打一个唯一的、临时的标签。
+        # 例如: v1.0.0-amd64, v1.0.0-arm64v8
+        # 这些标签是中间产物，用于下一步的合并。
         tags: |
           ${{ secrets.DOCKERHUB_USERNAME }}/freekill-asio:${{ needs.check-version.outputs.version }}-${{ matrix.arch }}
         platforms: ${{ matrix.platform }}
         build-args: |
           VERSION=${{ needs.check-version.outputs.version }}
-        # 加载到 buildx 以便后续创建清单
-        load: false 
 
-  # 第三步：创建并推送多架构清单
+  # =================================================================
+  # 作业 3: 合并多架构镜像并创建最终标签
+  # 这个作业负责将所有成功构建的单架构镜像合并成一个统一的多架构镜像。
+  # =================================================================
   create-manifest:
     # 依赖于 check-version 和 build 作业
     needs: [check-version, build]
-    # 只有在需要构建时才运行
-    if: needs.check-version.outputs.build_needed == 'true'
+    # 关键设置 4: 即使 build 矩阵中有作业失败，此作业也始终运行。
+    # 这确保了只要有任何一个平台构建成功，我们就能尝试创建最终镜像。
+    if: always() && needs.check-version.outputs.build_needed == 'true'
     runs-on: ubuntu-latest
     steps:
     - name: Login to Docker Hub
@@ -123,14 +135,14 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-    - name: Create and push manifest
+    - name: Create and push multi-arch manifest
       run: |
-        # 从 needs.check-version.outputs 获取版本号
+        # 从 check-version 作业获取版本号
         VERSION="${{ needs.check-version.outputs.version }}"
         DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
         IMAGE_NAME="$DOCKERHUB_USERNAME/freekill-asio"
         
-        # 定义所有架构的标签列表
+        # 定义所有期望的单架构镜像标签列表
         TAGS=(
           "$IMAGE_NAME:$VERSION-amd64"
           "$IMAGE_NAME:$VERSION-arm64v8"
@@ -139,9 +151,14 @@ jobs:
           "$IMAGE_NAME:$VERSION-i386"
         )
         
-        # 创建清单，将所有成功的单架构镜像组合起来
-        # `imagetools create` 会忽略不存在的标签，因此即使某个平台构建失败，此命令也能成功
+        # 使用 docker buildx imagetools 创建并推送多架构清单
+        # 这个命令会读取所有存在的单架构镜像，并将它们“打包”到一个统一的标签下。
+        # 关键特性: 如果某个标签（例如 arm32v6 构建失败）不存在，此命令会发出警告但不会失败，
+        #           它会继续使用其他存在的标签来创建清单。
+        #           这完美实现了“失败的忽略，成功的正常推送”。
         docker buildx imagetools create \
           -t "$IMAGE_NAME:$VERSION" \
           -t "$IMAGE_NAME:latest" \
           "${TAGS[@]}"
+        
+        echo "Successfully created manifest for $IMAGE_NAME:$VERSION and $IMAGE_NAME:latest"

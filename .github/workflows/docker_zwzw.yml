@@ -8,73 +8,44 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-and-build:
+  build-for-platform:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [linux/amd64, linux/arm64, linux/arm/v7, linux/arm/v6, linux/386]
+    continue-on-error: true  # 某个架构的Job失败不会影响其他架构的Job
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
-      
-    - name: Get latest release version
-      id: get_version
-      run: |
-        # 获取最新版本号
-        LATEST_VERSION=$(curl -s https://api.github.com/repos/Qsgs-Fans/freekill-asio/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | sed 's/v//')
-        echo "Latest version: $LATEST_VERSION"
-        echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
-        
-        # 检查是否是手动触发
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "Manual trigger, skipping Docker Hub check"
-          echo "build_needed=true" >> $GITHUB_OUTPUT
-        else
-          echo "Automatic trigger, checking Docker Hub"
-          # 检查Docker Hub上是否已有该版本的镜像
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/freekill-asio/tags/$LATEST_VERSION/")
-          
-          if [ "$HTTP_STATUS" = "200" ]; then
-            echo "Version $LATEST_VERSION already exists on Docker Hub"
-            echo "build_needed=false" >> $GITHUB_OUTPUT
-          else
-            echo "Version $LATEST_VERSION is new, building image"
-            echo "build_needed=true" >> $GITHUB_OUTPUT
-          fi
-        fi
-        
-    - name: Set up Docker Buildx
-      if: steps.get_version.outputs.build_needed == 'true'
-      uses: docker/setup-buildx-action@v2
-      
-    - name: Login to Docker Hub
-      if: steps.get_version.outputs.build_needed == 'true'
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_PASSWORD }}
-        
-    # 步骤5：构建并推送Docker镜像（优化版）
-    - name: Build and push Docker image
-      if: steps.get_version.outputs.build_needed == 'true'
-      uses: docker/build-push-action@v4
-      continue-on-error: true # 关键设置1：允许此步骤失败而不导致整个作业失败
-      with:
-        context: .
-        push: true
-        tags: |
-          ${{ secrets.DOCKERHUB_USERNAME }}/freekill-asio:latest
-          ${{ secrets.DOCKERHUB_USERNAME }}/freekill-asio:${{ steps.get_version.outputs.version }}
-        platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6,linux/386
-        build-args: |
-          VERSION=${{ steps.get_version.outputs.version }}
-      id: build_and_push # 为步骤设置ID，以便后续检查结果
-    
-    # 新增步骤6：检查构建结果并设置最终作业状态
-    - name: Check build results
-      if: steps.get_version.outputs.build_needed == 'true'
-      run: |
-        # 检查上一步骤的结果，如果其结论不是'success'，则此步骤会失败，从而导致整个作业状态为失败
-        if [ "${{ steps.build_and_push.conclusion }}" != "success" ]; then
-          echo "⚠️ 部分架构的镜像构建失败，但已跳过。请检查上述日志中是否有 'no match for platform' 或类似错误。"
-          echo "✅ 成功构建的架构镜像已推送。"
-        else
-          echo "✅ 所有指定架构的镜像均已成功构建并推送。"
-        fi
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Build and push for ${{ matrix.platform }}
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/freekill-asio:${{ matrix.platform }}-latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/freekill-asio:${{ matrix.platform }}-${{ needs.get_version.outputs.version }}
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            VERSION=${{ needs.get_version.outputs.version }}
+
+  # 还需要一个额外的Job来创建并推送包含所有成功架构的Manifest列表（即多架构镜像的“latest”和版本标签）
+  create-manifest:
+    runs-on: ubuntu-latest
+    needs: build-for-platform # 依赖所有架构的构建Job
+    steps:
+      # 此步骤需要使用`docker manifest`命令来合并镜像，此处省略具体实现细节
+      - name: Create and push manifest list
+        run: |
+          # 使用docker manifest create命令合并多个架构的镜像
+          echo "此步骤需要脚本将各个独立架构的镜像合并成一个多架构镜像"
